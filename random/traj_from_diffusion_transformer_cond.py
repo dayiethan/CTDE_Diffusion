@@ -241,6 +241,39 @@ def compute_action_diff(alphas_bar, alphas, betas, denoiser, initial_state, fina
             u_out = (1/np.sqrt(alphas[t-1]))*(u_out - (1-alphas[t-1])* denoiser(u_out, torch.tensor([[t-1]]).float() )/(np.sqrt(1-alphas_bar[t-1]))) + torch.sqrt(sigma_sq)*z
     return u_out
 
+# def compute_action_diff(alphas_bar, alphas, betas, denoiser, initial_state, final_state):
+#     alpha_bar = torch.prod(1 - betas)
+#     u0 = torch.randn((1, 100, 6)) * torch.sqrt(1 - alpha_bar) + torch.sqrt(alpha_bar)
+    
+#     # Set initial and final positions directly
+#     u0[:, 0, :] = torch.tensor(initial_state).float()
+#     u0[:, -1, :] = torch.tensor(final_state).float()
+#     u_out = u0
+
+#     for t in range(len(alphas_bar), 0, -1):
+#         if t > 1:
+#             z = torch.randn_like(u0)
+#         else:
+#             z = 0
+
+#         sigma_sq = betas[t-1] * (1 - alphas_bar[t-1] / alphas[t-1]) / (1 - alphas_bar[t-1])
+
+#         with torch.no_grad():
+#             denoised = denoiser(u_out, torch.tensor([[t - 1]]).float())
+
+#             # Update trajectory with weighted conditioning on initial and final states
+#             u_out = (1 / np.sqrt(alphas[t-1])) * (
+#                 u_out - (1 - alphas[t-1]) * denoised / np.sqrt(1 - alphas_bar[t-1])
+#             ) + torch.sqrt(sigma_sq) * z
+
+#             # **Conditioning step**: Blend initial and final states back in to enforce adherence
+#             blend_ratio = (len(alphas_bar) - t + 1) / len(alphas_bar)  # Gradually decrease blending ratio
+#             u_out[:, 0, :] = blend_ratio * torch.tensor(initial_state).float() + (1 - blend_ratio) * u_out[:, 0, :]
+#             u_out[:, -1, :] = blend_ratio * torch.tensor(final_state).float() + (1 - blend_ratio) * u_out[:, -1, :]
+
+#     return u_out
+
+
 def wrap_to_pi(angle):
     """
     Wrap an angle to the range (-pi, pi].
