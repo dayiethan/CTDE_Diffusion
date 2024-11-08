@@ -1,0 +1,4 @@
+# Ignore all .pth files in the checkpoints folders
+base/checkpoints/*.pth
+random/checkpoints/*.pth
+random/checkpoints/*/*.pth
