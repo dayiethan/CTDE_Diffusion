@@ -168,7 +168,7 @@ np.savetxt("data/max_traj_array.csv", max_traj_array, delimiter=",")
 
 trajectory = trajectory/max_traj_array
 
-trajectory = (trajectory).reshape(-1, 100, 10)
+trajectory = (trajectory).reshape(-1, 1000, 10)
 
 print(trajectory.shape)
 
@@ -180,7 +180,7 @@ betas = torch.tensor([0.001, 0.005, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35,
 
 denoiser = DiT1d(x_dim=6, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
 
-denoiser.load_state_dict(torch.load('checkpoints/unet_diff_tran_epoch499.pth'))
+# denoiser.load_state_dict(torch.load('checkpoints/unet_diff_tran_epoch499.pth'))
 
 state_dim = 6   # e.g., state vector of size 10
 action_dim = 4   # e.g., action vector of size 5

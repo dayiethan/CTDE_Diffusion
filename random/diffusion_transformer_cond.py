@@ -160,7 +160,7 @@ class DiT1d(nn.Module):
 
 #load data
 
-trajectory = np.loadtxt("data/full_traj_rand.csv",delimiter=",", dtype=float)
+trajectory = np.loadtxt("data/full_traj_rand_10000.csv",delimiter=",", dtype=float)
 
 max_traj_array = np.max(trajectory, axis=0)
 
@@ -168,7 +168,7 @@ np.savetxt("data/max_traj_array_rand.csv", max_traj_array, delimiter=",")
 
 trajectory = trajectory/max_traj_array
 
-trajectory = (trajectory).reshape(-1, 100, 10)
+trajectory = (trajectory).reshape(-1, 10000, 10)
 
 print(trajectory.shape)
 

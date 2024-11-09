@@ -2,3 +2,4 @@
 base/checkpoints/*.pth
 random/checkpoints/*.pth
 random/checkpoints/*/*.pth
+random/data/full_traj_rand_10000.csv

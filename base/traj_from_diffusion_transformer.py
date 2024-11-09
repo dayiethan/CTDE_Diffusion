@@ -184,7 +184,7 @@ np.savetxt("data/max_traj_array.csv", max_traj_array, delimiter=",")
 
 trajectory = trajectory/max_traj_array
 
-trajectory = (trajectory).reshape(-1, 100, 10)
+trajectory = (trajectory).reshape(-1, 1000, 10)
 
 print(trajectory.shape)
 
@@ -211,7 +211,7 @@ if not os.path.exists(folder_path):
 
 # load the model
 
-denoiser.load_state_dict(torch.load("checkpoints/unet_diff_tran_epoch1999.pth"))
+denoiser.load_state_dict(torch.load("checkpoints/unet_diff_tran_best.pth"))
 
 def compute_action_diff(alphas_bar, alphas, betas, denoiser):
     alpha_bar = torch.prod(1 - betas)
@@ -334,7 +334,7 @@ def main():
         return line,line2
 
     anim = FuncAnimation(fig, animate, frames=traj.shape[0], interval=40)
-    anim.save('figs/test_trajectory_animation_selftrain.gif')
+    anim.save('figs/test_trajectory_animation.gif')
     plt.show()
 
     #animate trajectory
