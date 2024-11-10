@@ -168,7 +168,7 @@ np.savetxt("data/max_traj_array.csv", max_traj_array, delimiter=",")
 
 trajectory = trajectory/max_traj_array
 
-trajectory = (trajectory).reshape(-1, 1000, 10)
+trajectory = (trajectory).reshape(-1, 500, 10)
 
 print(trajectory.shape)
 

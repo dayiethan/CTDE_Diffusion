@@ -334,7 +334,7 @@ def main():
         return line,line2
 
     anim = FuncAnimation(fig, animate, frames=traj.shape[0], interval=40)
-    anim.save('figs/test_trajectory_animation.gif')
+    anim.save('figs/test_trajectory_animation_500.gif')
     plt.show()
 
     #animate trajectory
