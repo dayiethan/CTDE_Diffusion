@@ -194,7 +194,8 @@ batch_size = 2
 # betas = torch.tensor([0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.6, 0.8, 0.999])
 betas = torch.tensor([0.001, 0.005, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.999])
 
-denoiser = DiT1d(x_dim=6, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
+denoiser1 = DiT1d(x_dim=6, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
+denoiser2 = DiT1d(x_dim=6, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
 
 state_dim = 6   # e.g., state vector of size 10
 action_dim = 4   # e.g., action vector of size 5
@@ -211,7 +212,8 @@ if not os.path.exists(folder_path):
 
 # load the model
 
-denoiser.load_state_dict(torch.load("checkpoints/unet_diff_tran_best.pth"))
+denoiser1.load_state_dict(torch.load("checkpoints/unet1_diff_tran_epoch499.pth"))
+denoiser2.load_state_dict(torch.load("checkpoints/unet1_diff_tran_epoch499.pth"))
 
 def compute_action_diff(alphas_bar, alphas, betas, denoiser):
     alpha_bar = torch.prod(1 - betas)
@@ -239,7 +241,8 @@ def compute_action_diff(alphas_bar, alphas, betas, denoiser):
     return u_out
 
 
-u_out = compute_action_diff(alphas_bar, alphas, betas, denoiser)
+u_out1 = compute_action_diff(alphas_bar, alphas, betas, denoiser1)
+u_out2 = compute_action_diff(alphas_bar, alphas, betas, denoiser2)
 
 def wrap_to_pi(angle):
     """
@@ -288,9 +291,11 @@ def main():
     dt = 0.1
     timesteps = int(time_horizon/dt)
 
-    traj = np.zeros((101,10))
+    traj1 = np.zeros((101,10))
+    traj2 = np.zeros((101,10))
 
-    traj[0,4:] = x0
+    traj1[0,4:] = x0
+    traj2[0,4:] = x0
 
     max_traj_array = np.loadtxt("data/max_traj_array.csv", delimiter=",")
 
@@ -299,20 +304,22 @@ def main():
     action_normalization_arr = max_traj_array[0:4]
     state_normalization_arr = max_traj_array[4:]
 
-    traj = u_out.squeeze().detach().numpy()
+    traj1 = u_out1.squeeze().detach().numpy()
+    traj2 = u_out2.squeeze().detach().numpy()
 
-    print(traj.shape) 
+    # print(traj.shape) 
 
     for i in range(6):
-        traj[:,i] = traj[:,i]*state_normalization_arr[i]
+        traj1[:,i] = traj1[:,i]*state_normalization_arr[i]
+        traj2[:,i] = traj2[:,i]*state_normalization_arr[i]
 
     # for t in range(timesteps):
     #     state = torch.tensor(np.array([traj[t,4:]/state_normalization_arr])).float()
     #     traj[t,0:4] = actions[:,t]
     #     traj[t+1,4:] = two_unicycle_dynamics(traj[t,4:],traj[t,0:4],dt)
 
-    plt.plot(traj[:,0],traj[:,1],label="Agent 1")
-    plt.plot(traj[:,3],traj[:,4],label="Agent 2")
+    plt.plot(traj1[:,0],traj1[:,1],label="Agent 1")
+    plt.plot(traj2[:,3],traj2[:,4],label="Agent 2")
     plt.legend()
     plt.show()
 
@@ -327,14 +334,14 @@ def main():
 
 
     def animate(n):
-        line.set_xdata(traj[:n, 0])
-        line.set_ydata(traj[:n, 1])
-        line2.set_xdata(traj[:n, 3])
-        line2.set_ydata(traj[:n, 4])
+        line.set_xdata(traj1[:n, 0])
+        line.set_ydata(traj1[:n, 1])
+        line2.set_xdata(traj2[:n, 3])
+        line2.set_ydata(traj2[:n, 4])
         return line,line2
 
-    anim = FuncAnimation(fig, animate, frames=traj.shape[0], interval=40)
-    anim.save('figs/test_trajectory_animation_500.gif')
+    anim = FuncAnimation(fig, animate, frames=traj1.shape[0], interval=40)
+    anim.save('figs/test_trajectory_animation.gif')
     plt.show()
 
     #animate trajectory

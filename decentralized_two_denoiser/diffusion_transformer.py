@@ -168,7 +168,7 @@ np.savetxt("data/max_traj_array.csv", max_traj_array, delimiter=",")
 
 trajectory = trajectory/max_traj_array
 
-trajectory = (trajectory).reshape(-1, 500, 10)
+trajectory = (trajectory).reshape(-1, 200, 10)
 
 print(trajectory.shape)
 
@@ -178,7 +178,8 @@ batch_size = 2
 # betas = torch.tensor([0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.6, 0.8, 0.999])
 betas = torch.tensor([0.001, 0.005, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.999])
 
-denoiser = DiT1d(x_dim=6, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
+denoiser1 = DiT1d(x_dim=6, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
+denoiser2 = DiT1d(x_dim=6, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
 
 # denoiser.load_state_dict(torch.load('checkpoints/unet_diff_tran_epoch499.pth'))
 
@@ -194,7 +195,8 @@ batch_size = 32
 lr = 1e-3
 
 losses = np.zeros(nb_epochs)
-optimizer = torch.optim.Adam(denoiser.parameters(), lr)
+optimizer1 = torch.optim.Adam(denoiser1.parameters(), lr)
+optimizer2 = torch.optim.Adam(denoiser2.parameters(), lr)
 
 folder_path = "checkpoints"
 
@@ -222,18 +224,22 @@ for epoch in tqdm(range(nb_epochs), desc="Training Progress"):
 
     x_noised = x_noised*torch.sqrt(alphas_bar[t]).unsqueeze(-1) + eps*torch.sqrt(1-alphas_bar[t]).unsqueeze(-1)
 
-    pred = denoiser(x_noised, t.float())
+    pred1 = denoiser1(x_noised, t.float())
+    pred2 = denoiser2(x_noised, t.float())
 
-    loss = torch.linalg.vector_norm(eps - pred)
+    loss = torch.linalg.vector_norm(eps - pred1) + torch.linalg.vector_norm(eps - pred2)
 
     if loss.detach().item() < 3:
         print("Loss:",loss.detach().item())
         print("Epoch:",epoch)
-        torch.save(denoiser.state_dict(), 'checkpoints/unet_diff_tran_epoch'+str(epoch)+'.pth')
+        torch.save(denoiser1.state_dict(), 'checkpoints/unet1_diff_tran_epoch'+str(epoch)+'.pth')
+        torch.save(denoiser2.state_dict(), 'checkpoints/unet2_diff_tran_epoch'+str(epoch)+'.pth')
 
-    optimizer.zero_grad()
+    optimizer1.zero_grad()
+    optimizer2.zero_grad()
     loss.backward()
-    optimizer.step()
+    optimizer1.step()
+    optimizer2.step()
     losses[epoch] = loss.detach().item()
 
     if epoch%100 == 0:
@@ -241,7 +247,8 @@ for epoch in tqdm(range(nb_epochs), desc="Training Progress"):
         print("Loss:",losses[epoch])
 
     if (epoch+1)%500 == 0:
-        torch.save(denoiser.state_dict(), 'checkpoints/unet_diff_tran_epoch'+str(epoch)+'.pth')
+        torch.save(denoiser1.state_dict(), 'checkpoints/unet1_diff_tran_epoch'+str(epoch)+'.pth')
+        torch.save(denoiser2.state_dict(), 'checkpoints/unet2_diff_tran_epoch'+str(epoch)+'.pth')
 
     if losses[epoch] < 3:
         lr = 1e-4
@@ -251,4 +258,5 @@ plt.plot(np.arange(nb_epochs), losses)
 # plt.ylim(0, 100)
 plt.show()
 
-torch.save(denoiser.state_dict(), 'checkpoints/unet_diff_tran_final.pth')
+torch.save(denoiser1.state_dict(), 'checkpoints/unet1_diff_tran_final.pth')
+torch.save(denoiser2.state_dict(), 'checkpoints/unet2_diff_tran_final.pth')
