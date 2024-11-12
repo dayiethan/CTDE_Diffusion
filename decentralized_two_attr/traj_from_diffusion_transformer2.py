@@ -51,6 +51,21 @@ class DiscreteCondEmbedder(nn.Module):
 
 def modulate(x, shift, scale):
     return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
+
+# class TimeEmbedding(nn.Module):
+#     def __init__(self, dim: int):
+#         super().__init__()
+#         self.dim = dim
+#         self.mlp = nn.Sequential(
+#             nn.Linear(dim // 4, dim), nn.Mish(), nn.Linear(dim, dim))
+#     def forward(self, x: torch.Tensor):
+#         device = x.device
+#         half_dim = self.dim // 8
+#         emb = math.log(10000) / (half_dim - 1)
+#         emb = torch.exp(torch.arange(half_dim, device=device) * -emb)
+#         emb = x[:, None] * emb[None, :]
+#         emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
+#         return self.mlp(emb)
     
 class TimeEmbedding(nn.Module):
     def __init__(self, dim: int):
@@ -157,11 +172,6 @@ class DiT1d(nn.Module):
         x = self.final_layer(x, t)
         return x
 
-def generate_random_mask(n, p):
-    while True:
-        cond_mask = np.random.choice([0, 1], size=n, p=[1-p, p])
-        if np.any(cond_mask): return cond_mask
-
 #real distribution
 
 #load data
@@ -203,97 +213,92 @@ if not os.path.exists(folder_path):
 
 denoiser.load_state_dict(torch.load("checkpoints/unet_diff_tran_final.pth"))
 
-# def compute_action_diff(alphas_bar, alphas, betas, denoiser):
-#     alpha_bar = torch.prod(1 - betas)
-#     u0 = torch.randn((1,100,6))*torch.sqrt(1 - alpha_bar) + torch.sqrt(alpha_bar)
-#     u_out = u0
-
-#     for t in range(len(alphas_bar),0,-1):
-#         if t>1:
-#             z = torch.randn_like(u0) 
-#         else:
-#             z = 0
-#         sigma_sq = betas[t-1] * (1 - alphas_bar[t-1]/alphas[t-1])/(1 - alphas_bar[t-1])
-#         with torch.no_grad():
-#             u_out = (1/np.sqrt(alphas[t-1]))*(u_out - (1-alphas[t-1])* denoiser(u_out, torch.tensor([[t-1]]).float() )/(np.sqrt(1-alphas_bar[t-1]))) + torch.sqrt(sigma_sq)*z
-#     return u_out
-
-def compute_action_diff(alphas_bar, alphas, betas, denoiser):
-    attr = torch.randint(0, 100, (batch_size, 2))  # Randomly choose values for each agent
-    mask = torch.ones_like(attr).int()  # Assume all attributes are active
+def compute_action_diff(alphas_bar, alphas, betas, denoiser, attr):
     alpha_bar = torch.prod(1 - betas)
-    u0 = torch.randn((batch_size,100,6))*torch.sqrt(1 - alpha_bar) + torch.sqrt(alpha_bar)
+    
+    # Initialize noisy trajectory
+    u0 = torch.randn((1, 100, 6)) * torch.sqrt(1 - alpha_bar) + torch.sqrt(alpha_bar)
     u_out = u0
 
-    for t in range(len(alphas_bar),0,-1):
-        if t>1:
+    for t in range(len(alphas_bar), 0, -1):
+        if t > 1:
             z = torch.randn_like(u0) 
         else:
             z = 0
-        sigma_sq = betas[t-1] * (1 - alphas_bar[t-1]/alphas[t-1])/(1 - alphas_bar[t-1])
+        sigma_sq = betas[t-1] * (1 - alphas_bar[t-1] / alphas[t-1]) / (1 - alphas_bar[t-1])
+
         with torch.no_grad():
-            u_out = (1/np.sqrt(alphas[t-1]))*(u_out - (1-alphas[t-1])* denoiser(u_out, torch.tensor([[t-1],[t-1]]).float(), attr=attr, mask=mask)/(np.sqrt(1-alphas_bar[t-1]))) + torch.sqrt(sigma_sq)*z
+            # Conditioning each step on the attribute tensor
+            u_out = (1 / np.sqrt(alphas[t-1])) * (
+                u_out - (1 - alphas[t-1]) * denoiser(u_out, torch.tensor([[t-1]]).float(), attr=attr) / np.sqrt(1 - alphas_bar[t-1])
+            ) + torch.sqrt(sigma_sq) * z
+
     return u_out
 
 
-u_out = compute_action_diff(alphas_bar, alphas, betas, denoiser)
+# u_out = compute_action_diff(alphas_bar, alphas, betas, denoiser)
 
 def main():
     n_x = 6
     n_u = 4
     n_g = 1
-    x0 = np.array([0.0,0.0,0.0,20.0,0.0,np.pi])
+    x0 = np.array([0.0, 0.0, 0.0, 20.0, 0.0, np.pi])
 
     time_horizon = 10
     dt = 0.1
-    timesteps = int(time_horizon/dt)
+    timesteps = int(time_horizon / dt)
 
-    traj = np.zeros((101,10))
-
-    traj[0,4:] = x0
+    traj = np.zeros((101, 10))
+    traj[0, 4:] = x0
 
     max_traj_array = np.loadtxt("data/max_traj_array.csv", delimiter=",")
-
     print(max_traj_array)
 
     action_normalization_arr = max_traj_array[0:4]
     state_normalization_arr = max_traj_array[4:]
 
+    # Define attributes for both agents (one attribute per agent)
+    attr = torch.tensor([[50, 75]])  # For example, 50 for Agent 1 and 75 for Agent 2
+
+    # Generate the trajectory using the conditioned denoiser
+    u_out = compute_action_diff(alphas_bar, alphas, betas, denoiser, attr)
     traj = u_out.squeeze().detach().numpy()
 
-    print(traj.shape) 
+    print(traj.shape)
 
+    # Denormalize the generated trajectory
     for i in range(6):
-        traj[:,i] = traj[:,i]*state_normalization_arr[i]
+        traj[:, i] = traj[:, i] * state_normalization_arr[i]
 
-    plt.plot(traj[:,0],traj[:,1],label="Agent 1")
-    plt.plot(traj[:,3],traj[:,4],label="Agent 2")
+    # Plotting trajectories
+    plt.plot(traj[:, 0], traj[:, 1], label="Agent 1")
+    plt.plot(traj[:, 3], traj[:, 4], label="Agent 2")
     plt.legend()
     plt.show()
 
+    # Animation setup
     fig = plt.figure()
     ax = plt.axes(xlim=(-1.5, 20.5), ylim=(-2, 2))
-    line, = ax.plot([], [], lw=2, color = 'blue',label="Agent 1")
-    line2, = ax.plot([], [], lw=2, color = 'orange',label="Agent 2")
+    line, = ax.plot([], [], lw=2, color='blue', label="Agent 1")
+    line2, = ax.plot([], [], lw=2, color='orange', label="Agent 2")
     plt.legend(frameon=False)
-    #turn of top and right splines
+
+    # Turn off top and right splines
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-
+    # Animation function
     def animate(n):
         line.set_xdata(traj[:n, 0])
         line.set_ydata(traj[:n, 1])
         line2.set_xdata(traj[:n, 3])
         line2.set_ydata(traj[:n, 4])
-        return line,line2
+        return line, line2
 
+    # Save animation
     anim = FuncAnimation(fig, animate, frames=traj.shape[0], interval=40)
-    anim.save('figs/test_trajectory_animation_500.gif')
+    anim.save('figs/test_trajectory_animation.gif')
     plt.show()
 
-    #animate trajectory
-
-
-if(__name__ == '__main__'):
+if __name__ == '__main__':
     main()
