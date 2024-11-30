@@ -161,6 +161,7 @@ class DiT1d(nn.Module):
 #load data
 
 trajectory = np.loadtxt("data/full_traj.csv",delimiter=",", dtype=float)
+print(trajectory.shape)
 
 max_traj_array = np.max(trajectory, axis=0)
 
@@ -224,6 +225,11 @@ for epoch in tqdm(range(nb_epochs), desc="Training Progress"):
 
     x_noised = x_noised*torch.sqrt(alphas_bar[t]).unsqueeze(-1) + eps*torch.sqrt(1-alphas_bar[t]).unsqueeze(-1)
 
+    print(x_noised.shape)
+    print(t.shape)
+
+    import sys
+    sys.exit()
     pred1 = denoiser1(x_noised, t.float())
     pred2 = denoiser2(x_noised, t.float())
 
