@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
@@ -209,6 +210,14 @@ y_down = [point[1] for point in first_trajectory_down]
 expert_data_up = np.array(expert_data_up)
 expert_data_down = np.array(expert_data_down)
 
+# Compute mean and standard deviation
+mean = np.mean(np.concatenate((expert_data_up, expert_data_down)), axis=(0,1))
+std = np.std(np.concatenate((expert_data_up, expert_data_down)), axis=(0,1))
+
+# Normalize data
+expert_data_up = (expert_data_up - mean) / std
+expert_data_down = (expert_data_down - mean) / std
+
 
 
 # Prepare Data for Training
@@ -245,75 +254,82 @@ max_steps = len(betas) # Maximum diffusion steps
 alphas = 1 - betas
 alphas_bar = torch.cumprod(alphas, 0)
 num_epochs = 2000
-batch_size = 2
-batch_size = 32
+batch_size = 64
 lr = 1e-3
 
 losses = np.zeros(num_epochs)
 optimizer1 = torch.optim.Adam(denoiser1.parameters(), lr)
 optimizer2 = torch.optim.Adam(denoiser2.parameters(), lr)
+scheduler1 = torch.optim.lr_scheduler.StepLR(optimizer1, step_size=500, gamma=0.1)
+scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer2, step_size=500, gamma=0.1)
 
-for epoch in range(num_epochs):
-    t = torch.randint(0, max_steps, (batch_size, 1))
-    integers = torch.randint(0, num_trajectories, (batch_size,))
-    x01 = torch.tensor(expert_data_up[integers]).float()
-    x02 = torch.tensor(expert_data_down[integers]).float()
-    eps1 = torch.randn_like(x01)
-    eps2 = torch.randn_like(x02)
-    x_noised1  = x01
-    x_noised2  = x02
-    x_noised1 = x_noised1*torch.sqrt(alphas_bar[t]).unsqueeze(-1) + eps1*torch.sqrt(1-alphas_bar[t]).unsqueeze(-1)
-    x_noised2 = x_noised2*torch.sqrt(alphas_bar[t]).unsqueeze(-1) + eps2*torch.sqrt(1-alphas_bar[t]).unsqueeze(-1)
 
-    pred1 = denoiser1(x_noised1, t.float())
-    pred2 = denoiser2(x_noised2, t.float())
+# for epoch in range(num_epochs):
+#     t = torch.randint(0, max_steps, (batch_size, 1))
+#     integers = torch.randint(0, num_trajectories, (batch_size,))
+#     x01 = torch.tensor(expert_data_up[integers]).float()
+#     x02 = torch.tensor(expert_data_down[integers]).float()
+#     eps1 = torch.randn_like(x01)
+#     eps2 = torch.randn_like(x02)
+#     x_noised1  = x01
+#     x_noised2  = x02
+#     x_noised1 = x_noised1*torch.sqrt(alphas_bar[t]).unsqueeze(-1) + eps1*torch.sqrt(1-alphas_bar[t]).unsqueeze(-1)
+#     x_noised2 = x_noised2*torch.sqrt(alphas_bar[t]).unsqueeze(-1) + eps2*torch.sqrt(1-alphas_bar[t]).unsqueeze(-1)
 
-    loss = torch.linalg.vector_norm(eps1 - pred1) + torch.linalg.vector_norm(eps2 - pred2)
+#     pred1 = denoiser1(x_noised1, t.float())
+#     pred2 = denoiser2(x_noised2, t.float())
 
-    if loss.detach().item() < 3:
-        print("Loss:",loss.detach().item())
-        print("Epoch:",epoch)
-        torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'.pth')
-        torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'.pth')
+#     loss = F.mse_loss(pred1, eps1) + F.mse_loss(pred2, eps2)
 
-    optimizer1.zero_grad()
-    optimizer2.zero_grad()
-    loss.backward()
-    optimizer1.step()
-    optimizer2.step()
-    losses[epoch] = loss.detach().item()
+#     # if loss.detach().item() < 3:
+#     #     print("Loss:",loss.detach().item())
+#     #     print("Epoch:",epoch)
+#     #     torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'.pth')
+#     #     torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'.pth')
 
-    if epoch%100 == 0:
-        print("Epoch:",epoch)
-        print("Loss:",losses[epoch])
+#     optimizer1.zero_grad()
+#     optimizer2.zero_grad()
+#     loss.backward()
+#     optimizer1.step()
+#     optimizer2.step()
+#     scheduler1.step()
+#     scheduler2.step()
+#     losses[epoch] = loss.detach().item()
 
-    if (epoch+1)%500 == 0:
-        torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'.pth')
-        torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'.pth')
+#     if epoch%100 == 0:
+#         print("Epoch:",epoch)
+#         print("Loss:",losses[epoch])
 
-    if losses[epoch] < 3:
-        lr = 1e-4
+#     if (epoch+1)%500 == 0:
+#         torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'.pth')
+#         torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'.pth')
+
+#     if losses[epoch] < 3:
+#         lr = 1e-4
 
 
 denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
 denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
 
 denoiser1.load_state_dict(torch.load("checkpoints_new/unet1_diff_tran_epoch1999.pth"))
-denoiser2.load_state_dict(torch.load("checkpoints_new/unet1_diff_tran_epoch1999.pth"))
+denoiser2.load_state_dict(torch.load("checkpoints_new/unet2_diff_tran_epoch1999.pth"))
 
 def compute_action_diff(alphas_bar, alphas, betas, denoiser):
-    alpha_bar = torch.prod(1 - betas)
-    u0 = torch.randn((1,100,2))*torch.sqrt(1 - alpha_bar) + torch.sqrt(alpha_bar)
-    u_out = u0
-
-    for t in range(len(alphas_bar),0,-1):
-        if t>1:
-            z = torch.randn_like(u0) 
+    u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise
+    for t in range(len(alphas_bar)-1, -1, -1):  # Loop from T-1 to 0
+        if t > 0:
+            z = torch.randn_like(u_out)
         else:
             z = 0
-        sigma_sq = betas[t-1] * (1 - alphas_bar[t-1]/alphas[t-1])/(1 - alphas_bar[t-1])
+        alpha_t = alphas[t]
+        alpha_bar_t = alphas_bar[t]
+        sqrt_alpha_t = torch.sqrt(alpha_t)
+        sqrt_one_minus_alpha_bar_t = torch.sqrt(1 - alpha_bar_t)
+        beta_t = betas[t]
+        sigma_t = torch.sqrt(beta_t)
         with torch.no_grad():
-            u_out = (1/np.sqrt(alphas[t-1]))*(u_out - (1-alphas[t-1])* denoiser(u_out, torch.tensor([[t-1]]).float() )/(np.sqrt(1-alphas_bar[t-1]))) + torch.sqrt(sigma_sq)*z
+            eps_theta = denoiser(u_out, torch.tensor([[t]], dtype=torch.float32))
+            u_out = (1 / sqrt_alpha_t) * (u_out - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_theta) + sigma_t * z
     return u_out
 
 print(alphas_bar.shape)
@@ -325,6 +341,12 @@ u_out2 = compute_action_diff(alphas_bar, alphas, betas, denoiser2)
 
 traj1 = u_out1.squeeze().detach().numpy()
 traj2 = u_out2.squeeze().detach().numpy()
+
+traj1 = traj1 * std + mean
+traj2 = traj2 * std + mean
+
+expert_data_up = expert_data_up * std + mean
+expert_data_down = expert_data_down * std + mean
 
 
 # Plot the Expert and Generated Trajectories with a Single Central Obstacle

@@ -203,29 +203,23 @@ denoiser1.load_state_dict(torch.load("checkpoints_shared/unet1_diff_tran_final.p
 denoiser2.load_state_dict(torch.load("checkpoints_shared/unet2_diff_tran_final.pth"))
 
 def compute_action_diff(alphas_bar, alphas, betas, denoiser):
-    alpha_bar = torch.prod(1 - betas)
-    
-    u0 = torch.randn((1,100,2))*torch.sqrt(1 - alpha_bar) + torch.sqrt(alpha_bar)
-
-    # print(np.shape(u0))
-    # print(np.shape(state))
-    # print(np.shape(obstacle))
-
-    # x = torch.cat((u0,state), dim=2)
-    u_out = u0
-
-    for t in range(len(alphas_bar),0,-1):
-        if t>1:
-            z = torch.randn_like(u0) 
+    u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise
+    for t in range(len(alphas_bar) - 1, -1, -1):
+        if t > 0:
+            z = torch.randn_like(u_out)
         else:
             z = 0
-        sigma_sq = betas[t-1] * (1 - alphas_bar[t-1]/alphas[t-1])/(1 - alphas_bar[t-1])
+        alpha_t = alphas[t]
+        alpha_bar_t = alphas_bar[t]
+        beta_t = betas[t]
+        sqrt_alpha_t = torch.sqrt(alpha_t)
+        sqrt_one_minus_alpha_bar_t = torch.sqrt(1 - alpha_bar_t)
+        sigma_t = torch.sqrt(beta_t)
         with torch.no_grad():
-            # print(np.shape((1/np.sqrt(alphas[t-1]))*(x[:,0:2] - (1-alphas[t-1])* denoiser(x, 1-betas[t-1])/(np.sqrt(1-alphas_bar[t-1])))))
-            # print(np.shape(torch.sqrt(sigma_sq)*z))
-            # print(np.shape(x[:,0:2]))
-            u_out = (1/np.sqrt(alphas[t-1]))*(u_out - (1-alphas[t-1])* denoiser(u_out, torch.tensor([[t-1]]).float() )/(np.sqrt(1-alphas_bar[t-1]))) + torch.sqrt(sigma_sq)*z
+            eps_theta = denoiser(u_out, torch.tensor([[t]], dtype=torch.float32))
+            u_out = (1 / sqrt_alpha_t) * (u_out - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_theta) + sigma_t * z
     return u_out
+
 
 
 u_out1 = compute_action_diff(alphas_bar, alphas, betas, denoiser1)
@@ -285,18 +279,26 @@ def main():
     traj1[0,:] = x01
     traj2[0,:] = x02
 
-    max_traj_array1 = np.loadtxt("data/max_traj_array1.csv", delimiter=",")
-    max_traj_array2 = np.loadtxt("data/max_traj_array2.csv", delimiter=",")
+    # max_traj_array1 = np.loadtxt("data/max_traj_array1.csv", delimiter=",")
+    # max_traj_array2 = np.loadtxt("data/max_traj_array2.csv", delimiter=",")
 
-    state_normalization_arr1 = max_traj_array1[:]
-    state_normalization_arr2 = max_traj_array2[:]
+    # state_normalization_arr1 = max_traj_array1[:]
+    # state_normalization_arr2 = max_traj_array2[:]
 
     traj1 = u_out1.squeeze().detach().numpy()
     traj2 = u_out2.squeeze().detach().numpy()
 
-    for i in range(2):
-        traj1[:,i] = traj1[:,i]*state_normalization_arr1[i]
-        traj2[:,i] = traj2[:,i]*state_normalization_arr2[i]
+    # Load global_mean and global_std
+    global_mean = np.load("data/global_mean.npy")
+    global_std = np.load("data/global_std.npy")
+
+    # Denormalize the generated trajectories
+    traj1 = traj1 * global_std + global_mean
+    traj2 = traj2 * global_std + global_mean
+
+    # for i in range(2):
+    #     traj1[:,i] = traj1[:,i]*state_normalization_arr1[i]
+    #     traj2[:,i] = traj2[:,i]*state_normalization_arr2[i]
 
     plt.plot(traj1[:,0],traj1[:,1],label="Agent 1")
     plt.plot(traj2[:,0],traj2[:,1],label="Agent 2")

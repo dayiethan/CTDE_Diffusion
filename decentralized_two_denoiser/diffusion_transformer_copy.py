@@ -2,6 +2,7 @@ import math
 import torch
 import einops
 import torch.nn as nn
+import torch.nn.functional as F
 from typing import Optional
 import numpy as np
 from tqdm import tqdm
@@ -175,13 +176,23 @@ trajectory2 = trajectory2/max_traj_array2
 trajectory1 = (trajectory1).reshape(1000, 100, 5)
 trajectory2 = (trajectory2).reshape(1000, 100, 5)
 
+# Combine all trajectories to compute global mean and std
+all_trajectories = np.concatenate((trajectory1[:, :, 2:4], trajectory2[:, :, 2:4]), axis=0)
+global_mean = np.mean(all_trajectories, axis=(0, 1))
+global_std = np.std(all_trajectories, axis=(0, 1))
+
+# Normalize trajectories
+trajectory1[:, :, 2:4] = (trajectory1[:, :, 2:4] - global_mean) / global_std
+trajectory2[:, :, 2:4] = (trajectory2[:, :, 2:4] - global_mean) / global_std
+
+# Save global_mean and global_std for denormalization during inference
+np.save("data/global_mean.npy", global_mean)
+np.save("data/global_std.npy", global_std)
+
 print(trajectory1.shape)
 print(trajectory2.shape)
 
-batch_size = 2
 
-# betas = torch.tensor([0.001, 0.01, 0.1, 0.2, 0.3, 0.4, 0.6, 0.8, 0.999])
-# betas = torch.tensor([0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.6, 0.8, 0.999])
 betas = torch.tensor([0.001, 0.005, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.999])
 
 denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
@@ -201,7 +212,7 @@ batch_size = 32
 lr = 1e-3
 
 losses = np.zeros(nb_epochs)
-optimizer1 = torch.optim.Adam(denoiser2.parameters(), lr)
+optimizer1 = torch.optim.Adam(denoiser1.parameters(), lr)
 optimizer2 = torch.optim.Adam(denoiser2.parameters(), lr)
 
 folder_path = "checkpoints_shared"
@@ -229,13 +240,15 @@ for epoch in tqdm(range(nb_epochs), desc="Training Progress"):
     pred1 = denoiser1(x_noised1, t.float())
     pred2 = denoiser2(x_noised2, t.float())
 
-    loss = torch.linalg.vector_norm(eps1 - pred1) + torch.linalg.vector_norm(eps2 - pred2)
+    loss1 = F.mse_loss(pred1, eps1)
+    loss2 = F.mse_loss(pred2, eps2)
+    loss = loss1 + loss2  # Combined loss for logging
 
-    if loss.detach().item() < 3:
-        print("Loss:",loss.detach().item())
-        print("Epoch:",epoch)
-        torch.save(denoiser1.state_dict(), 'checkpoints_shared/unet1_diff_tran_epoch'+str(epoch)+'.pth')
-        torch.save(denoiser2.state_dict(), 'checkpoints_shared/unet2_diff_tran_epoch'+str(epoch)+'.pth')
+    # if loss.detach().item() < 3:
+    #     print("Loss:",loss.detach().item())
+    #     print("Epoch:",epoch)
+    #     torch.save(denoiser1.state_dict(), 'checkpoints_shared/unet1_diff_tran_epoch'+str(epoch)+'.pth')
+    #     torch.save(denoiser2.state_dict(), 'checkpoints_shared/unet2_diff_tran_epoch'+str(epoch)+'.pth')
 
     optimizer1.zero_grad()
     optimizer2.zero_grad()
