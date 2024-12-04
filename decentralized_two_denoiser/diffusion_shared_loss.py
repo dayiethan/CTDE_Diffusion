@@ -211,8 +211,9 @@ expert_data_up = np.array(expert_data_up)
 expert_data_down = np.array(expert_data_down)
 
 # Compute mean and standard deviation
-mean = np.mean(np.concatenate((expert_data_up, expert_data_down)), axis=(0,1))
-std = np.std(np.concatenate((expert_data_up, expert_data_down)), axis=(0,1))
+combined_data = np.concatenate((expert_data_up, expert_data_down), axis=0)
+mean = np.mean(combined_data, axis=(0,1))
+std = np.std(combined_data, axis=(0,1))
 
 # Normalize data
 expert_data_up = (expert_data_up - mean) / std
@@ -253,15 +254,15 @@ state_dim = 4   # e.g., state vector of size 10
 max_steps = len(betas) # Maximum diffusion steps
 alphas = 1 - betas
 alphas_bar = torch.cumprod(alphas, 0)
-num_epochs = 2000
+num_epochs = 3000
 batch_size = 64
 lr = 1e-3
 
 losses = np.zeros(num_epochs)
 optimizer1 = torch.optim.Adam(denoiser1.parameters(), lr)
 optimizer2 = torch.optim.Adam(denoiser2.parameters(), lr)
-scheduler1 = torch.optim.lr_scheduler.StepLR(optimizer1, step_size=500, gamma=0.1)
-scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer2, step_size=500, gamma=0.1)
+scheduler1 = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer1, T_max=num_epochs)
+scheduler2 = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer2, T_max=num_epochs)
 
 
 # for epoch in range(num_epochs):
@@ -300,9 +301,9 @@ scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer2, step_size=500, gamma=0.
 #         print("Epoch:",epoch)
 #         print("Loss:",losses[epoch])
 
-#     if (epoch+1)%500 == 0:
-#         torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'.pth')
-#         torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'.pth')
+#     if (epoch+1)%1000 == 0:
+#         torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'_temp.pth')
+#         torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'_temp.pth')
 
 #     if losses[epoch] < 3:
 #         lr = 1e-4
@@ -310,9 +311,8 @@ scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer2, step_size=500, gamma=0.
 
 denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
 denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
-
-denoiser1.load_state_dict(torch.load("checkpoints_new/unet1_diff_tran_epoch1999.pth"))
-denoiser2.load_state_dict(torch.load("checkpoints_new/unet2_diff_tran_epoch1999.pth"))
+denoiser1.load_state_dict(torch.load("checkpoints_new/unet1_diff_tran_epoch2999_temp.pth"))
+denoiser2.load_state_dict(torch.load("checkpoints_new/unet2_diff_tran_epoch2999_temp.pth"))
 
 def compute_action_diff(alphas_bar, alphas, betas, denoiser):
     u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise
@@ -380,7 +380,7 @@ plt.title('Smooth Imitation Learning: Expert vs Generated Trajectories')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.grid(True)
-plt.savefig('figs/two_agents_shared/expert_vs_generated_trajectories.png')
+plt.savefig('figs/two_agents_shared/expert_vs_generated_trajectories_temp.png')
 plt.show()
 
 # # Plot the Training Loss
