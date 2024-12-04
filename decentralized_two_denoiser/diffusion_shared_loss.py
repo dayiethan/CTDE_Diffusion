@@ -291,9 +291,6 @@ for epoch in range(num_epochs):
     optimizer1.zero_grad()
     optimizer2.zero_grad()
     loss.backward()
-    max_norm = 1.0  # You can adjust this value as needed
-    torch.nn.utils.clip_grad_norm_(denoiser1.parameters(), max_norm)
-    torch.nn.utils.clip_grad_norm_(denoiser2.parameters(), max_norm)
     optimizer1.step()
     optimizer2.step()
     scheduler1.step()
