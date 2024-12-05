@@ -173,20 +173,26 @@ obstacle = (10, 0, 4.0)  # Single central obstacle: (x, y, radius)
 
 # Parse expert data from single_uni_full_traj.csv
 import csv
-with open('data/full_traj.csv', 'r') as file:
+all_points = []
+with open('data/single_uni_full_traj_up.csv', 'r') as file:
     reader = csv.reader(file)
-    all_up_points = []
     for row in reader:
         x, y = float(row[2]), float(row[3])
-        all_up_points.append([x, y])
+        all_points.append([x, y])
 
-all_points_rev = list(reversed(all_up_points))
+with open('data/single_uni_full_traj_down.csv', 'r') as file:
+    reader = csv.reader(file)
+    for row in reader:
+        x, y = float(row[2]), float(row[3])
+        all_points.append([x, y])
+
+all_points_rev = list(reversed(all_points))
 
 num_trajectories = 1000
 points_per_trajectory = 100
 
 expert_data = [
-    all_up_points[i * points_per_trajectory:(i + 1) * points_per_trajectory]
+    all_points[i * points_per_trajectory:(i + 1) * points_per_trajectory]
     for i in range(num_trajectories)
 ]
 first_trajectory = expert_data[0]
@@ -259,48 +265,48 @@ scheduler1 = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer1, T_max=num_ep
 scheduler2 = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer2, T_max=num_epochs)
 
 
-for epoch in range(num_epochs):
-    t = torch.randint(0, max_steps, (batch_size, 1))
-    integers = torch.randint(0, num_trajectories, (batch_size,))
-    x01 = torch.tensor(expert_data[integers]).float()
-    x02 = torch.tensor(expert_data_rev[integers]).float()
-    eps1 = torch.randn_like(x01)
-    eps2 = torch.randn_like(x02)
-    x_noised1  = x01
-    x_noised2  = x02
-    x_noised1 = x_noised1*torch.sqrt(alphas_bar[t]).unsqueeze(-1) + eps1*torch.sqrt(1-alphas_bar[t]).unsqueeze(-1)
-    x_noised2 = x_noised2*torch.sqrt(alphas_bar[t]).unsqueeze(-1) + eps2*torch.sqrt(1-alphas_bar[t]).unsqueeze(-1)
+# for epoch in range(num_epochs):
+#     t = torch.randint(0, max_steps, (batch_size, 1))
+#     integers = torch.randint(0, num_trajectories, (batch_size,))
+#     x01 = torch.tensor(expert_data[integers]).float()
+#     x02 = torch.tensor(expert_data_rev[integers]).float()
+#     eps1 = torch.randn_like(x01)
+#     eps2 = torch.randn_like(x02)
+#     x_noised1  = x01
+#     x_noised2  = x02
+#     x_noised1 = x_noised1*torch.sqrt(alphas_bar[t]).unsqueeze(-1) + eps1*torch.sqrt(1-alphas_bar[t]).unsqueeze(-1)
+#     x_noised2 = x_noised2*torch.sqrt(alphas_bar[t]).unsqueeze(-1) + eps2*torch.sqrt(1-alphas_bar[t]).unsqueeze(-1)
 
-    pred1 = denoiser1(x_noised1, t.float())
-    pred2 = denoiser2(x_noised2, t.float())
+#     pred1 = denoiser1(x_noised1, t.float())
+#     pred2 = denoiser2(x_noised2, t.float())
 
-    loss = F.mse_loss(pred1, eps1) + F.mse_loss(pred2, eps2)
+#     loss = F.mse_loss(pred1, eps1) + F.mse_loss(pred2, eps2)
 
-    # if loss.detach().item() < 3:
-    #     print("Loss:",loss.detach().item())
-    #     print("Epoch:",epoch)
-    #     torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'.pth')
-    #     torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'.pth')
+#     # if loss.detach().item() < 3:
+#     #     print("Loss:",loss.detach().item())
+#     #     print("Epoch:",epoch)
+#     #     torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'.pth')
+#     #     torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'.pth')
 
-    optimizer1.zero_grad()
-    optimizer2.zero_grad()
-    loss.backward()
-    optimizer1.step()
-    optimizer2.step()
-    scheduler1.step()
-    scheduler2.step()
-    losses[epoch] = loss.detach().item()
+#     optimizer1.zero_grad()
+#     optimizer2.zero_grad()
+#     loss.backward()
+#     optimizer1.step()
+#     optimizer2.step()
+#     scheduler1.step()
+#     scheduler2.step()
+#     losses[epoch] = loss.detach().item()
 
-    if epoch%100 == 0:
-        print("Epoch:",epoch)
-        print("Loss:",losses[epoch])
+#     if epoch%100 == 0:
+#         print("Epoch:",epoch)
+#         print("Loss:",losses[epoch])
 
-    if (epoch+1)%1000 == 0:
-        torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'_multimode.pth')
-        torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'_multimode.pth')
+#     if (epoch+1)%1000 == 0:
+#         torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'_multimode.pth')
+#         torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'_multimode.pth')
 
-    if losses[epoch] < 3:
-        lr = 1e-4
+#     if losses[epoch] < 3:
+#         lr = 1e-4
 
 
 denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
@@ -357,8 +363,8 @@ for traj in expert_data_rev[:20]:  # Plot a few expert trajectories
     plt.plot(x, y, 'g--')
 
 # Plot the generated trajectory
-plt.plot(traj1[:, 0], traj1[:, 1], 'r-', label='Generated')
-plt.plot(traj2[:, 0], traj2[:, 1], 'y-', label='Generated')
+# plt.plot(traj1[:, 0], traj1[:, 1], 'r-', label='Generated')
+# plt.plot(traj2[:, 0], traj2[:, 1], 'y-', label='Generated')
 
 # Plot the single central obstacle as a circle
 ox, oy, r = obstacle
