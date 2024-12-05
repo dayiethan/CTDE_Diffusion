@@ -254,13 +254,13 @@ state_dim = 4   # e.g., state vector of size 10
 max_steps = len(betas) # Maximum diffusion steps
 alphas = 1 - betas
 alphas_bar = torch.cumprod(alphas, 0)
-num_epochs = 3000
+num_epochs = 5000
 batch_size = 64
 lr = 1e-3
 
 losses = np.zeros(num_epochs)
-optimizer1 = torch.optim.Adam(denoiser1.parameters(), lr, weight_decay=1e-4)
-optimizer2 = torch.optim.Adam(denoiser2.parameters(), lr, weight_decay=1e-4)
+optimizer1 = torch.optim.Adam(denoiser1.parameters(), lr)
+optimizer2 = torch.optim.Adam(denoiser2.parameters(), lr)
 scheduler1 = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer1, T_max=num_epochs)
 scheduler2 = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer2, T_max=num_epochs)
 
