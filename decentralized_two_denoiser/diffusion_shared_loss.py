@@ -326,7 +326,7 @@ def compute_action_diff(alphas_bar, alphas, betas, denoiser):
         sqrt_alpha_t = torch.sqrt(alpha_t)
         sqrt_one_minus_alpha_bar_t = torch.sqrt(1 - alpha_bar_t)
         beta_t = betas[t]
-        sigma_t = torch.sqrt(beta_t)
+        sigma_t = 0.5*torch.sqrt(beta_t)
         with torch.no_grad():
             eps_theta = denoiser(u_out, torch.tensor([[t]], dtype=torch.float32))
             u_out = (1 / sqrt_alpha_t) * (u_out - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_theta) + sigma_t * z
