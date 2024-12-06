@@ -186,9 +186,10 @@ with open('data/single_uni_full_traj_down.csv', 'r') as file:
         x, y = float(row[2]), float(row[3])
         all_points.append([x, y])
 
+
 all_points_rev = list(reversed(all_points))
 
-num_trajectories = 1000
+num_trajectories = 2000
 points_per_trajectory = 100
 
 expert_data = [
@@ -207,10 +208,10 @@ first_trajectory_rev = expert_data_rev[0]
 x_rev = [point[0] for point in first_trajectory_rev]
 y_rev = [point[1] for point in first_trajectory_rev]
 
-expert_data = expert_data + list(reversed(expert_data_rev))
+# expert_data = expert_data + list(reversed(expert_data_rev))
 
 expert_data = np.array(expert_data)
-expert_data_rev = np.array(list(reversed(expert_data)))
+expert_data_rev = np.array(expert_data_rev)
 
 # Compute mean and standard deviation
 combined_data = np.concatenate((expert_data, expert_data_rev), axis=0)
@@ -220,8 +221,6 @@ std = np.std(combined_data, axis=(0,1))
 # Normalize data
 expert_data = (expert_data - mean) / std
 expert_data_rev = (expert_data_rev - mean) / std
-
-
 
 # Prepare Data for Training
 # Create input-output pairs (state + goal -> next state)
@@ -382,7 +381,7 @@ plt.title('Smooth Imitation Learning: Expert vs Generated Trajectories')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.grid(True)
-plt.savefig('figs/two_agents_shared/expert_vs_generated_trajectories_multimode2.png')
+plt.savefig('figs/two_agents_shared/expert_vs_generated_trajectories_multimode3.png')
 plt.show()
 
 # # Plot the Training Loss
