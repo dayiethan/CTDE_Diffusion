@@ -265,48 +265,48 @@ scheduler1 = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer1, T_max=num_ep
 scheduler2 = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer2, T_max=num_epochs)
 
 
-# for epoch in range(num_epochs):
-#     t = torch.randint(0, max_steps, (batch_size, 1))
-#     integers = torch.randint(0, num_trajectories, (batch_size,))
-#     x01 = torch.tensor(expert_data[integers]).float()
-#     x02 = torch.tensor(expert_data_rev[integers]).float()
-#     eps1 = torch.randn_like(x01)
-#     eps2 = torch.randn_like(x02)
-#     x_noised1  = x01
-#     x_noised2  = x02
-#     x_noised1 = x_noised1*torch.sqrt(alphas_bar[t]).unsqueeze(-1) + eps1*torch.sqrt(1-alphas_bar[t]).unsqueeze(-1)
-#     x_noised2 = x_noised2*torch.sqrt(alphas_bar[t]).unsqueeze(-1) + eps2*torch.sqrt(1-alphas_bar[t]).unsqueeze(-1)
+for epoch in range(num_epochs):
+    t = torch.randint(0, max_steps, (batch_size, 1))
+    integers = torch.randint(0, num_trajectories, (batch_size,))
+    x01 = torch.tensor(expert_data[integers]).float()
+    x02 = torch.tensor(expert_data_rev[integers]).float()
+    eps1 = torch.randn_like(x01)
+    eps2 = torch.randn_like(x02)
+    x_noised1  = x01
+    x_noised2  = x02
+    x_noised1 = x_noised1*torch.sqrt(alphas_bar[t]).unsqueeze(-1) + eps1*torch.sqrt(1-alphas_bar[t]).unsqueeze(-1)
+    x_noised2 = x_noised2*torch.sqrt(alphas_bar[t]).unsqueeze(-1) + eps2*torch.sqrt(1-alphas_bar[t]).unsqueeze(-1)
 
-#     pred1 = denoiser1(x_noised1, t.float())
-#     pred2 = denoiser2(x_noised2, t.float())
+    pred1 = denoiser1(x_noised1, t.float())
+    pred2 = denoiser2(x_noised2, t.float())
 
-#     loss = F.mse_loss(pred1, eps1) + F.mse_loss(pred2, eps2)
+    loss = F.mse_loss(pred1, eps1) + F.mse_loss(pred2, eps2)
 
-#     # if loss.detach().item() < 3:
-#     #     print("Loss:",loss.detach().item())
-#     #     print("Epoch:",epoch)
-#     #     torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'.pth')
-#     #     torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'.pth')
+    # if loss.detach().item() < 3:
+    #     print("Loss:",loss.detach().item())
+    #     print("Epoch:",epoch)
+    #     torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'.pth')
+    #     torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'.pth')
 
-#     optimizer1.zero_grad()
-#     optimizer2.zero_grad()
-#     loss.backward()
-#     optimizer1.step()
-#     optimizer2.step()
-#     scheduler1.step()
-#     scheduler2.step()
-#     losses[epoch] = loss.detach().item()
+    optimizer1.zero_grad()
+    optimizer2.zero_grad()
+    loss.backward()
+    optimizer1.step()
+    optimizer2.step()
+    scheduler1.step()
+    scheduler2.step()
+    losses[epoch] = loss.detach().item()
 
-#     if epoch%100 == 0:
-#         print("Epoch:",epoch)
-#         print("Loss:",losses[epoch])
+    if epoch%100 == 0:
+        print("Epoch:",epoch)
+        print("Loss:",losses[epoch])
 
-#     if (epoch+1)%1000 == 0:
-#         torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'_multimode.pth')
-#         torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'_multimode.pth')
+    if (epoch+1)%1000 == 0:
+        torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'_multimode.pth')
+        torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'_multimode.pth')
 
-#     if losses[epoch] < 3:
-#         lr = 1e-4
+    if losses[epoch] < 3:
+        lr = 1e-4
 
 
 denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
@@ -326,7 +326,7 @@ def compute_action_diff(alphas_bar, alphas, betas, denoiser):
         sqrt_alpha_t = torch.sqrt(alpha_t)
         sqrt_one_minus_alpha_bar_t = torch.sqrt(1 - alpha_bar_t)
         beta_t = betas[t]
-        sigma_t = torch.sqrt(beta_t)
+        sigma_t = 0.5*torch.sqrt(beta_t)
         with torch.no_grad():
             eps_theta = denoiser(u_out, torch.tensor([[t]], dtype=torch.float32))
             u_out = (1 / sqrt_alpha_t) * (u_out - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_theta) + sigma_t * z
