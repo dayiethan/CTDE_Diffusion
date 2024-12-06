@@ -208,7 +208,7 @@ x_rev = [point[0] for point in first_trajectory_rev]
 y_rev = [point[1] for point in first_trajectory_rev]
 
 expert_data = np.array(expert_data)
-expert_data = np.array(expert_data_rev)
+expert_data_rev = np.array(expert_data_rev)
 
 # Compute mean and standard deviation
 combined_data = np.concatenate((expert_data, expert_data_rev), axis=0)
