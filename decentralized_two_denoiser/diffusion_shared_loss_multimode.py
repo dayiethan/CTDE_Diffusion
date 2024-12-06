@@ -207,8 +207,10 @@ first_trajectory_rev = expert_data_rev[0]
 x_rev = [point[0] for point in first_trajectory_rev]
 y_rev = [point[1] for point in first_trajectory_rev]
 
+expert_data = expert_data + list(reversed(expert_data_rev))
+
 expert_data = np.array(expert_data)
-expert_data_rev = np.array(expert_data_rev)
+expert_data_rev = np.array(list(reversed(expert_data)))
 
 # Compute mean and standard deviation
 combined_data = np.concatenate((expert_data, expert_data_rev), axis=0)
@@ -302,8 +304,8 @@ for epoch in range(num_epochs):
         print("Loss:",losses[epoch])
 
     if (epoch+1)%1000 == 0:
-        torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'_multimode.pth')
-        torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'_multimode.pth')
+        torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'_multimode_temp.pth')
+        torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'_multimode_temp.pth')
 
     if losses[epoch] < 3:
         lr = 1e-4
@@ -311,8 +313,8 @@ for epoch in range(num_epochs):
 
 denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
 denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
-denoiser1.load_state_dict(torch.load("checkpoints_new/unet1_diff_tran_epoch2999_multimode.pth"))
-denoiser2.load_state_dict(torch.load("checkpoints_new/unet2_diff_tran_epoch2999_multimode.pth"))
+denoiser1.load_state_dict(torch.load("checkpoints_new/unet1_diff_tran_epoch2999_multimode_temp.pth"))
+denoiser2.load_state_dict(torch.load("checkpoints_new/unet2_diff_tran_epoch2999_multimode_temp.pth"))
 
 def compute_action_diff(alphas_bar, alphas, betas, denoiser):
     u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise
@@ -351,16 +353,16 @@ expert_data_rev = expert_data_rev * std + mean
 
 # Plot the Expert and Generated Trajectories with a Single Central Obstacle
 plt.figure(figsize=(20, 8))
-for traj in expert_data[:20]:  # Plot a few expert trajectories
+for traj in expert_data[1::100]:  # Plot a few expert trajectories
     first_trajectory = traj
     x = [point[0] for point in first_trajectory]
     y = [point[1] for point in first_trajectory]
     plt.plot(x, y, 'b--')
-for traj in expert_data_rev[-20:]:  # Plot a few expert trajectories
+for traj in expert_data_rev[1::100]:  # Plot a few expert trajectories
     first_trajectory = traj
     x = [point[0] for point in first_trajectory]
     y = [point[1] for point in first_trajectory]
-    plt.plot(x, y, 'b--')
+    plt.plot(x, y, 'g--')
 
 # Plot the generated trajectory
 plt.plot(traj1[:, 0], traj1[:, 1], 'r-', label='Generated')
@@ -380,7 +382,7 @@ plt.title('Smooth Imitation Learning: Expert vs Generated Trajectories')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.grid(True)
-plt.savefig('figs/two_agents_shared/expert_vs_generated_trajectories_multimode.png')
+plt.savefig('figs/two_agents_shared/expert_vs_generated_trajectories_multimode2.png')
 plt.show()
 
 # # Plot the Training Loss
