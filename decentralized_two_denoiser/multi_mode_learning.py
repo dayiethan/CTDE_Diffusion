@@ -255,7 +255,7 @@ state_dim = 4   # e.g., state vector of size 10
 max_steps = len(betas) # Maximum diffusion steps
 alphas = 1 - betas
 alphas_bar = torch.cumprod(alphas, 0)
-num_epochs = 3000
+num_epochs = 5000
 batch_size = 64
 lr = 1e-3
 
@@ -308,84 +308,3 @@ for epoch in range(num_epochs):
 
     if losses[epoch] < 3:
         lr = 1e-4
-
-
-denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
-denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
-denoiser1.load_state_dict(torch.load("checkpoints_new/unet1_diff_tran_epoch2999_multimode.pth"))
-denoiser2.load_state_dict(torch.load("checkpoints_new/unet2_diff_tran_epoch2999_multimode.pth"))
-
-def compute_action_diff(alphas_bar, alphas, betas, denoiser):
-    u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise
-    for t in range(len(alphas_bar)-1, -1, -1):  # Loop from T-1 to 0
-        if t > 0:
-            z = torch.randn_like(u_out)
-        else:
-            z = 0
-        alpha_t = alphas[t]
-        alpha_bar_t = alphas_bar[t]
-        sqrt_alpha_t = torch.sqrt(alpha_t)
-        sqrt_one_minus_alpha_bar_t = torch.sqrt(1 - alpha_bar_t)
-        beta_t = betas[t]
-        sigma_t = 0.5*torch.sqrt(beta_t)
-        with torch.no_grad():
-            eps_theta = denoiser(u_out, torch.tensor([[t]], dtype=torch.float32))
-            u_out = (1 / sqrt_alpha_t) * (u_out - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_theta) + sigma_t * z
-    return u_out
-
-u_out1 = compute_action_diff(alphas_bar, alphas, betas, denoiser1)
-u_out2 = compute_action_diff(alphas_bar, alphas, betas, denoiser2)
-
-traj1 = u_out1.squeeze().detach().numpy()
-traj2 = u_out2.squeeze().detach().numpy()
-
-traj1 = traj1 * std + mean
-traj2 = traj2 * std + mean
-
-expert_data = expert_data * std + mean
-expert_data_rev = expert_data_rev * std + mean
-
-
-# Plot the Expert and Generated Trajectories with a Single Central Obstacle
-plt.figure(figsize=(20, 8))
-for traj in expert_data[1::100]:  # Plot a few expert trajectories
-    first_trajectory = traj
-    x = [point[0] for point in first_trajectory]
-    y = [point[1] for point in first_trajectory]
-    plt.plot(x, y, 'b--')
-for traj in expert_data_rev[1::100]:  # Plot a few expert trajectories
-    first_trajectory = traj
-    x = [point[0] for point in first_trajectory]
-    y = [point[1] for point in first_trajectory]
-    plt.plot(x, y, 'g--')
-
-# Plot the generated trajectory
-plt.plot(traj1[:, 0], traj1[:, 1], 'r-', label='Generated')
-plt.plot(traj2[:, 0], traj2[:, 1], 'y-', label='Generated')
-
-# Plot the single central obstacle as a circle
-ox, oy, r = obstacle
-circle = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
-plt.gca().add_patch(circle)
-
-# Mark start and end points
-plt.scatter(initial_point_up[0], initial_point_up[1], c='red', s=100, label='Start/End')
-plt.scatter(final_point_up[0], final_point_up[1], c='red', s=100, label='Start/End')
-
-plt.legend()
-plt.title('Smooth Imitation Learning: Expert vs Generated Trajectories')
-plt.xlabel('X')
-plt.ylabel('Y')
-plt.grid(True)
-plt.savefig('figs/two_agents_shared/expert_vs_generated_trajectories_multimode4.png')
-plt.show()
-
-# # Plot the Training Loss
-# plt.figure()
-# plt.plot(losses, label='Up')
-# plt.title('Training Loss')
-# plt.xlabel('Epoch')
-# plt.ylabel('Loss')
-# plt.grid(True)
-# plt.savefig('figs/two_agents_shared/loss_graph.png')
-# plt.show()

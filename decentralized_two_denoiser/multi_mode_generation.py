@@ -171,33 +171,6 @@ initial_point_down = np.array([20.0, 0.0])
 obstacle = (10, 0, 4.0)  # Single central obstacle: (x, y, radius)
 
 
-denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
-denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
-denoiser1.load_state_dict(torch.load("checkpoints_new/unet1_diff_tran_epoch2999_multimode.pth"))
-denoiser2.load_state_dict(torch.load("checkpoints_new/unet2_diff_tran_epoch2999_multimode.pth"))
-
-def count_parameters(model):
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
-print(count_parameters(denoiser1))
-
-def compute_action_diff(alphas_bar, alphas, betas, denoiser):
-    u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise
-    for t in range(len(alphas_bar)-1, -1, -1):  # Loop from T-1 to 0
-        if t > 0:
-            z = torch.randn_like(u_out)
-        else:
-            z = 0
-        alpha_t = alphas[t]
-        alpha_bar_t = alphas_bar[t]
-        sqrt_alpha_t = torch.sqrt(alpha_t)
-        sqrt_one_minus_alpha_bar_t = torch.sqrt(1 - alpha_bar_t)
-        beta_t = betas[t]
-        sigma_t = 0.5*torch.sqrt(beta_t)
-        with torch.no_grad():
-            eps_theta = denoiser(u_out, torch.tensor([[t]], dtype=torch.float32))
-            u_out = (1 / sqrt_alpha_t) * (u_out - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_theta) + sigma_t * z
-    return u_out
-
 # Parse expert data from single_uni_full_traj.csv
 import csv
 all_points = []
@@ -245,14 +218,69 @@ combined_data = np.concatenate((expert_data, expert_data_rev), axis=0)
 mean = np.mean(combined_data, axis=(0,1))
 std = np.std(combined_data, axis=(0,1))
 
+# Normalize data
+expert_data = (expert_data - mean) / std
+expert_data_rev = (expert_data_rev - mean) / std
+
+# Prepare Data for Training
+# Create input-output pairs (state + goal -> next state)
+X_train = []
+Y_train = []
+
+for traj in expert_data:
+    for i in range(len(traj) - 1):
+        X_train.append(np.hstack([traj[i], final_point_up]))  # Current state + goal
+        Y_train.append(traj[i + 1])  # Next state
+
+X_train = torch.tensor(np.array(X_train), dtype=torch.float32)  # Shape: (N, 4)
+Y_train = torch.tensor(np.array(Y_train), dtype=torch.float32)  # Shape: (N, 2)
+
+X_train_rev = []
+Y_train_rev = []
+
+for traj in expert_data_rev:
+    for i in range(len(traj) - 1):
+        X_train_rev.append(np.hstack([traj[i], final_point_down]))  # Current state + goal
+        Y_train_rev.append(traj[i + 1])  # Next state
+
+X_train_rev = torch.tensor(np.array(X_train_rev), dtype=torch.float32)  # Shape: (N, 4)
+Y_train_rev = torch.tensor(np.array(Y_train_rev), dtype=torch.float32)  # Shape: (N, 2)
+
 # Initialize Model, Loss Function, and Optimizers
 betas = torch.tensor([0.001, 0.005, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.999])
+denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
+denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
+state_dim = 4   # e.g., state vector of size 10
+# action_dim = 4   # e.g., action vector of size 5
 max_steps = len(betas) # Maximum diffusion steps
 alphas = 1 - betas
 alphas_bar = torch.cumprod(alphas, 0)
 num_epochs = 3000
 batch_size = 64
 lr = 1e-3
+
+denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
+denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
+denoiser1.load_state_dict(torch.load("checkpoints_new/unet1_diff_tran_epoch2999_multimode.pth"))
+denoiser2.load_state_dict(torch.load("checkpoints_new/unet2_diff_tran_epoch2999_multimode.pth"))
+
+def compute_action_diff(alphas_bar, alphas, betas, denoiser):
+    u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise
+    for t in range(len(alphas_bar)-1, -1, -1):  # Loop from T-1 to 0
+        if t > 0:
+            z = torch.randn_like(u_out)
+        else:
+            z = 0
+        alpha_t = alphas[t]
+        alpha_bar_t = alphas_bar[t]
+        sqrt_alpha_t = torch.sqrt(alpha_t)
+        sqrt_one_minus_alpha_bar_t = torch.sqrt(1 - alpha_bar_t)
+        beta_t = betas[t]
+        sigma_t = 0.5*torch.sqrt(beta_t)
+        with torch.no_grad():
+            eps_theta = denoiser(u_out, torch.tensor([[t]], dtype=torch.float32))
+            u_out = (1 / sqrt_alpha_t) * (u_out - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_theta) + sigma_t * z
+    return u_out
 
 u_out1 = compute_action_diff(alphas_bar, alphas, betas, denoiser1)
 u_out2 = compute_action_diff(alphas_bar, alphas, betas, denoiser2)
@@ -263,9 +291,22 @@ traj2 = u_out2.squeeze().detach().numpy()
 traj1 = traj1 * std + mean
 traj2 = traj2 * std + mean
 
+expert_data = expert_data * std + mean
+expert_data_rev = expert_data_rev * std + mean
+
 
 # Plot the Expert and Generated Trajectories with a Single Central Obstacle
 plt.figure(figsize=(20, 8))
+for traj in expert_data[1::100]:  # Plot a few expert trajectories
+    first_trajectory = traj
+    x = [point[0] for point in first_trajectory]
+    y = [point[1] for point in first_trajectory]
+    plt.plot(x, y, 'b--')
+for traj in expert_data_rev[1::100]:  # Plot a few expert trajectories
+    first_trajectory = traj
+    x = [point[0] for point in first_trajectory]
+    y = [point[1] for point in first_trajectory]
+    plt.plot(x, y, 'g--')
 
 # Plot the generated trajectory
 plt.plot(traj1[:, 0], traj1[:, 1], 'r-', label='Generated')
@@ -285,4 +326,15 @@ plt.title('Smooth Imitation Learning: Expert vs Generated Trajectories')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.grid(True)
+plt.savefig('figs/two_agents_shared/expert_vs_generated_trajectories_multimode4.png')
 plt.show()
+
+# # Plot the Training Loss
+# plt.figure()
+# plt.plot(losses, label='Up')
+# plt.title('Training Loss')
+# plt.xlabel('Epoch')
+# plt.ylabel('Loss')
+# plt.grid(True)
+# plt.savefig('figs/two_agents_shared/loss_graph.png')
+# plt.show()
