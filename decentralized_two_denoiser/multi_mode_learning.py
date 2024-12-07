@@ -255,7 +255,7 @@ state_dim = 4   # e.g., state vector of size 10
 max_steps = len(betas) # Maximum diffusion steps
 alphas = 1 - betas
 alphas_bar = torch.cumprod(alphas, 0)
-num_epochs = 1
+num_epochs = 3000
 batch_size = 64
 lr = 1e-3
 
