@@ -12,9 +12,9 @@ import os
 from matplotlib import pyplot as plt
 
 # Set random seeds for reproducibility
-# np.random.seed(42)
-# torch.manual_seed(42)
-# random.seed(42)
+np.random.seed(42)
+torch.manual_seed(42)
+random.seed(42)
 
 # hidden_size = 384 | 768 | 1024 | 1152
 # depth =       12  | 24  | 28
@@ -312,8 +312,8 @@ scheduler2 = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer2, T_max=num_ep
 
 denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
 denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
-denoiser1.load_state_dict(torch.load("checkpoints_new/unet1_diff_tran_epoch2999_multimode.pth"))
-denoiser2.load_state_dict(torch.load("checkpoints_new/unet2_diff_tran_epoch2999_multimode.pth"))
+denoiser1.load_state_dict(torch.load("checkpoints_new/unet1_diff_tran_epoch2999_multimode_temp.pth"))
+denoiser2.load_state_dict(torch.load("checkpoints_new/unet2_diff_tran_epoch2999_multimode_temp.pth"))
 
 def compute_action_diff(alphas_bar, alphas, betas, denoiser):
     u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise
@@ -332,6 +332,10 @@ def compute_action_diff(alphas_bar, alphas, betas, denoiser):
             eps_theta = denoiser(u_out, torch.tensor([[t]], dtype=torch.float32))
             u_out = (1 / sqrt_alpha_t) * (u_out - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_theta) + sigma_t * z
     return u_out
+
+print(alphas_bar.shape)
+print(alphas.shape)
+print(betas.shape)
 
 u_out1 = compute_action_diff(alphas_bar, alphas, betas, denoiser1)
 u_out2 = compute_action_diff(alphas_bar, alphas, betas, denoiser2)
@@ -377,7 +381,7 @@ plt.title('Smooth Imitation Learning: Expert vs Generated Trajectories')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.grid(True)
-# plt.savefig('figs/two_agents_shared/expert_vs_generated_trajectories_multimode3.png')
+plt.savefig('figs/two_agents_shared/expert_vs_generated_trajectories_multimode4.png')
 plt.show()
 
 # # Plot the Training Loss
