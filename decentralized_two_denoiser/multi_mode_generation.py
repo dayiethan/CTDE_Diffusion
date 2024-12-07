@@ -176,6 +176,10 @@ denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout
 denoiser1.load_state_dict(torch.load("checkpoints_new/unet1_diff_tran_epoch2999_multimode.pth"))
 denoiser2.load_state_dict(torch.load("checkpoints_new/unet2_diff_tran_epoch2999_multimode.pth"))
 
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+print(count_parameters(denoiser1))
+
 def compute_action_diff(alphas_bar, alphas, betas, denoiser):
     u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise
     for t in range(len(alphas_bar)-1, -1, -1):  # Loop from T-1 to 0
