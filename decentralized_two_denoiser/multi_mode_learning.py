@@ -333,10 +333,6 @@ def compute_action_diff(alphas_bar, alphas, betas, denoiser):
             u_out = (1 / sqrt_alpha_t) * (u_out - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_theta) + sigma_t * z
     return u_out
 
-print(alphas_bar.shape)
-print(alphas.shape)
-print(betas.shape)
-
 u_out1 = compute_action_diff(alphas_bar, alphas, betas, denoiser1)
 u_out2 = compute_action_diff(alphas_bar, alphas, betas, denoiser2)
 
