@@ -251,4 +251,5 @@ plt.plot(np.arange(nb_epochs), losses)
 # plt.ylim(0, 100)
 plt.show()
 
-torch.save(denoiser.state_dict(), 'checkpoints_new/unet_diff_tran_final.pth')
+torch.save(denoiser.state_dict(), 'checkpoints_two/unet_diff_tran_final.pth')
+
