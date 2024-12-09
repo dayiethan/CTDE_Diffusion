@@ -176,11 +176,11 @@ class DiT1d(nn.Module):
 
 #load data
 
-trajectory = np.loadtxt("data/full_traj.csv",delimiter=",", dtype=float)
+trajectory = np.loadtxt("data/full_traj_obstacle.csv",delimiter=",", dtype=float)
 
 max_traj_array = np.max(trajectory, axis=0)
 
-np.savetxt("data/max_traj_array.csv", max_traj_array, delimiter=",")
+np.savetxt("data/max_traj_array_obstacle.csv", max_traj_array, delimiter=",")
 
 trajectory = trajectory/max_traj_array
 
@@ -211,7 +211,7 @@ if not os.path.exists(folder_path):
 
 # load the model
 
-denoiser.load_state_dict(torch.load("checkpoints/unet_diff_tran_best.pth"))
+denoiser.load_state_dict(torch.load("checkpoints_two/unet_diff_tran_epoch1999.pth"))
 
 def compute_action_diff(alphas_bar, alphas, betas, denoiser):
     alpha_bar = torch.prod(1 - betas)
@@ -292,7 +292,7 @@ def main():
 
     traj[0,4:] = x0
 
-    max_traj_array = np.loadtxt("data/max_traj_array.csv", delimiter=",")
+    max_traj_array = np.loadtxt("data/max_traj_array_obstacle.csv", delimiter=",")
 
     print(max_traj_array)
 
@@ -311,31 +311,41 @@ def main():
     #     traj[t,0:4] = actions[:,t]
     #     traj[t+1,4:] = two_unicycle_dynamics(traj[t,4:],traj[t,0:4],dt)
 
-    plt.plot(traj[:,0],traj[:,1],label="Agent 1")
-    plt.plot(traj[:,3],traj[:,4],label="Agent 2")
+    plt.figure(figsize=(20, 8))
+    plt.plot(traj[:-1,0],traj[:-1,1],label="Agent 1")
+    plt.plot(traj[:-1,3],traj[:-1,4],label="Agent 2")
+    ox, oy, r = (10, 0, 4)
+    circle = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
+    plt.gca().add_patch(circle)
+    # for traj in trajectory[1::100]:  # Plot a few expert trajectories
+    #     first_trajectory = traj
+    #     x = [point[0] for point in first_trajectory]
+    #     y = [point[1] for point in first_trajectory]
+    #     plt.plot(x, y, 'b--')
     plt.legend()
+    plt.savefig('figs/test_trajectory_obstacle1.png')
     plt.show()
 
-    fig = plt.figure()
-    ax = plt.axes(xlim=(-1.5, 20.5), ylim=(-2, 2))
-    line, = ax.plot([], [], lw=2, color = 'blue',label="Agent 1")
-    line2, = ax.plot([], [], lw=2, color = 'orange',label="Agent 2")
-    plt.legend(frameon=False)
-    #turn of top and right splines
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+    # fig = plt.figure()
+    # ax = plt.axes(xlim=(-1.5, 20.5), ylim=(-5, 5))
+    # line, = ax.plot([], [], lw=2, color = 'blue',label="Agent 1")
+    # line2, = ax.plot([], [], lw=2, color = 'orange',label="Agent 2")
+    # plt.legend(frameon=False)
+    # #turn of top and right splines
+    # ax.spines['top'].set_visible(False)
+    # ax.spines['right'].set_visible(False)
 
 
-    def animate(n):
-        line.set_xdata(traj[:n, 0])
-        line.set_ydata(traj[:n, 1])
-        line2.set_xdata(traj[:n, 3])
-        line2.set_ydata(traj[:n, 4])
-        return line,line2
+    # def animate(n):
+    #     line.set_xdata(traj[:n, 0])
+    #     line.set_ydata(traj[:n, 1])
+    #     line2.set_xdata(traj[:n, 3])
+    #     line2.set_ydata(traj[:n, 4])
+    #     return line,line2
 
-    anim = FuncAnimation(fig, animate, frames=traj.shape[0], interval=40)
-    anim.save('figs/test_trajectory_animation_500.gif')
-    plt.show()
+    # anim = FuncAnimation(fig, animate, frames=traj.shape[0], interval=40)
+    # anim.save('figs/test_trajectory_animation_obstacle.gif')
+    # plt.show()
 
     #animate trajectory
 

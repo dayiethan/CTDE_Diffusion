@@ -168,7 +168,7 @@ np.savetxt("data/max_traj_array_obstacle.csv", max_traj_array, delimiter=",")
 
 trajectory = trajectory/max_traj_array
 
-trajectory = (trajectory).reshape(-1, 500, 10)
+trajectory = (trajectory).reshape(-1, 1000, 10)
 
 print(trajectory.shape)
 
@@ -189,7 +189,7 @@ max_steps = len(betas) # Maximum diffusion steps
 alphas = 1 - betas
 alphas_bar = torch.cumprod(alphas, 0)
 
-nb_epochs = 2000
+nb_epochs = 3000
 batch_size = 32
 lr = 1e-3
 
