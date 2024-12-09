@@ -160,11 +160,11 @@ class DiT1d(nn.Module):
 
 #load data
 
-trajectory = np.loadtxt("data/full_traj.csv",delimiter=",", dtype=float)
+trajectory = np.loadtxt("data/full_traj_obstacle.csv",delimiter=",", dtype=float)
 
 max_traj_array = np.max(trajectory, axis=0)
 
-np.savetxt("data/max_traj_array.csv", max_traj_array, delimiter=",")
+np.savetxt("data/max_traj_array_obstacle.csv", max_traj_array, delimiter=",")
 
 trajectory = trajectory/max_traj_array
 
@@ -196,7 +196,7 @@ lr = 1e-3
 losses = np.zeros(nb_epochs)
 optimizer = torch.optim.Adam(denoiser.parameters(), lr)
 
-folder_path = "checkpoints"
+folder_path = "checkpoints_two"
 
 if not os.path.exists(folder_path):
         os.makedirs(folder_path)
@@ -229,7 +229,7 @@ for epoch in tqdm(range(nb_epochs), desc="Training Progress"):
     if loss.detach().item() < 3:
         print("Loss:",loss.detach().item())
         print("Epoch:",epoch)
-        torch.save(denoiser.state_dict(), 'checkpoints/unet_diff_tran_epoch'+str(epoch)+'.pth')
+        torch.save(denoiser.state_dict(), 'checkpoints_two/unet_diff_tran_epoch'+str(epoch)+'.pth')
 
     optimizer.zero_grad()
     loss.backward()
@@ -241,7 +241,7 @@ for epoch in tqdm(range(nb_epochs), desc="Training Progress"):
         print("Loss:",losses[epoch])
 
     if (epoch+1)%500 == 0:
-        torch.save(denoiser.state_dict(), 'checkpoints/unet_diff_tran_epoch'+str(epoch)+'.pth')
+        torch.save(denoiser.state_dict(), 'checkpoints_two/unet_diff_tran_epoch'+str(epoch)+'.pth')
 
     if losses[epoch] < 3:
         lr = 1e-4
@@ -251,4 +251,4 @@ plt.plot(np.arange(nb_epochs), losses)
 # plt.ylim(0, 100)
 plt.show()
 
-torch.save(denoiser.state_dict(), 'checkpoints/unet_diff_tran_final.pth')
+torch.save(denoiser.state_dict(), 'checkpoints_new/unet_diff_tran_final.pth')
