@@ -332,10 +332,6 @@ def compute_action_diff(alphas_bar, alphas, betas, denoiser):
             u_out = (1 / sqrt_alpha_t) * (u_out - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_theta) + sigma_t * z
     return u_out
 
-print(alphas_bar.shape)
-print(alphas.shape)
-print(betas.shape)
-
 u_out1 = compute_action_diff(alphas_bar, alphas, betas, denoiser1)
 u_out2 = compute_action_diff(alphas_bar, alphas, betas, denoiser2)
 
@@ -351,16 +347,16 @@ expert_data_down = expert_data_down * std + mean
 
 # Plot the Expert and Generated Trajectories with a Single Central Obstacle
 plt.figure(figsize=(20, 8))
-for traj in expert_data_up[:20]:  # Plot a few expert trajectories
-    first_trajectory = traj
-    x = [point[0] for point in first_trajectory]
-    y = [point[1] for point in first_trajectory]
-    plt.plot(x, y, 'b--')
-for traj in expert_data_down[:20]:  # Plot a few expert trajectories
-    first_trajectory = traj
-    x = [point[0] for point in first_trajectory]
-    y = [point[1] for point in first_trajectory]
-    plt.plot(x, y, 'g--')
+# for traj in expert_data_up[:20]:  # Plot a few expert trajectories
+#     first_trajectory = traj
+#     x = [point[0] for point in first_trajectory]
+#     y = [point[1] for point in first_trajectory]
+#     plt.plot(x, y, 'b--')
+# for traj in expert_data_down[:20]:  # Plot a few expert trajectories
+#     first_trajectory = traj
+#     x = [point[0] for point in first_trajectory]
+#     y = [point[1] for point in first_trajectory]
+#     plt.plot(x, y, 'g--')
 
 # Plot the generated trajectory
 plt.plot(traj1[:, 0], traj1[:, 1], 'r-', label='Generated')
@@ -375,8 +371,8 @@ plt.gca().add_patch(circle)
 plt.scatter(initial_point_up[0], initial_point_up[1], c='red', s=100, label='Start/End')
 plt.scatter(final_point_up[0], final_point_up[1], c='red', s=100, label='Start/End')
 
-plt.legend()
-plt.title('Smooth Imitation Learning: Expert vs Generated Trajectories')
+# plt.legend()
+# plt.title('Smooth Imitation Learning: Expert vs Generated Trajectories')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.grid(True)

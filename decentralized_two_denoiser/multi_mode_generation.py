@@ -297,16 +297,16 @@ expert_data_rev = expert_data_rev * std + mean
 
 # Plot the Expert and Generated Trajectories with a Single Central Obstacle
 plt.figure(figsize=(20, 8))
-for traj in expert_data[1::100]:  # Plot a few expert trajectories
-    first_trajectory = traj
-    x = [point[0] for point in first_trajectory]
-    y = [point[1] for point in first_trajectory]
-    plt.plot(x, y, 'b--')
-for traj in expert_data_rev[1::100]:  # Plot a few expert trajectories
-    first_trajectory = traj
-    x = [point[0] for point in first_trajectory]
-    y = [point[1] for point in first_trajectory]
-    plt.plot(x, y, 'g--')
+# for traj in expert_data[1::100]:  # Plot a few expert trajectories
+#     first_trajectory = traj
+#     x = [point[0] for point in first_trajectory]
+#     y = [point[1] for point in first_trajectory]
+#     plt.plot(x, y, 'b--')
+# for traj in expert_data_rev[1::100]:  # Plot a few expert trajectories
+#     first_trajectory = traj
+#     x = [point[0] for point in first_trajectory]
+#     y = [point[1] for point in first_trajectory]
+#     plt.plot(x, y, 'g--')
 
 # Plot the generated trajectory
 plt.plot(traj1[:, 0], traj1[:, 1], 'r-', label='Generated')
@@ -321,8 +321,8 @@ plt.gca().add_patch(circle)
 plt.scatter(initial_point_up[0], initial_point_up[1], c='red', s=100, label='Start/End')
 plt.scatter(final_point_up[0], final_point_up[1], c='red', s=100, label='Start/End')
 
-plt.legend()
-plt.title('Smooth Imitation Learning: Expert vs Generated Trajectories')
+# plt.legend()
+# plt.title('Smooth Imitation Learning: Expert vs Generated Trajectories')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.grid(True)
