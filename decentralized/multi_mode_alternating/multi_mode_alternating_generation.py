@@ -261,8 +261,8 @@ lr = 1e-3
 
 denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
 denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
-denoiser1.load_state_dict(torch.load("checkpoints_alternating/unet1_diff_tran_epoch4999_multimode.pth"))
-denoiser2.load_state_dict(torch.load("checkpoints_alternating/unet2_diff_tran_epoch4999_multimode.pth"))
+denoiser1.load_state_dict(torch.load("checkpoints_alternating/unet1_diff_tran_epoch1999.pth"))
+denoiser2.load_state_dict(torch.load("checkpoints_alternating/unet2_diff_tran_epoch1999.pth"))
 
 def compute_action_diff(alphas_bar, alphas, betas, denoiser):
     u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise
@@ -326,7 +326,7 @@ plt.scatter(final_point_up[0], final_point_up[1], c='red', s=100, label='Start/E
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.grid(True)
-plt.savefig('figs/expert_vs_generated_trajectories_multimode4.png')
+plt.savefig('figs/expert_vs_generated_trajectories4.png')
 plt.show()
 
 # # Plot the Training Loss
