@@ -3,9 +3,8 @@ base/checkpoints/*.pth
 base/checkpoints_obstacle/*.pth
 random/checkpoints/*.pth
 random/checkpoints/*/*.pth
-decentralized_two_attr/checkpoints/*.pth
-decentralized_two_denoiser/checkpoints/*.pth
-decentralized_two_denoiser/checkpoints_multimode/*.pth
-decentralized_two_denoiser/checkpoints_shared/*.pth
+decentralized/single_mode/checkpoints/*.pth
+decentralized/multi_mode/checkpoints_multimode/*.pth
+decentralized/multi_mode_alternating/checkpoints_alternating/*.pth
 random/data/full_traj_rand_10000.csv
 
