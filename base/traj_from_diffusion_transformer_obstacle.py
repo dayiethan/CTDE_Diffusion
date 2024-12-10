@@ -6,8 +6,9 @@ from typing import Optional
 import numpy as np
 from tqdm import tqdm
 import os
-from matplotlib import pyplot as plt
-
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib.animation import FuncAnimation
 
 # hidden_size = 384 | 768 | 1024 | 1152
 # depth =       12  | 24  | 28
@@ -50,6 +51,21 @@ class DiscreteCondEmbedder(nn.Module):
 
 def modulate(x, shift, scale):
     return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
+
+# class TimeEmbedding(nn.Module):
+#     def __init__(self, dim: int):
+#         super().__init__()
+#         self.dim = dim
+#         self.mlp = nn.Sequential(
+#             nn.Linear(dim // 4, dim), nn.Mish(), nn.Linear(dim, dim))
+#     def forward(self, x: torch.Tensor):
+#         device = x.device
+#         half_dim = self.dim // 8
+#         emb = math.log(10000) / (half_dim - 1)
+#         emb = torch.exp(torch.arange(half_dim, device=device) * -emb)
+#         emb = x[:, None] * emb[None, :]
+#         emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
+#         return self.mlp(emb)
     
 class TimeEmbedding(nn.Module):
     def __init__(self, dim: int):
@@ -160,16 +176,15 @@ class DiT1d(nn.Module):
 
 #load data
 
-trajectory = np.loadtxt("data/full_traj.csv",delimiter=",", dtype=float)
-print(trajectory.shape)
+trajectory = np.loadtxt("data/full_traj_obstacle.csv",delimiter=",", dtype=float)
 
 max_traj_array = np.max(trajectory, axis=0)
 
-np.savetxt("data/max_traj_array.csv", max_traj_array, delimiter=",")
+np.savetxt("data/max_traj_array_obstacle.csv", max_traj_array, delimiter=",")
 
 trajectory = trajectory/max_traj_array
 
-trajectory = (trajectory).reshape(-1, 200, 10)
+trajectory = (trajectory).reshape(-1, 1000, 10)
 
 print(trajectory.shape)
 
@@ -179,10 +194,7 @@ batch_size = 2
 # betas = torch.tensor([0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.6, 0.8, 0.999])
 betas = torch.tensor([0.001, 0.005, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.999])
 
-denoiser1 = DiT1d(x_dim=6, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
-denoiser2 = DiT1d(x_dim=6, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
-
-# denoiser.load_state_dict(torch.load('checkpoints/unet_diff_tran_epoch499.pth'))
+denoiser = DiT1d(x_dim=6, attr_dim=1, d_model=384, n_heads=6, depth=12, dropout=0.1)
 
 state_dim = 6   # e.g., state vector of size 10
 action_dim = 4   # e.g., action vector of size 5
@@ -191,78 +203,118 @@ max_steps = len(betas) # Maximum diffusion steps
 alphas = 1 - betas
 alphas_bar = torch.cumprod(alphas, 0)
 
-nb_epochs = 2000
-batch_size = 32
-lr = 1e-3
-
-losses = np.zeros(nb_epochs)
-optimizer1 = torch.optim.Adam(denoiser1.parameters(), lr)
-optimizer2 = torch.optim.Adam(denoiser2.parameters(), lr)
 
 folder_path = "checkpoints"
 
 if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
-for epoch in tqdm(range(nb_epochs), desc="Training Progress"):
+# load the model
 
-    # t = random.randint(0, len(alphas_bar)-1)
-    # t_arr = t*torch.ones(batch_size,).int()
+denoiser.load_state_dict(torch.load("checkpoints_obstacle/unet_diff_tran_epoch1999.pth"))
 
-    t = torch.randint(0, max_steps, (batch_size, 1))
-
-    # choose random integers from 0 to 100 of size batch_size
-    integers = torch.randint(0, trajectory.shape[0], (batch_size,))
+def compute_action_diff(alphas_bar, alphas, betas, denoiser):
+    alpha_bar = torch.prod(1 - betas)
     
-    # choose the corresponding trajectory
-    x0 = torch.tensor(trajectory[integers,:,4:]).float()
+    u0 = torch.randn((1,100,6))*torch.sqrt(1 - alpha_bar) + torch.sqrt(alpha_bar)
 
-    # x0[:, :2] += torch.randn_like(x0[:, :2])
+    # print(np.shape(u0))
+    # print(np.shape(state))
+    # print(np.shape(obstacle))
 
-    eps = torch.randn_like(x0)
+    # x = torch.cat((u0,state), dim=2)
+    u_out = u0
 
-    x_noised  = x0
+    for t in range(len(alphas_bar),0,-1):
+        if t>1:
+            z = torch.randn_like(u0) 
+        else:
+            z = 0
+        sigma_sq = betas[t-1] * (1 - alphas_bar[t-1]/alphas[t-1])/(1 - alphas_bar[t-1])
+        with torch.no_grad():
+            # print(np.shape((1/np.sqrt(alphas[t-1]))*(x[:,0:2] - (1-alphas[t-1])* denoiser(x, 1-betas[t-1])/(np.sqrt(1-alphas_bar[t-1])))))
+            # print(np.shape(torch.sqrt(sigma_sq)*z))
+            # print(np.shape(x[:,0:2]))
+            u_out = (1/np.sqrt(alphas[t-1]))*(u_out - (1-alphas[t-1])* denoiser(u_out, torch.tensor([[t-1]]).float() )/(np.sqrt(1-alphas_bar[t-1]))) + torch.sqrt(sigma_sq)*z
+    return u_out
 
-    x_noised = x_noised*torch.sqrt(alphas_bar[t]).unsqueeze(-1) + eps*torch.sqrt(1-alphas_bar[t]).unsqueeze(-1)
 
-    print(x_noised.shape)
-    print(t.shape)
+u_out = compute_action_diff(alphas_bar, alphas, betas, denoiser)
 
-    import sys
-    sys.exit()
-    pred1 = denoiser1(x_noised, t.float())
-    pred2 = denoiser2(x_noised, t.float())
+def main():
+    n_x = 6
+    n_u = 4
+    n_g = 1
+    x0 = np.array([0.0,0.0,0.0,20.0,0.0,np.pi])
 
-    loss = torch.linalg.vector_norm(eps - pred1) + torch.linalg.vector_norm(eps - pred2)
+    time_horizon = 10
+    dt = 0.1
+    timesteps = int(time_horizon/dt)
 
-    if loss.detach().item() < 3:
-        print("Loss:",loss.detach().item())
-        print("Epoch:",epoch)
-        torch.save(denoiser1.state_dict(), 'checkpoints/unet1_diff_tran_epoch'+str(epoch)+'.pth')
-        torch.save(denoiser2.state_dict(), 'checkpoints/unet2_diff_tran_epoch'+str(epoch)+'.pth')
+    traj = np.zeros((101,10))
 
-    optimizer1.zero_grad()
-    optimizer2.zero_grad()
-    loss.backward()
-    optimizer1.step()
-    optimizer2.step()
-    losses[epoch] = loss.detach().item()
+    traj[0,4:] = x0
 
-    if epoch%100 == 0:
-        print("Epoch:",epoch)
-        print("Loss:",losses[epoch])
+    max_traj_array = np.loadtxt("data/max_traj_array_obstacle.csv", delimiter=",")
 
-    if (epoch+1)%500 == 0:
-        torch.save(denoiser1.state_dict(), 'checkpoints/unet1_diff_tran_epoch'+str(epoch)+'.pth')
-        torch.save(denoiser2.state_dict(), 'checkpoints/unet2_diff_tran_epoch'+str(epoch)+'.pth')
+    print(max_traj_array)
 
-    if losses[epoch] < 3:
-        lr = 1e-4
+    action_normalization_arr = max_traj_array[0:4]
+    state_normalization_arr = max_traj_array[4:]
 
-plt.title("Training loss")
-plt.plot(np.arange(nb_epochs), losses)
-# plt.ylim(0, 100)
-plt.show()
+    traj = u_out.squeeze().detach().numpy()
 
-torch.save(denoiser1.state_dict(), 'checkpoints/unet1_diff_tran_final.pth')
-torch.save(denoiser2.state_dict(), 'checkpoints/unet2_diff_tran_final.pth')
+    print(traj.shape) 
+
+    for i in range(6):
+        traj[:,i] = traj[:,i]*state_normalization_arr[i]
+
+    # for t in range(timesteps):
+    #     state = torch.tensor(np.array([traj[t,4:]/state_normalization_arr])).float()
+    #     traj[t,0:4] = actions[:,t]
+    #     traj[t+1,4:] = two_unicycle_dynamics(traj[t,4:],traj[t,0:4],dt)
+
+    plt.figure(figsize=(20, 8))
+    plt.plot(traj[:,0],traj[:,1],label="Agent 1")
+    plt.plot(traj[:,3],traj[:,4],label="Agent 2")
+    ox, oy, r = (10, 0, 4)
+    circle = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
+    plt.gca().add_patch(circle)
+    # for traj in trajectory[1::100]:  # Plot a few expert trajectories
+    #     first_trajectory = traj
+    #     for i in range(6):
+    #         traj[:,i] = traj[:,i]*state_normalization_arr[i]
+    #     x = [point[0] for point in first_trajectory]
+    #     y = [point[1] for point in first_trajectory]
+    #     plt.plot(x, y, 'b--')
+    # plt.legend()
+    plt.grid()
+    plt.savefig('figs/test_trajectory_obstacle7.png')
+    plt.show()
+
+    # fig = plt.figure()
+    # ax = plt.axes(xlim=(-1.5, 20.5), ylim=(-5, 5))
+    # line, = ax.plot([], [], lw=2, color = 'blue',label="Agent 1")
+    # line2, = ax.plot([], [], lw=2, color = 'orange',label="Agent 2")
+    # plt.legend(frameon=False)
+    # #turn of top and right splines
+    # ax.spines['top'].set_visible(False)
+    # ax.spines['right'].set_visible(False)
+
+
+    # def animate(n):
+    #     line.set_xdata(traj[:n, 0])
+    #     line.set_ydata(traj[:n, 1])
+    #     line2.set_xdata(traj[:n, 3])
+    #     line2.set_ydata(traj[:n, 4])
+    #     return line,line2
+
+    # anim = FuncAnimation(fig, animate, frames=traj.shape[0], interval=40)
+    # anim.save('figs/test_trajectory_animation_obstacle.gif')
+    # plt.show()
+
+    #animate trajectory
+
+
+if(__name__ == '__main__'):
+    main()

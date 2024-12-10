@@ -176,15 +176,15 @@ class DiT1d(nn.Module):
 
 #load data
 
-trajectory = np.loadtxt("data/full_traj_obstacle.csv",delimiter=",", dtype=float)
+trajectory = np.loadtxt("data/full_traj.csv",delimiter=",", dtype=float)
 
 max_traj_array = np.max(trajectory, axis=0)
 
-np.savetxt("data/max_traj_array_obstacle.csv", max_traj_array, delimiter=",")
+np.savetxt("data/max_traj_array.csv", max_traj_array, delimiter=",")
 
 trajectory = trajectory/max_traj_array
 
-trajectory = (trajectory).reshape(-1, 1000, 10)
+trajectory = (trajectory).reshape(-1, 100, 10)
 
 print(trajectory.shape)
 
@@ -211,7 +211,7 @@ if not os.path.exists(folder_path):
 
 # load the model
 
-denoiser.load_state_dict(torch.load("checkpoints_two/unet_diff_tran_epoch1999.pth"))
+denoiser.load_state_dict(torch.load("checkpoints/unet_diff_tran_epoch1999.pth"))
 
 def compute_action_diff(alphas_bar, alphas, betas, denoiser):
     alpha_bar = torch.prod(1 - betas)
@@ -241,6 +241,43 @@ def compute_action_diff(alphas_bar, alphas, betas, denoiser):
 
 u_out = compute_action_diff(alphas_bar, alphas, betas, denoiser)
 
+def wrap_to_pi(angle):
+    """
+    Wrap an angle to the range (-pi, pi].
+    
+    Parameters:
+    - angle (float): The input angle in radians.
+
+    Returns:
+    - float: The wrapped angle.
+    """
+    return (angle + math.pi) % (2 * math.pi) - math.pi
+
+def two_unicycle_dynamics(x, u, dt):
+    """
+    Simulate the discrete-time dynamics of a unicycle.
+
+    Parameters:
+    - x: Current state [x, y, theta]
+    - u: Control input [v, w] (linear velocity, angular velocity)
+    - dt: Time step
+
+    Returns:
+    - New state after applying the dynamics.
+    """
+    v1, w1, v2, w2 = u
+    x[0] += v1 * np.cos(x[2]) * dt
+    x[1] += v1 * np.sin(x[2]) * dt
+    x[2] += w1 * dt 
+    x[2] = wrap_to_pi(x[2])
+    
+    x[3] += v2 * np.cos(x[5]) * dt
+    x[4] += v2 * np.sin(x[5]) * dt
+    x[5] += w2 * dt
+    x[5] = wrap_to_pi(x[5])
+    
+    return x
+
 def main():
     n_x = 6
     n_u = 4
@@ -255,7 +292,7 @@ def main():
 
     traj[0,4:] = x0
 
-    max_traj_array = np.loadtxt("data/max_traj_array_obstacle.csv", delimiter=",")
+    max_traj_array = np.loadtxt("data/max_traj_array.csv", delimiter=",")
 
     print(max_traj_array)
 
@@ -274,44 +311,31 @@ def main():
     #     traj[t,0:4] = actions[:,t]
     #     traj[t+1,4:] = two_unicycle_dynamics(traj[t,4:],traj[t,0:4],dt)
 
-    plt.figure(figsize=(20, 8))
     plt.plot(traj[:,0],traj[:,1],label="Agent 1")
     plt.plot(traj[:,3],traj[:,4],label="Agent 2")
-    ox, oy, r = (10, 0, 4)
-    circle = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
-    plt.gca().add_patch(circle)
-    # for traj in trajectory[1::100]:  # Plot a few expert trajectories
-    #     first_trajectory = traj
-    #     for i in range(6):
-    #         traj[:,i] = traj[:,i]*state_normalization_arr[i]
-    #     x = [point[0] for point in first_trajectory]
-    #     y = [point[1] for point in first_trajectory]
-    #     plt.plot(x, y, 'b--')
-    # plt.legend()
-    plt.grid()
-    plt.savefig('figs/test_trajectory_obstacle7.png')
+    plt.legend()
     plt.show()
 
-    # fig = plt.figure()
-    # ax = plt.axes(xlim=(-1.5, 20.5), ylim=(-5, 5))
-    # line, = ax.plot([], [], lw=2, color = 'blue',label="Agent 1")
-    # line2, = ax.plot([], [], lw=2, color = 'orange',label="Agent 2")
-    # plt.legend(frameon=False)
-    # #turn of top and right splines
-    # ax.spines['top'].set_visible(False)
-    # ax.spines['right'].set_visible(False)
+    fig = plt.figure()
+    ax = plt.axes(xlim=(-1.5, 20.5), ylim=(-2, 2))
+    line, = ax.plot([], [], lw=2, color = 'blue',label="Agent 1")
+    line2, = ax.plot([], [], lw=2, color = 'orange',label="Agent 2")
+    plt.legend(frameon=False)
+    #turn of top and right splines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
 
 
-    # def animate(n):
-    #     line.set_xdata(traj[:n, 0])
-    #     line.set_ydata(traj[:n, 1])
-    #     line2.set_xdata(traj[:n, 3])
-    #     line2.set_ydata(traj[:n, 4])
-    #     return line,line2
+    def animate(n):
+        line.set_xdata(traj[:n, 0])
+        line.set_ydata(traj[:n, 1])
+        line2.set_xdata(traj[:n, 3])
+        line2.set_ydata(traj[:n, 4])
+        return line,line2
 
-    # anim = FuncAnimation(fig, animate, frames=traj.shape[0], interval=40)
-    # anim.save('figs/test_trajectory_animation_obstacle.gif')
-    # plt.show()
+    anim = FuncAnimation(fig, animate, frames=traj.shape[0], interval=40)
+    anim.save('figs/test_trajectory_animation_selftrain.gif')
+    plt.show()
 
     #animate trajectory
 

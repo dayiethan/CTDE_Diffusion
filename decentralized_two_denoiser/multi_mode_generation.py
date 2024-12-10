@@ -261,8 +261,8 @@ lr = 1e-3
 
 denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
 denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
-denoiser1.load_state_dict(torch.load("checkpoints_new/unet1_diff_tran_epoch4999_multimode.pth"))
-denoiser2.load_state_dict(torch.load("checkpoints_new/unet2_diff_tran_epoch4999_multimode.pth"))
+denoiser1.load_state_dict(torch.load("checkpoints_multimode/unet1_diff_tran_epoch4999_multimode.pth"))
+denoiser2.load_state_dict(torch.load("checkpoints_multimode/unet2_diff_tran_epoch4999_multimode.pth"))
 
 def compute_action_diff(alphas_bar, alphas, betas, denoiser):
     u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise

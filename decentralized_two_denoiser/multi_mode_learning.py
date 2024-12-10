@@ -286,8 +286,8 @@ for epoch in range(num_epochs):
     # if loss.detach().item() < 3:
     #     print("Loss:",loss.detach().item())
     #     print("Epoch:",epoch)
-    #     torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'.pth')
-    #     torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'.pth')
+    #     torch.save(denoiser1.state_dict(), 'checkpoints_multimode/unet1_diff_tran_epoch'+str(epoch)+'.pth')
+    #     torch.save(denoiser2.state_dict(), 'checkpoints_multimode/unet2_diff_tran_epoch'+str(epoch)+'.pth')
 
     optimizer1.zero_grad()
     optimizer2.zero_grad()
@@ -303,8 +303,8 @@ for epoch in range(num_epochs):
         print("Loss:",losses[epoch])
 
     if (epoch+1)%1000 == 0:
-        torch.save(denoiser1.state_dict(), 'checkpoints_new/unet1_diff_tran_epoch'+str(epoch)+'_multimode.pth')
-        torch.save(denoiser2.state_dict(), 'checkpoints_new/unet2_diff_tran_epoch'+str(epoch)+'_multimode.pth')
+        torch.save(denoiser1.state_dict(), 'checkpoints_multimode/unet1_diff_tran_epoch'+str(epoch)+'_multimode.pth')
+        torch.save(denoiser2.state_dict(), 'checkpoints_multimode/unet2_diff_tran_epoch'+str(epoch)+'_multimode.pth')
 
     if losses[epoch] < 3:
         lr = 1e-4
