@@ -211,31 +211,24 @@ if not os.path.exists(folder_path):
 
 # load the model
 
-denoiser.load_state_dict(torch.load("checkpoints_two/unet_diff_tran_epoch1999.pth"))
+denoiser.load_state_dict(torch.load("checkpoints_two/unet_diff_tran_epoch2999.pth"))
 
 def compute_action_diff(alphas_bar, alphas, betas, denoiser):
-    alpha_bar = torch.prod(1 - betas)
-    
-    u0 = torch.randn((1,100,6))*torch.sqrt(1 - alpha_bar) + torch.sqrt(alpha_bar)
-
-    # print(np.shape(u0))
-    # print(np.shape(state))
-    # print(np.shape(obstacle))
-
-    # x = torch.cat((u0,state), dim=2)
-    u_out = u0
-
-    for t in range(len(alphas_bar),0,-1):
-        if t>1:
-            z = torch.randn_like(u0) 
+    u_out = torch.randn((1, 384, 6))  # Initialize with standard normal noise
+    for t in range(len(alphas_bar)-1, -1, -1):  # Loop from T-1 to 0
+        if t > 0:
+            z = torch.randn_like(u_out)
         else:
             z = 0
-        sigma_sq = betas[t-1] * (1 - alphas_bar[t-1]/alphas[t-1])/(1 - alphas_bar[t-1])
+        alpha_t = alphas[t]
+        alpha_bar_t = alphas_bar[t]
+        sqrt_alpha_t = torch.sqrt(alpha_t)
+        sqrt_one_minus_alpha_bar_t = torch.sqrt(1 - alpha_bar_t)
+        beta_t = betas[t]
+        sigma_t = 0.3*torch.sqrt(beta_t)
         with torch.no_grad():
-            # print(np.shape((1/np.sqrt(alphas[t-1]))*(x[:,0:2] - (1-alphas[t-1])* denoiser(x, 1-betas[t-1])/(np.sqrt(1-alphas_bar[t-1])))))
-            # print(np.shape(torch.sqrt(sigma_sq)*z))
-            # print(np.shape(x[:,0:2]))
-            u_out = (1/np.sqrt(alphas[t-1]))*(u_out - (1-alphas[t-1])* denoiser(u_out, torch.tensor([[t-1]]).float() )/(np.sqrt(1-alphas_bar[t-1]))) + torch.sqrt(sigma_sq)*z
+            eps_theta = denoiser(u_out, torch.tensor([[t]], dtype=torch.float32))
+            u_out = (1 / sqrt_alpha_t) * (u_out - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_theta) + sigma_t * z
     return u_out
 
 
@@ -312,18 +305,20 @@ def main():
     #     traj[t+1,4:] = two_unicycle_dynamics(traj[t,4:],traj[t,0:4],dt)
 
     plt.figure(figsize=(20, 8))
-    plt.plot(traj[:-1,0],traj[:-1,1],label="Agent 1")
-    plt.plot(traj[:-1,3],traj[:-1,4],label="Agent 2")
+    plt.plot(traj[:,0],traj[:,1],label="Agent 1")
+    plt.plot(traj[:,3],traj[:,4],label="Agent 2")
     ox, oy, r = (10, 0, 4)
     circle = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
     plt.gca().add_patch(circle)
     # for traj in trajectory[1::100]:  # Plot a few expert trajectories
     #     first_trajectory = traj
+    #     for i in range(6):
+    #         traj[:,i] = traj[:,i]*state_normalization_arr[i]
     #     x = [point[0] for point in first_trajectory]
     #     y = [point[1] for point in first_trajectory]
     #     plt.plot(x, y, 'b--')
     plt.legend()
-    plt.savefig('figs/test_trajectory_obstacle1.png')
+    plt.savefig('figs/test_trajectory_obstacle5.png')
     plt.show()
 
     # fig = plt.figure()
