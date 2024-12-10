@@ -189,7 +189,7 @@ max_steps = len(betas) # Maximum diffusion steps
 alphas = 1 - betas
 alphas_bar = torch.cumprod(alphas, 0)
 
-nb_epochs = 3000
+nb_epochs = 5000
 batch_size = 32
 lr = 1e-3
 
