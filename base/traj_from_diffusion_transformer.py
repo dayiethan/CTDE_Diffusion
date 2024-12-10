@@ -211,65 +211,35 @@ if not os.path.exists(folder_path):
 
 # load the model
 
-denoiser.load_state_dict(torch.load("checkpoints_two/unet_diff_tran_epoch2999.pth"))
+denoiser.load_state_dict(torch.load("checkpoints_two/unet_diff_tran_epoch1999.pth"))
 
 def compute_action_diff(alphas_bar, alphas, betas, denoiser):
-    u_out = torch.randn((1, 384, 6))  # Initialize with standard normal noise
-    for t in range(len(alphas_bar)-1, -1, -1):  # Loop from T-1 to 0
-        if t > 0:
-            z = torch.randn_like(u_out)
+    alpha_bar = torch.prod(1 - betas)
+    
+    u0 = torch.randn((1,100,6))*torch.sqrt(1 - alpha_bar) + torch.sqrt(alpha_bar)
+
+    # print(np.shape(u0))
+    # print(np.shape(state))
+    # print(np.shape(obstacle))
+
+    # x = torch.cat((u0,state), dim=2)
+    u_out = u0
+
+    for t in range(len(alphas_bar),0,-1):
+        if t>1:
+            z = torch.randn_like(u0) 
         else:
             z = 0
-        alpha_t = alphas[t]
-        alpha_bar_t = alphas_bar[t]
-        sqrt_alpha_t = torch.sqrt(alpha_t)
-        sqrt_one_minus_alpha_bar_t = torch.sqrt(1 - alpha_bar_t)
-        beta_t = betas[t]
-        sigma_t = 0.3*torch.sqrt(beta_t)
+        sigma_sq = betas[t-1] * (1 - alphas_bar[t-1]/alphas[t-1])/(1 - alphas_bar[t-1])
         with torch.no_grad():
-            eps_theta = denoiser(u_out, torch.tensor([[t]], dtype=torch.float32))
-            u_out = (1 / sqrt_alpha_t) * (u_out - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_theta) + sigma_t * z
+            # print(np.shape((1/np.sqrt(alphas[t-1]))*(x[:,0:2] - (1-alphas[t-1])* denoiser(x, 1-betas[t-1])/(np.sqrt(1-alphas_bar[t-1])))))
+            # print(np.shape(torch.sqrt(sigma_sq)*z))
+            # print(np.shape(x[:,0:2]))
+            u_out = (1/np.sqrt(alphas[t-1]))*(u_out - (1-alphas[t-1])* denoiser(u_out, torch.tensor([[t-1]]).float() )/(np.sqrt(1-alphas_bar[t-1]))) + torch.sqrt(sigma_sq)*z
     return u_out
 
 
 u_out = compute_action_diff(alphas_bar, alphas, betas, denoiser)
-
-def wrap_to_pi(angle):
-    """
-    Wrap an angle to the range (-pi, pi].
-    
-    Parameters:
-    - angle (float): The input angle in radians.
-
-    Returns:
-    - float: The wrapped angle.
-    """
-    return (angle + math.pi) % (2 * math.pi) - math.pi
-
-def two_unicycle_dynamics(x, u, dt):
-    """
-    Simulate the discrete-time dynamics of a unicycle.
-
-    Parameters:
-    - x: Current state [x, y, theta]
-    - u: Control input [v, w] (linear velocity, angular velocity)
-    - dt: Time step
-
-    Returns:
-    - New state after applying the dynamics.
-    """
-    v1, w1, v2, w2 = u
-    x[0] += v1 * np.cos(x[2]) * dt
-    x[1] += v1 * np.sin(x[2]) * dt
-    x[2] += w1 * dt 
-    x[2] = wrap_to_pi(x[2])
-    
-    x[3] += v2 * np.cos(x[5]) * dt
-    x[4] += v2 * np.sin(x[5]) * dt
-    x[5] += w2 * dt
-    x[5] = wrap_to_pi(x[5])
-    
-    return x
 
 def main():
     n_x = 6
@@ -317,8 +287,9 @@ def main():
     #     x = [point[0] for point in first_trajectory]
     #     y = [point[1] for point in first_trajectory]
     #     plt.plot(x, y, 'b--')
-    plt.legend()
-    plt.savefig('figs/test_trajectory_obstacle5.png')
+    # plt.legend()
+    plt.grid()
+    plt.savefig('figs/test_trajectory_obstacle7.png')
     plt.show()
 
     # fig = plt.figure()
