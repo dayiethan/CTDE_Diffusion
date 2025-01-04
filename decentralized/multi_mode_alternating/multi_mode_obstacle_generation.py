@@ -183,7 +183,7 @@ with open('data/full_traj_obstacle.csv', 'r') as file:
         all_points1.append([x1, y1])
         all_points2.append([x2, y2])
 
-num_trajectories = 2000
+num_trajectories = 1000
 points_per_trajectory = 100
 
 expert_data1 = [

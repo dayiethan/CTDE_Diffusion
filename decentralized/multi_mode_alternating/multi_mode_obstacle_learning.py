@@ -183,7 +183,7 @@ with open('data/full_traj_obstacle.csv', 'r') as file:
         all_points1.append([x1, y1])
         all_points2.append([x2, y2])
 
-num_trajectories = 2000
+num_trajectories = 1000
 points_per_trajectory = 100
 
 expert_data1 = [
@@ -204,6 +204,21 @@ y2 = [point[1] for point in first_trajectory2]
 
 expert_data1 = np.array(expert_data1)
 expert_data2 = np.array(expert_data2)
+
+plt.figure(figsize=(20, 8))
+for traj in expert_data1[1::200]:  # Plot a few expert trajectories
+    first_trajectory = traj
+    x = [point[0] for point in first_trajectory]
+    y = [point[1] for point in first_trajectory]
+    plt.plot(x, y, 'b--')
+for traj in expert_data2[1::200]:  # Plot a few expert trajectories
+    first_trajectory = traj
+    x = [point[0] for point in first_trajectory]
+    y = [point[1] for point in first_trajectory]
+    plt.plot(x, y, 'g--')
+plt.show()
+import sys
+sys.exit()
 
 # Compute mean and standard deviation
 combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
