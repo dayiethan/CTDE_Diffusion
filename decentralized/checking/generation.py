@@ -178,43 +178,43 @@ all_points2 = []
 with open('data/mode1_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
-        x, y = float(row[2]), float(row[3])
+        x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
 with open('data/mode2_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
-        x, y = float(row[2]), float(row[3])
+        x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
 with open('data/mode3_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
-        x, y = float(row[2]), float(row[3])
+        x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
 with open('data/mode4_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
-        x, y = float(row[2]), float(row[3])
+        x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
 
 with open('data/mode1_agent2.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
-        x, y = float(row[2]), float(row[3])
+        x, y = float(row[0]), float(row[1])
         all_points2.append([x, y])
 with open('data/mode2_agent2.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
-        x, y = float(row[2]), float(row[3])
+        x, y = float(row[0]), float(row[1])
         all_points2.append([x, y])
 with open('data/mode3_agent2.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
-        x, y = float(row[2]), float(row[3])
+        x, y = float(row[0]), float(row[1])
         all_points2.append([x, y])
 with open('data/mode4_agent2.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
-        x, y = float(row[2]), float(row[3])
+        x, y = float(row[0]), float(row[1])
         all_points2.append([x, y])
 
 
@@ -289,82 +289,83 @@ agent_iter = 10
 batch_size = 64
 lr = 1e-3
 
-denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
-denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
-denoiser1.load_state_dict(torch.load("checkpoints/unet1_diff_tran_epoch1999.pth"))
-denoiser2.load_state_dict(torch.load("checkpoints/unet2_diff_tran_epoch1999.pth"))
+for i in range(100):
+    denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
+    denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
+    denoiser1.load_state_dict(torch.load("checkpoints/unet1_diff_tran_epoch1999.pth"))
+    denoiser2.load_state_dict(torch.load("checkpoints/unet2_diff_tran_epoch1999.pth"))
 
-def compute_action_diff(alphas_bar, alphas, betas, denoiser):
-    u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise
-    for t in range(len(alphas_bar)-1, -1, -1):  # Loop from T-1 to 0
-        if t > 0:
-            z = torch.randn_like(u_out)
-        else:
-            z = 0
-        alpha_t = alphas[t]
-        alpha_bar_t = alphas_bar[t]
-        sqrt_alpha_t = torch.sqrt(alpha_t)
-        sqrt_one_minus_alpha_bar_t = torch.sqrt(1 - alpha_bar_t)
-        beta_t = betas[t]
-        sigma_t = 0.5*torch.sqrt(beta_t)
-        with torch.no_grad():
-            eps_theta = denoiser(u_out, torch.tensor([[t]], dtype=torch.float32))
-            u_out = (1 / sqrt_alpha_t) * (u_out - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_theta) + sigma_t * z
-    return u_out
+    def compute_action_diff(alphas_bar, alphas, betas, denoiser):
+        u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise
+        for t in range(len(alphas_bar)-1, -1, -1):  # Loop from T-1 to 0
+            if t > 0:
+                z = torch.randn_like(u_out)
+            else:
+                z = 0
+            alpha_t = alphas[t]
+            alpha_bar_t = alphas_bar[t]
+            sqrt_alpha_t = torch.sqrt(alpha_t)
+            sqrt_one_minus_alpha_bar_t = torch.sqrt(1 - alpha_bar_t)
+            beta_t = betas[t]
+            sigma_t = 0.5*torch.sqrt(beta_t)
+            with torch.no_grad():
+                eps_theta = denoiser(u_out, torch.tensor([[t]], dtype=torch.float32))
+                u_out = (1 / sqrt_alpha_t) * (u_out - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_theta) + sigma_t * z
+        return u_out
 
-u_out1 = compute_action_diff(alphas_bar, alphas, betas, denoiser1)
-u_out2 = compute_action_diff(alphas_bar, alphas, betas, denoiser2)
+    u_out1 = compute_action_diff(alphas_bar, alphas, betas, denoiser1)
+    u_out2 = compute_action_diff(alphas_bar, alphas, betas, denoiser2)
 
-traj1 = u_out1.squeeze().detach().numpy()
-traj2 = u_out2.squeeze().detach().numpy()
+    traj1 = u_out1.squeeze().detach().numpy()
+    traj2 = u_out2.squeeze().detach().numpy()
 
-traj1 = traj1 * std + mean
-traj2 = traj2 * std + mean
+    traj1 = traj1 * std + mean
+    traj2 = traj2 * std + mean
 
-expert_data = expert_data1 * std + mean
-expert_data_rev = expert_data2 * std + mean
+    expert_data = expert_data1 * std + mean
+    expert_data_rev = expert_data2 * std + mean
 
 
-# Plot the Expert and Generated Trajectories with a Single Central Obstacle
-plt.figure(figsize=(20, 8))
-# for traj in expert_data[1::100]:  # Plot a few expert trajectories
-#     first_trajectory = traj
-#     x = [point[0] for point in first_trajectory]
-#     y = [point[1] for point in first_trajectory]
-#     plt.plot(x, y, 'b--')
-# for traj in expert_data_rev[1::100]:  # Plot a few expert trajectories
-#     first_trajectory = traj
-#     x = [point[0] for point in first_trajectory]
-#     y = [point[1] for point in first_trajectory]
-#     plt.plot(x, y, 'g--')
+    # Plot the Expert and Generated Trajectories with a Single Central Obstacle
+    plt.figure(figsize=(20, 8))
+    # for traj in expert_data[1::100]:  # Plot a few expert trajectories
+    #     first_trajectory = traj
+    #     x = [point[0] for point in first_trajectory]
+    #     y = [point[1] for point in first_trajectory]
+    #     plt.plot(x, y, 'b--')
+    # for traj in expert_data_rev[1::100]:  # Plot a few expert trajectories
+    #     first_trajectory = traj
+    #     x = [point[0] for point in first_trajectory]
+    #     y = [point[1] for point in first_trajectory]
+    #     plt.plot(x, y, 'g--')
 
-# Plot the generated trajectory
-plt.plot(traj1[:, 0], traj1[:, 1], 'r-', label='Generated')
-plt.plot(traj2[:, 0], traj2[:, 1], 'y-', label='Generated')
+    # Plot the generated trajectory
+    plt.plot(traj1[:, 0], traj1[:, 1], 'r-', label='Generated')
+    plt.plot(traj2[:, 0], traj2[:, 1], 'y-', label='Generated')
 
-# Plot the single central obstacle as a circle
-ox, oy, r = obstacle
-circle = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
-plt.gca().add_patch(circle)
+    # Plot the single central obstacle as a circle
+    ox, oy, r = obstacle
+    circle = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
+    plt.gca().add_patch(circle)
 
-# Mark start and end points
-plt.scatter(initial_point_up[0], initial_point_up[1], c='red', s=100, label='Start/End')
-plt.scatter(final_point_up[0], final_point_up[1], c='red', s=100, label='Start/End')
+    # Mark start and end points
+    plt.scatter(initial_point_up[0], initial_point_up[1], c='red', s=100, label='Start/End')
+    plt.scatter(final_point_up[0], final_point_up[1], c='red', s=100, label='Start/End')
 
-# plt.legend()
-# plt.title('Smooth Imitation Learning: Expert vs Generated Trajectories')
-plt.xlabel('X')
-plt.ylabel('Y')
-plt.grid(True)
-plt.savefig('figs/expert_vs_generated_trajectories.png')
-plt.show()
+    # plt.legend()
+    # plt.title('Smooth Imitation Learning: Expert vs Generated Trajectories')
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.grid(True)
+    plt.savefig('figs/expert_vs_generated_trajectories%s.png' % i)
+    # plt.show()
 
-# # Plot the Training Loss
-# plt.figure()
-# plt.plot(losses, label='Up')
-# plt.title('Training Loss')
-# plt.xlabel('Epoch')
-# plt.ylabel('Loss')
-# plt.grid(True)
-# plt.savefig('figs/two_agents_shared/loss_graph.png')
-# plt.show()
+    # # Plot the Training Loss
+    # plt.figure()
+    # plt.plot(losses, label='Up')
+    # plt.title('Training Loss')
+    # plt.xlabel('Epoch')
+    # plt.ylabel('Loss')
+    # plt.grid(True)
+    # plt.savefig('figs/two_agents_shared/loss_graph.png')
+    # plt.show()

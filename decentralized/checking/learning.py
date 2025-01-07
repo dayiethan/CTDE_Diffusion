@@ -185,11 +185,11 @@ with open('data/mode2_agent1.csv', 'r') as file:
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
-with open('data/mode3_agent1.csv', 'r') as file:
-    reader = csv.reader(file)
-    for row in reader:
-        x, y = float(row[0]), float(row[1])
-        all_points1.append([x, y])
+# with open('data/mode3_agent1.csv', 'r') as file:
+#     reader = csv.reader(file)
+#     for row in reader:
+#         x, y = float(row[0]), float(row[1])
+#         all_points1.append([x, y])
 with open('data/mode4_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
@@ -211,14 +211,14 @@ with open('data/mode3_agent2.csv', 'r') as file:
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points2.append([x, y])
-with open('data/mode4_agent2.csv', 'r') as file:
-    reader = csv.reader(file)
-    for row in reader:
-        x, y = float(row[0]), float(row[1])
-        all_points2.append([x, y])
+# with open('data/mode4_agent2.csv', 'r') as file:
+#     reader = csv.reader(file)
+#     for row in reader:
+#         x, y = float(row[0]), float(row[1])
+#         all_points2.append([x, y])
 
 
-num_trajectories = 4000
+num_trajectories = 3000
 points_per_trajectory = 100
 
 expert_data1 = [
@@ -241,6 +241,22 @@ y2 = [point[1] for point in first_trajectory2]
 
 expert_data1 = np.array(expert_data1)
 expert_data2 = np.array(expert_data2)
+
+# plt.figure(figsize=(20, 8))
+# for traj in expert_data1[3001:4000]:  # Plot a few expert trajectories
+#     first_trajectory = traj
+#     x = [point[0] for point in first_trajectory]
+#     y = [point[1] for point in first_trajectory]
+#     plt.plot(x, y, 'b--')
+# for traj in expert_data2[2001:3000]:  # Plot a few expert trajectories
+#     first_trajectory = traj
+#     x = [point[0] for point in first_trajectory]
+#     y = [point[1] for point in first_trajectory]
+#     plt.plot(x, y, 'g--')
+# plt.show()
+
+# import sys
+# sys.exit()
 
 # Compute mean and standard deviation
 combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
