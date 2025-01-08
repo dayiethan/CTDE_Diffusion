@@ -173,8 +173,8 @@ obstacle = (10, 0, 4.0)  # Single central obstacle: (x, y, radius)
 
 # Parse expert data from single_uni_full_traj.csv
 import csv
-all_points1 = []
-all_points2 = []
+all_points1 = []    # want modes 1, 2, 4, 6
+all_points2 = []    # want modes 1, 2, 3, 5
 with open('data/mode1_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
@@ -191,6 +191,16 @@ with open('data/mode2_agent1.csv', 'r') as file:
 #         x, y = float(row[0]), float(row[1])
 #         all_points1.append([x, y])
 with open('data/mode4_agent1.csv', 'r') as file:
+    reader = csv.reader(file)
+    for row in reader:
+        x, y = float(row[0]), float(row[1])
+        all_points1.append([x, y])
+# with open('data/mode5_agent1.csv', 'r') as file:
+#     reader = csv.reader(file)
+#     for row in reader:
+#         x, y = float(row[0]), float(row[1])
+#         all_points1.append([x, y])
+with open('data/mode6_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
@@ -216,9 +226,19 @@ with open('data/mode3_agent2.csv', 'r') as file:
 #     for row in reader:
 #         x, y = float(row[0]), float(row[1])
 #         all_points2.append([x, y])
+with open('data/mode5_agent2.csv', 'r') as file:
+    reader = csv.reader(file)
+    for row in reader:
+        x, y = float(row[0]), float(row[1])
+        all_points2.append([x, y])
+# with open('data/mode6_agent2.csv', 'r') as file:
+#     reader = csv.reader(file)
+#     for row in reader:
+#         x, y = float(row[0]), float(row[1])
+#         all_points2.append([x, y])
 
 
-num_trajectories = 3000
+num_trajectories = 4000
 points_per_trajectory = 100
 
 expert_data1 = [
@@ -243,12 +263,12 @@ expert_data1 = np.array(expert_data1)
 expert_data2 = np.array(expert_data2)
 
 # plt.figure(figsize=(20, 8))
-# for traj in expert_data1[3001:4000]:  # Plot a few expert trajectories
+# for traj in expert_data2[:]:  # Plot a few expert trajectories
 #     first_trajectory = traj
 #     x = [point[0] for point in first_trajectory]
 #     y = [point[1] for point in first_trajectory]
 #     plt.plot(x, y, 'b--')
-# for traj in expert_data2[2001:3000]:  # Plot a few expert trajectories
+# for traj in expert_data2[:]:  # Plot a few expert trajectories
 #     first_trajectory = traj
 #     x = [point[0] for point in first_trajectory]
 #     y = [point[1] for point in first_trajectory]
@@ -300,7 +320,7 @@ state_dim = 4   # e.g., state vector of size 10
 max_steps = len(betas) # Maximum diffusion steps
 alphas = 1 - betas
 alphas_bar = torch.cumprod(alphas, 0)
-num_epochs = 2000
+num_epochs = 3000
 agent_iter = 10
 batch_size = 64
 lr = 1e-3
@@ -367,7 +387,7 @@ for epoch in range(num_epochs):
         print("Epoch:",epoch)
         print("Loss:",losses[epoch])
 
-    if (epoch+1)%1000 == 0:
+    if (epoch+1)%1500 == 0:
         torch.save(denoiser1.state_dict(), 'checkpoints/unet1_diff_tran_epoch'+str(epoch)+'.pth')
         torch.save(denoiser2.state_dict(), 'checkpoints/unet2_diff_tran_epoch'+str(epoch)+'.pth')
 
