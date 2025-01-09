@@ -171,10 +171,10 @@ initial_point_down = np.array([20.0, 0.0])
 obstacle = (10, 0, 4.0)  # Single central obstacle: (x, y, radius)
 
 
-#  Parse expert data from single_uni_full_traj.csv
+# Parse expert data from single_uni_full_traj.csv
 import csv
-all_points1 = []
-all_points2 = []
+all_points1 = []    # want modes 1, 2, 4, 6
+all_points2 = []    # want modes 1, 2, 3, 5
 with open('data/mode1_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
@@ -185,12 +185,22 @@ with open('data/mode2_agent1.csv', 'r') as file:
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
-with open('data/mode3_agent1.csv', 'r') as file:
+# with open('data/mode3_agent1.csv', 'r') as file:
+#     reader = csv.reader(file)
+#     for row in reader:
+#         x, y = float(row[0]), float(row[1])
+#         all_points1.append([x, y])
+with open('data/mode4_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
-with open('data/mode4_agent1.csv', 'r') as file:
+# with open('data/mode5_agent1.csv', 'r') as file:
+#     reader = csv.reader(file)
+#     for row in reader:
+#         x, y = float(row[0]), float(row[1])
+#         all_points1.append([x, y])
+with open('data/mode6_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
@@ -211,11 +221,21 @@ with open('data/mode3_agent2.csv', 'r') as file:
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points2.append([x, y])
-with open('data/mode4_agent2.csv', 'r') as file:
+# with open('data/mode4_agent2.csv', 'r') as file:
+#     reader = csv.reader(file)
+#     for row in reader:
+#         x, y = float(row[0]), float(row[1])
+#         all_points2.append([x, y])
+with open('data/mode5_agent2.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points2.append([x, y])
+# with open('data/mode6_agent2.csv', 'r') as file:
+#     reader = csv.reader(file)
+#     for row in reader:
+#         x, y = float(row[0]), float(row[1])
+#         all_points2.append([x, y])
 
 
 num_trajectories = 4000
@@ -241,6 +261,22 @@ y2 = [point[1] for point in first_trajectory2]
 
 expert_data1 = np.array(expert_data1)
 expert_data2 = np.array(expert_data2)
+
+# plt.figure(figsize=(20, 8))
+# for traj in expert_data2[:]:  # Plot a few expert trajectories
+#     first_trajectory = traj
+#     x = [point[0] for point in first_trajectory]
+#     y = [point[1] for point in first_trajectory]
+#     plt.plot(x, y, 'b--')
+# for traj in expert_data2[:]:  # Plot a few expert trajectories
+#     first_trajectory = traj
+#     x = [point[0] for point in first_trajectory]
+#     y = [point[1] for point in first_trajectory]
+#     plt.plot(x, y, 'g--')
+# plt.show()
+
+# import sys
+# sys.exit()
 
 # Compute mean and standard deviation
 combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
@@ -284,16 +320,16 @@ state_dim = 4   # e.g., state vector of size 10
 max_steps = len(betas) # Maximum diffusion steps
 alphas = 1 - betas
 alphas_bar = torch.cumprod(alphas, 0)
-num_epochs = 2000
+num_epochs = 3000
 agent_iter = 10
 batch_size = 64
 lr = 1e-3
 
-for i in range(100):
+for i in range(200):
     denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
     denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
-    denoiser1.load_state_dict(torch.load("checkpoints/unet1_diff_tran_epoch1999.pth"))
-    denoiser2.load_state_dict(torch.load("checkpoints/unet2_diff_tran_epoch1999.pth"))
+    denoiser1.load_state_dict(torch.load("checkpoints_4modes/unet1_diff_tran_epoch2999.pth"))
+    denoiser2.load_state_dict(torch.load("checkpoints_4modes/unet2_diff_tran_epoch2999.pth"))
 
     def compute_action_diff(alphas_bar, alphas, betas, denoiser):
         u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise
@@ -357,7 +393,7 @@ for i in range(100):
     plt.xlabel('X')
     plt.ylabel('Y')
     plt.grid(True)
-    plt.savefig('figs/expert_vs_generated_trajectories%s.png' % i)
+    plt.savefig('figs_4modes/expert_vs_generated_trajectories%s.png' % i)
     # plt.show()
 
     # # Plot the Training Loss
