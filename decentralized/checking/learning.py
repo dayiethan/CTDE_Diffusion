@@ -175,12 +175,12 @@ obstacle = (10, 0, 4.0)  # Single central obstacle: (x, y, radius)
 import csv
 all_points1 = []    # want modes 1, 2, 4, 6
 all_points2 = []    # want modes 1, 2, 3, 5
-with open('data/mode1_agent1.csv', 'r') as file:
+with open('data/mode6_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
-with open('data/mode2_agent1.csv', 'r') as file:
+with open('data/mode4_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
@@ -190,7 +190,7 @@ with open('data/mode2_agent1.csv', 'r') as file:
 #     for row in reader:
 #         x, y = float(row[0]), float(row[1])
 #         all_points1.append([x, y])
-with open('data/mode4_agent1.csv', 'r') as file:
+with open('data/mode2_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
@@ -200,18 +200,13 @@ with open('data/mode4_agent1.csv', 'r') as file:
 #     for row in reader:
 #         x, y = float(row[0]), float(row[1])
 #         all_points1.append([x, y])
-with open('data/mode6_agent1.csv', 'r') as file:
+with open('data/mode1_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
 
-with open('data/mode1_agent2.csv', 'r') as file:
-    reader = csv.reader(file)
-    for row in reader:
-        x, y = float(row[0]), float(row[1])
-        all_points2.append([x, y])
-with open('data/mode2_agent2.csv', 'r') as file:
+with open('data/mode5_agent2.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
@@ -221,12 +216,17 @@ with open('data/mode3_agent2.csv', 'r') as file:
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points2.append([x, y])
+with open('data/mode2_agent2.csv', 'r') as file:
+    reader = csv.reader(file)
+    for row in reader:
+        x, y = float(row[0]), float(row[1])
+        all_points2.append([x, y])
 # with open('data/mode4_agent2.csv', 'r') as file:
 #     reader = csv.reader(file)
 #     for row in reader:
 #         x, y = float(row[0]), float(row[1])
 #         all_points2.append([x, y])
-with open('data/mode5_agent2.csv', 'r') as file:
+with open('data/mode1_agent2.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
@@ -388,8 +388,8 @@ for epoch in range(num_epochs):
         print("Loss:",losses[epoch])
 
     if (epoch+1)%1500 == 0:
-        torch.save(denoiser1.state_dict(), 'checkpoints/unet1_diff_tran_epoch'+str(epoch)+'.pth')
-        torch.save(denoiser2.state_dict(), 'checkpoints/unet2_diff_tran_epoch'+str(epoch)+'.pth')
+        torch.save(denoiser1.state_dict(), 'checkpoints_4modes_rev/unet1_diff_tran_epoch'+str(epoch)+'.pth')
+        torch.save(denoiser2.state_dict(), 'checkpoints_4modes_rev/unet2_diff_tran_epoch'+str(epoch)+'.pth')
 
     if losses[epoch] < 3:
         lr = 1e-4
