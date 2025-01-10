@@ -173,45 +173,45 @@ obstacle = (10, 0, 4.0)  # Single central obstacle: (x, y, radius)
 
 # Parse expert data from single_uni_full_traj.csv
 import csv
-all_points1 = []    # want modes 1, 2, 4, 6
-all_points2 = []    # want modes 1, 2, 3, 5
-with open('data_0.5/mode1_agent1.csv', 'r') as file:
+all_points1 = []
+all_points2 = []
+with open('data_0.75/mode1_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
-with open('data_0.5/mode2_agent1.csv', 'r') as file:
+with open('data_0.75/mode2_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
-with open('data_0.5/mode3_agent1.csv', 'r') as file:
+with open('data_0.75/mode3_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
-with open('data_0.5/mode4_agent1.csv', 'r') as file:
+with open('data_0.75/mode4_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
 
-with open('data_0.5/mode1_agent2.csv', 'r') as file:
+with open('data_0.75/mode1_agent2.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points2.append([x, y])
-with open('data_0.5/mode2_agent2.csv', 'r') as file:
+with open('data_0.75/mode2_agent2.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points2.append([x, y])
-with open('data_0.5/mode3_agent2.csv', 'r') as file:
+with open('data_0.75/mode3_agent2.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points2.append([x, y])
-with open('data_0.5/mode4_agent2.csv', 'r') as file:
+with open('data_0.75/mode4_agent2.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
