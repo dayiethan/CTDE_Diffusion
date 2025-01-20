@@ -325,11 +325,11 @@ agent_iter = 10
 batch_size = 64
 lr = 1e-3
 
-for i in range(200):
+for i in range(100):
     denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
     denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
-    denoiser1.load_state_dict(torch.load("checkpoints_4modes_rev/unet1_diff_tran_epoch2999.pth"))
-    denoiser2.load_state_dict(torch.load("checkpoints_4modes_rev/unet2_diff_tran_epoch2999.pth"))
+    denoiser1.load_state_dict(torch.load("checkpoints_min/unet1_diff_tran_epoch2999.pth"))
+    denoiser2.load_state_dict(torch.load("checkpoints_min/unet2_diff_tran_epoch2999.pth"))
 
     def compute_action_diff(alphas_bar, alphas, betas, denoiser):
         u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise
@@ -393,7 +393,7 @@ for i in range(200):
     plt.xlabel('X')
     plt.ylabel('Y')
     plt.grid(True)
-    plt.savefig('figs_4modes_rev/expert_vs_generated_trajectories%s.png' % i)
+    plt.savefig('figs_min/expert_vs_generated_trajectories%s.png' % i)
     # plt.show()
 
     # # Plot the Training Loss
