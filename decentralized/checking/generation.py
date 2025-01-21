@@ -180,13 +180,13 @@ with open('data/mode6_agent1.csv', 'r') as file:
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
-all_points1 = all_points1[:1000]
+all_points1 = all_points1[:500]
 with open('data/mode4_agent1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
-all_points1 = all_points1[:2000]
+all_points1 = all_points1[:1000]
 # with open('data/mode3_agent1.csv', 'r') as file:
 #     reader = csv.reader(file)
 #     for row in reader:
@@ -197,7 +197,7 @@ with open('data/mode2_agent1.csv', 'r') as file:
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
-all_points1 = all_points1[:3000]
+all_points1 = all_points1[:1500]
 # with open('data/mode5_agent1.csv', 'r') as file:
 #     reader = csv.reader(file)
 #     for row in reader:
@@ -208,7 +208,7 @@ with open('data/mode1_agent1.csv', 'r') as file:
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points1.append([x, y])
-all_points1 = all_points1[:4000]
+all_points1 = all_points1[:2000]
 
 
 with open('data/mode5_agent2.csv', 'r') as file:
@@ -216,19 +216,19 @@ with open('data/mode5_agent2.csv', 'r') as file:
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points2.append([x, y])
-all_points2 = all_points2[:1000]
+all_points2 = all_points2[:500]
 with open('data/mode3_agent2.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points2.append([x, y])
-all_points2 = all_points2[:2000]
+all_points2 = all_points2[:1000]
 with open('data/mode2_agent2.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points2.append([x, y])
-all_points2 = all_points2[:3000]
+all_points2 = all_points2[:1500]
 # with open('data/mode4_agent2.csv', 'r') as file:
 #     reader = csv.reader(file)
 #     for row in reader:
@@ -239,7 +239,7 @@ with open('data/mode1_agent2.csv', 'r') as file:
     for row in reader:
         x, y = float(row[0]), float(row[1])
         all_points2.append([x, y])
-all_points2 = all_points2[:4000]
+all_points2 = all_points2[:2000]
 # with open('data/mode6_agent2.csv', 'r') as file:
 #     reader = csv.reader(file)
 #     for row in reader:
@@ -247,7 +247,7 @@ all_points2 = all_points2[:4000]
 #         all_points2.append([x, y])
 
 
-num_trajectories = 40
+num_trajectories = 20
 points_per_trajectory = 100
 
 expert_data1 = [
@@ -337,12 +337,12 @@ lr = 1e-3
 for i in range(100):
     denoiser1 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
     denoiser2 = DiT1d(x_dim=2, attr_dim=1, d_model=64, n_heads=4, depth=3, dropout=0.1)
-    denoiser1.load_state_dict(torch.load("checkpoints_min/40/unet1_diff_tran_epoch2999.pth"))
-    denoiser2.load_state_dict(torch.load("checkpoints_min/40/unet2_diff_tran_epoch2999.pth"))
+    denoiser1.load_state_dict(torch.load("checkpoints_min/20/unet1_diff_tran_epoch2999.pth"))
+    denoiser2.load_state_dict(torch.load("checkpoints_min/20/unet2_diff_tran_epoch2999.pth"))
 
     def compute_action_diff(alphas_bar, alphas, betas, denoiser):
         u_out = torch.randn((1, 100, 2))  # Initialize with standard normal noise
-        for t in range(len(alphas_bar)-1, -1, -1):  # Loop from T-1 to 0
+        for t in range(len(alphas_bar)-1, -1, -1):  # Loop from T-1 to 0 
             if t > 0:
                 z = torch.randn_like(u_out)
             else:
@@ -402,7 +402,7 @@ for i in range(100):
     plt.xlabel('X')
     plt.ylabel('Y')
     plt.grid(True)
-    plt.savefig('figs_min/40/expert_vs_generated_trajectories%s.png' % i)
+    plt.savefig('figs_min/20/expert_vs_generated_trajectories%s.png' % i)
     # plt.show()
 
     # # Plot the Training Loss
