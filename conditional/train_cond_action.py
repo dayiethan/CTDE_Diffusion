@@ -26,7 +26,7 @@ model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 300 # horizon, length of each trajectory
 set_seed(0) 
 
-env = WalkerEnv() 
+# env = WalkerEnv() 
     
   
 #%% Dataset
