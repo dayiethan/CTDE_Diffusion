@@ -25,31 +25,148 @@ batch_size = 64
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 300 # horizon, length of each trajectory
 set_seed(0) 
-
-# env = WalkerEnv() 
-    
   
 #%% Dataset
     
-N_trajs = 1000 # number of trajectories for training
-data = np.load(f"datasets/walker_{N_trajs}trajs_500steps.npz")
-obs = data["Trajs"][:, 0] # only keep the initial states of trajectories
-actions = data["Actions"][:, :H-1] # cut the length of trajectories to H
+N_trajs = 20 # number of trajectories for training
+# Parse expert data from single_uni_full_traj.csv
+# Define initial and final points, and a single central obstacle
+initial_point_up = np.array([0.0, 0.0])
+final_point_up = np.array([20.0, 0.0])
+final_point_down = np.array([0.0, 0.0])
+initial_point_down = np.array([20.0, 0.0])
+obstacle = (10, 0, 4.0)  # Single central obstacle: (x, y, radius)
 
-obs = torch.FloatTensor(obs).to(device)
-normalizer = Normalizer(obs)
-attr = normalizer.normalize(obs) # Conditioned on the normalized initial states
-attr_dim = attr.shape[1]
-assert attr_dim == env.state_size
 
-actions = torch.FloatTensor(actions).to(device)
-sigma_data = actions.std().item()
+# Parse expert data from single_uni_full_traj.csv
+import csv
+all_points1 = []    # want modes 1, 2, 4, 6
+all_points2 = []    # want modes 1, 2, 3, 5
+with open('data/mode6_agent1.csv', 'r') as file:
+    reader = csv.reader(file)
+    for row in reader:
+        x, y = float(row[0]), float(row[1])
+        all_points1.append([x, y])
+all_points1 = all_points1[:500]
+with open('data/mode4_agent1.csv', 'r') as file:
+    reader = csv.reader(file)
+    for row in reader:
+        x, y = float(row[0]), float(row[1])
+        all_points1.append([x, y])
+all_points1 = all_points1[:1000]
+# with open('data/mode3_agent1.csv', 'r') as file:
+#     reader = csv.reader(file)
+#     for row in reader:
+#         x, y = float(row[0]), float(row[1])
+#         all_points1.append([x, y])
+with open('data/mode2_agent1.csv', 'r') as file:
+    reader = csv.reader(file)
+    for row in reader:
+        x, y = float(row[0]), float(row[1])
+        all_points1.append([x, y])
+all_points1 = all_points1[:1500]
+# with open('data/mode5_agent1.csv', 'r') as file:
+#     reader = csv.reader(file)
+#     for row in reader:
+#         x, y = float(row[0]), float(row[1])
+#         all_points1.append([x, y])
+with open('data/mode1_agent1.csv', 'r') as file:
+    reader = csv.reader(file)
+    for row in reader:
+        x, y = float(row[0]), float(row[1])
+        all_points1.append([x, y])
+all_points1 = all_points1[:2000]
+
+
+with open('data/mode5_agent2.csv', 'r') as file:
+    reader = csv.reader(file)
+    for row in reader:
+        x, y = float(row[0]), float(row[1])
+        all_points2.append([x, y])
+all_points2 = all_points2[:500]
+with open('data/mode3_agent2.csv', 'r') as file:
+    reader = csv.reader(file)
+    for row in reader:
+        x, y = float(row[0]), float(row[1])
+        all_points2.append([x, y])
+all_points2 = all_points2[:1000]
+with open('data/mode2_agent2.csv', 'r') as file:
+    reader = csv.reader(file)
+    for row in reader:
+        x, y = float(row[0]), float(row[1])
+        all_points2.append([x, y])
+all_points2 = all_points2[:1500]
+# with open('data/mode4_agent2.csv', 'r') as file:
+#     reader = csv.reader(file)
+#     for row in reader:
+#         x, y = float(row[0]), float(row[1])
+#         all_points2.append([x, y])
+with open('data/mode1_agent2.csv', 'r') as file:
+    reader = csv.reader(file)
+    for row in reader:
+        x, y = float(row[0]), float(row[1])
+        all_points2.append([x, y])
+all_points2 = all_points2[:2000]
+# with open('data/mode6_agent2.csv', 'r') as file:
+#     reader = csv.reader(file)
+#     for row in reader:
+#         x, y = float(row[0]), float(row[1])
+#         all_points2.append([x, y])
+
+
+num_trajectories = 20
+points_per_trajectory = 100
+
+expert_data1 = [
+    all_points1[i * points_per_trajectory:(i + 1) * points_per_trajectory]
+    for i in range(num_trajectories)
+]
+first_trajectory1 = expert_data1[0]
+x1 = [point[0] for point in first_trajectory1]
+y1 = [point[1] for point in first_trajectory1]
+
+expert_data2 = [
+    all_points2[i * points_per_trajectory:(i + 1) * points_per_trajectory]
+    for i in range(num_trajectories)
+]
+first_trajectory2 = expert_data2[0]
+x2 = [point[0] for point in first_trajectory2]
+y2 = [point[1] for point in first_trajectory2]
+
+# expert_data = expert_data + list(reversed(expert_data_rev))
+
+expert_data1 = np.array(expert_data1)
+expert_data2 = np.array(expert_data2)
+
+
+start1 = expert_data1[:, 0] # only keep the initial states of trajectories
+end1 = expert_data1[:, -1] # only keep the final states of trajectories
+obs1 = np.hstack((start1, end1)) # concatenate initial and final states
+start2 = expert_data2[:, 0] # only keep the initial states of trajectories
+end2 = expert_data2[:, -1] # only keep the final states of trajectories
+obs2 = np.hstack((start2, end2)) # concatenate initial and final states 
+# actions = data["Actions"][:, :H-1] # cut the length of trajectories to H
+
+obs1 = torch.FloatTensor(obs1).to(device)
+obs2 = torch.FloatTensor(obs2).to(device)
+normalizer1 = Normalizer(obs1)
+normalizer2 = Normalizer(obs2)
+attr1 = normalizer1.normalize(obs1) # Conditioned on the normalized initial states
+attr2 = normalizer2.normalize(obs2) # Conditioned on the normalized initial states
+attr_dim1 = attr1.shape[1]
+attr_dim2 = attr2.shape[1]
+
+# actions = torch.FloatTensor(actions).to(device)
+# sigma_data = actions.std().item()
+exp = np.concatenate((expert_data1, expert_data2), axis=0)
+data = torch.FloatTensor(exp).to(device)
+sigma_exp = data.std().item()
 
 
 #%% Training
 
 print("Conditional Action Diffusion Transformer without projections")
-action_cond_ode = Conditional_ODE(env, attr_dim, sigma_data, device=device, N=5, **model_size)
+action_cond_ode = Conditional_ODE(env, attr_dim1, sigma_exp, device=device, N=5, **model_size)
 action_cond_ode.load()
 action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="")
 
