@@ -13,7 +13,7 @@ import numpy as np
 
 # from walker2d import WalkerEnv
 from utils import Normalizer, set_seed
-from conditional_Action_DiT import Conditional_ODE, Conditional_Planner
+from conditional.conditional_Action_DiT_old import Conditional_ODE, Conditional_Planner
 
 
 #%% Hyperparameters

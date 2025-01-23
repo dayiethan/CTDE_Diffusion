@@ -13,7 +13,7 @@ import numpy as np
 
 # from walker2d import WalkerEnv
 from utils import Normalizer, set_seed
-from conditional_Action_DiT import Conditional_ODE, Conditional_Planner
+from conditional.conditional_Action_DiT_old import Conditional_ODE, Conditional_Planner
 
 
 #%% Hyperparameters
@@ -216,7 +216,7 @@ traj1, actions, reward = action_planner1.best_traj(s0=s0, traj_len=H, n_samples_
 import matplotlib.pyplot as plt
 plt.figure(figsize=(20, 8))
 
-plt.plot(traj1[:, 0], traj1[:, 1], 'r-', label='Generated')
+plt.plot(traj1[0, :, 0], traj1[0, :, 1], 'r-', label='Generated')
 # plt.plot(traj2[:, 0], traj2[:, 1], 'y-', label='Generated')
 
 ox, oy, r = obstacle
