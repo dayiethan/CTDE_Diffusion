@@ -251,21 +251,21 @@ y2 = [point[1] for point in first_trajectory2]
 expert_data1 = np.array(expert_data1)
 expert_data2 = np.array(expert_data2)
 
-plt.figure(figsize=(20, 8))
-for traj in expert_data1[:]:  # Plot a few expert trajectories
-    first_trajectory = traj
-    x = [point[0] for point in first_trajectory]
-    y = [point[1] for point in first_trajectory]
-    plt.plot(x, y, 'b--')
-for traj in expert_data2[:]:  # Plot a few expert trajectories
-    first_trajectory = traj
-    x = [point[0] for point in first_trajectory]
-    y = [point[1] for point in first_trajectory]
-    plt.plot(x, y, 'g--')
-plt.show()
+# plt.figure(figsize=(20, 8))
+# for traj in expert_data2[:]:  # Plot a few expert trajectories
+#     first_trajectory = traj
+#     x = [point[0] for point in first_trajectory]
+#     y = [point[1] for point in first_trajectory]
+#     plt.plot(x, y, 'b--')
+# for traj in expert_data2[:]:  # Plot a few expert trajectories
+#     first_trajectory = traj
+#     x = [point[0] for point in first_trajectory]
+#     y = [point[1] for point in first_trajectory]
+#     plt.plot(x, y, 'g--')
+# plt.show()
 
-import sys
-sys.exit()
+# import sys
+# sys.exit()
 
 # Compute mean and standard deviation
 combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
