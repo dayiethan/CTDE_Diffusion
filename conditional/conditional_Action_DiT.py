@@ -327,7 +327,7 @@ class Conditional_ODE():
         
     
     def load(self, extra:str = ""):    
-        name = "trained_models/" + self.filename + extra + ".pt"
+        name = "trained_models/" + self.filename + extra + "2.pt"
         if os.path.isfile(name):
             print("Loading " + name)
             checkpoint = torch.load(name, map_location=self.device, weights_only=True)

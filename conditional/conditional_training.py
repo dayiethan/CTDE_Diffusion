@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-n_gradient_steps = 100_000
+n_gradient_steps = 1_000_000
 batch_size = 64
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 100 # horizon, length of each trajectory
@@ -50,10 +50,10 @@ sigma_data = actions.std().item()
 # Training
 
 print("Conditional Action Diffusion Transformer without projections")
-action_cond_ode = Conditional_ODE(env, attr_dim, sigma_data, device=device, N=5, **model_size)
-# action_cond_ode.load()
-action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="")
-action_cond_ode.save()
+action_cond_ode = Conditional_ODE(env, attr_dim, sigma_data, device=device, N=20, lr=1e-4, **model_size)
+action_cond_ode.load()
+# action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="")
+# action_cond_ode.save()
 
 attr = attr[0].unsqueeze(0)
 
