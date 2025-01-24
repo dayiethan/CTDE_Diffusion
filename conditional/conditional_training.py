@@ -65,8 +65,8 @@ n_samples = 1
 sampled = action_cond_ode.sample(attr, traj_len, n_samples)
 
 sampled = sampled.cpu().detach().numpy()
-# sampled = sampled * max_traj_array
-sampled = sampled * std + mean
+sampled = sampled * max_traj_array
+# sampled = sampled * std + mean
 
 print(sampled.shape)
 
