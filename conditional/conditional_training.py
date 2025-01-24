@@ -55,24 +55,32 @@ action_cond_ode.load()
 # action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="")
 # action_cond_ode.save()
 
-attr = attr[0].unsqueeze(0)
+for i in range(10):
+    attr_t = attr[i*10].unsqueeze(0)
+    attr_n = attr_t.cpu().detach().numpy()[0]
+    # attr = np.array([ 0.3909,  0.0145,  0.3958, -0.0049, -0.0034,  0.0314,  0.0000,  0.9766,
+    #         0.0561,  0.6911])
+    print("attr: ", end="")
+    print(attr_n*max_traj_array)
+    # attr_t = torch.FloatTensor(attr).to(device).unsqueeze(0)
 
-print(attr)
+    traj_len = 100
+    n_samples = 1
 
-traj_len = 100
-n_samples = 1
+    sampled = action_cond_ode.sample(attr_t, traj_len, n_samples)
 
-sampled = action_cond_ode.sample(attr, traj_len, n_samples)
+    sampled = sampled.cpu().detach().numpy()
+    sampled = sampled * max_traj_array
+    # sampled = sampled * std + mean
 
-sampled = sampled.cpu().detach().numpy()
-sampled = sampled * max_traj_array
-# sampled = sampled * std + mean
+    # print(sampled.shape)
 
-print(sampled.shape)
-
-plt.plot(sampled[0, :, 4], sampled[0, :, 5], color='blue')
-plt.plot(sampled[0, :, 7], sampled[0, :, 8], color='orange')
-
-plt.show()
+    attr_n = attr_n * max_traj_array
+    plt.figure(figsize=(20, 8))
+    plt.plot(attr_n[4], attr_n[5], 'bo')
+    plt.plot(attr_n[7], attr_n[8], 'o', color='orange')
+    plt.plot(sampled[0, :, 4], sampled[0, :, 5], color='blue')
+    plt.plot(sampled[0, :, 7], sampled[0, :, 8], color='orange')
+    plt.savefig("figs/conditional_action_diffusion_transformer%s.png" % i)
 
 
