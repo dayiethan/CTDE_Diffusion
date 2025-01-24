@@ -20,8 +20,8 @@ max_traj_array = np.max(trajectory, axis=0)
 np.savetxt("data/max_traj_array_rand.csv", max_traj_array, delimiter=",")
 np.savetxt("data/traj_mean.csv", mean, delimiter=",")
 np.savetxt("data/traj_std.csv", std, delimiter=",")
-# trajectory = trajectory/max_traj_array
-trajectory = (trajectory - mean) / std
+trajectory = trajectory/max_traj_array
+# trajectory = (trajectory - mean) / std
 trajectory = (trajectory).reshape(-1, 100, 10)
 
 N_trajs = trajectory.shape[0] # number of trajectories for training
@@ -50,7 +50,7 @@ sigma_data = actions.std().item()
 # Training
 
 print("Conditional Action Diffusion Transformer without projections")
-action_cond_ode = Conditional_ODE(env, attr_dim, sigma_data, device=device, N=20, lr=1e-4, **model_size)
+action_cond_ode = Conditional_ODE(env, attr_dim, sigma_data, device=device, N=5, **model_size)
 # action_cond_ode.load()
 action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="")
 action_cond_ode.save()

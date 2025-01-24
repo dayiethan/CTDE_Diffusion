@@ -323,7 +323,7 @@ class Conditional_ODE():
     
     
     def save(self, extra:str = ""):
-        torch.save({'model': self.F.state_dict(), 'model_ema': self.F_ema.state_dict()}, "trained_models/"+ self.filename+extra+".pt")
+        torch.save({'model': self.F.state_dict(), 'model_ema': self.F_ema.state_dict()}, "trained_models/"+ self.filename+extra+"2.pt")
         
     
     def load(self, extra:str = ""):    
