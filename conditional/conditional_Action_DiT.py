@@ -185,7 +185,7 @@ class SinusoidalPosEmb(nn.Module):
     
 class Conditional_ODE():
     def __init__(self, env, attr_dim: int, sigma_data: float,
-        sigma_min: float = 0.002, sigma_max: float = 80,
+        sigma_min: float = 0.001, sigma_max: float = 50,
         rho: float = 7, p_mean: float = -1.2, p_std: float = 1.2, 
         d_model: int = 384, n_heads: int = 6, depth: int = 12,
         device: str = "cpu", N: int = 5, lr: float = 2e-4):
@@ -297,37 +297,48 @@ class Conditional_ODE():
         
     
     @torch.no_grad()
-    def sample(self, attr, traj_len, n_samples: int, w:float = 1.5, N:int = None):
-        """Samples 'n_samples' trajectories of length 'traj_len' conditioned on
-        initial state s0=attr.
-        Heun's 2nd order sampling from the EDM paper"""
+    def sample(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None):
+        """Clamp the initial state to match the provided condition."""
+        if N is not None and N != self.N:
+            self.set_N(N)
         
-        if N is not None and N != self.N: self.set_N(N)
+        # Initialize noise for the entire trajectory
         x = torch.randn((n_samples, traj_len, self.action_size), device=self.device) * self.sigma_s[0] * self.scale_s[0]
         
-        # Doubling x, attr since we sample eps(conditioned) - eps(unconditioned) see Section 4 of AlignDiff
-        attr_mask = torch.ones_like(attr) # Is it the right mask?
+        # Clamp the first timestep to match the initial condition
+        # Assuming `attr` contains the initial state (normalized)
+        # If `attr` is part of the state, adjust indices accordingly
+        x[:, 0, :self.state_size] = attr  # Directly set the initial state
+        
+        # Doubling x, attr since we sample eps(conditioned) - eps(unconditioned)
+        attr_mask = torch.ones_like(attr)
         attr = attr.repeat(2, 1)
         attr_mask = attr_mask.repeat(2, 1)
         attr_mask[n_samples:] = 0
         
         for i in range(self.N):
             with torch.no_grad():
-                D = self.D(x.repeat(2,1,1)/self.scale_s[i], torch.ones((2*n_samples,1,1),device=self.device)*self.sigma_s[i], attr, attr_mask, use_ema=True)
-                D = w*D[:n_samples] + (1-w)*D[n_samples:]
-            delta = self.coeff1[i]*x - self.coeff2[i]*D
-            dt = self.t_s[i]-self.t_s[i+1] if i != self.N-1 else self.t_s[i]
-            x = x - delta*dt
+                D = self.D(x.repeat(2, 1, 1) / self.scale_s[i], 
+                        torch.ones((2 * n_samples, 1, 1), device=self.device) * self.sigma_s[i], 
+                        attr, attr_mask, use_ema=True)
+                D = w * D[:n_samples] + (1 - w) * D[n_samples:]
             
-        return x    
+            delta = self.coeff1[i] * x - self.coeff2[i] * D
+            dt = self.t_s[i] - self.t_s[i + 1] if i != self.N - 1 else self.t_s[i]
+            x = x - delta * dt
+            
+            # Re-clamp the initial state after each denoising step
+            x[:, 0, :self.state_size] = attr[:n_samples]  # Ensure it stays fixed
+        
+        return x   
     
     
     def save(self, extra:str = ""):
-        torch.save({'model': self.F.state_dict(), 'model_ema': self.F_ema.state_dict()}, "trained_models/"+ self.filename+extra+"2.pt")
+        torch.save({'model': self.F.state_dict(), 'model_ema': self.F_ema.state_dict()}, "trained_models/"+ self.filename+extra+"3.pt")
         
     
     def load(self, extra:str = ""):    
-        name = "trained_models/" + self.filename + extra + "2.pt"
+        name = "trained_models/" + self.filename + extra + "3.pt"
         if os.path.isfile(name):
             print("Loading " + name)
             checkpoint = torch.load(name, map_location=self.device, weights_only=True)

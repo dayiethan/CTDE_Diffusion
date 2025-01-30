@@ -15,13 +15,13 @@ H = 100 # horizon, length of each trajectory
 
 trajectory = np.loadtxt("data/full_traj_obstacle.csv",delimiter=",", dtype=float)
 mean = trajectory.mean(axis=0)
-std = trajectory.mean(axis=0)
+std = trajectory.std(axis=0)
 max_traj_array = np.max(trajectory, axis=0)
 np.savetxt("data/max_traj_array_rand.csv", max_traj_array, delimiter=",")
 np.savetxt("data/traj_mean.csv", mean, delimiter=",")
 np.savetxt("data/traj_std.csv", std, delimiter=",")
-trajectory = trajectory/max_traj_array
-# trajectory = (trajectory - mean) / std
+# trajectory = trajectory/max_traj_array
+trajectory = (trajectory - mean) / std
 trajectory = (trajectory).reshape(-1, 100, 10)
 
 N_trajs = trajectory.shape[0] # number of trajectories for training
@@ -50,7 +50,7 @@ sigma_data = actions.std().item()
 # Training
 
 print("Conditional Action Diffusion Transformer without projections")
-action_cond_ode = Conditional_ODE(env, attr_dim, sigma_data, device=device, N=5, **model_size)
+action_cond_ode = Conditional_ODE(env, attr_dim, sigma_data, device=device, N=20, **model_size)
 action_cond_ode.load()
 # action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="")
 # action_cond_ode.save()
@@ -61,26 +61,26 @@ for i in range(10):
     # attr = np.array([ 0.3909,  0.0145,  0.3958, -0.0049, -0.0034,  0.0314,  0.0000,  0.9766,
     #         0.0561,  0.6911])
     print("attr: ", end="")
-    print(attr_n*max_traj_array)
+    print(attr_n*std + mean)
     # attr_t = torch.FloatTensor(attr).to(device).unsqueeze(0)
 
     traj_len = 100
     n_samples = 1
 
-    sampled = action_cond_ode.sample(attr_t, traj_len, n_samples)
+    sampled = action_cond_ode.sample(attr_t, traj_len, n_samples, w=1.2)
 
     sampled = sampled.cpu().detach().numpy()
-    sampled = sampled * max_traj_array
-    # sampled = sampled * std + mean
+    # sampled = sampled * max_traj_array
+    sampled = sampled * std + mean
 
     # print(sampled.shape)
 
-    attr_n = attr_n * max_traj_array
+    attr_n = attr_n * std + mean
     plt.figure(figsize=(20, 8))
     plt.plot(attr_n[4], attr_n[5], 'bo')
     plt.plot(attr_n[7], attr_n[8], 'o', color='orange')
     plt.plot(sampled[0, :, 4], sampled[0, :, 5], color='blue')
     plt.plot(sampled[0, :, 7], sampled[0, :, 8], color='orange')
-    plt.savefig("figs/conditional_action_diffusion_transformer%s.png" % i)
+    plt.savefig("figs3/conditional_action_diffusion_transformer%s.png" % i)
 
 
