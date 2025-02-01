@@ -198,7 +198,7 @@ class Conditional_ODE():
         self.filename = "Cond_ODE_" + self.task + "_specs_" + self.specs
         self.state_size = env.state_size
         self.action_size = env.action_size
-        assert attr_dim == self.state_size, "The attribute is the conditionement on the state"
+        assert attr_dim == self.state_size * 2, "The attribute is the conditionement on the state"
         
         self.sigma_data, self.sigma_min, self.sigma_max = sigma_data, sigma_min, sigma_max
         self.rho, self.p_mean, self.p_std = rho, p_mean, p_std
@@ -298,7 +298,6 @@ class Conditional_ODE():
     
     @torch.no_grad()
     def sample(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None):
-        """Clamp the initial state to match the provided condition."""
         if N is not None and N != self.N:
             self.set_N(N)
         
@@ -308,7 +307,10 @@ class Conditional_ODE():
         # Clamp the first timestep to match the initial condition
         # Assuming `attr` contains the initial state (normalized)
         # If `attr` is part of the state, adjust indices accordingly
-        x[:, 0, :self.state_size] = attr  # Directly set the initial state
+        x[:, 0, :self.state_size] = attr[:, :self.state_size]  # Directly set the initial state
+        x[:, -1, :self.state_size] = attr[:, self.state_size:]  # Directly set the final state
+
+        original_attr = attr.clone()
         
         # Doubling x, attr since we sample eps(conditioned) - eps(unconditioned)
         attr_mask = torch.ones_like(attr)
@@ -328,17 +330,18 @@ class Conditional_ODE():
             x = x - delta * dt
             
             # Re-clamp the initial state after each denoising step
-            x[:, 0, :self.state_size] = attr[:n_samples]  # Ensure it stays fixed
+            x[:, 0, :self.state_size] = original_attr[:, :self.state_size]  # Ensure it stays fixed
+            x[:, -1, :self.state_size] = original_attr[:, self.state_size:]  # Ensure it stays fixed
         
         return x   
     
     
     def save(self, extra:str = ""):
-        torch.save({'model': self.F.state_dict(), 'model_ema': self.F_ema.state_dict()}, "trained_models/"+ self.filename+extra+"3.pt")
+        torch.save({'model': self.F.state_dict(), 'model_ema': self.F_ema.state_dict()}, "trained_models/"+ self.filename+extra+"finalclamp.pt")
         
     
     def load(self, extra:str = ""):    
-        name = "trained_models/" + self.filename + extra + "3.pt"
+        name = "trained_models/" + self.filename + extra + "finalclamp.pt"
         if os.path.isfile(name):
             print("Loading " + name)
             checkpoint = torch.load(name, map_location=self.device, weights_only=True)

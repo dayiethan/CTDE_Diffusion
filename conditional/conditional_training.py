@@ -36,13 +36,17 @@ class TwoUnicycle():
 
 env = TwoUnicycle()
 
-obs = trajectory[:, 0, :] # only keep the initial states of trajectories
+obs_init = trajectory[:, 0, :] # only keep the initial states of trajectories
+obs_final = trajectory[:, -1, :]
+obs = np.hstack([obs_init, obs_final])
+print(obs.shape)
 actions = trajectory[:, :H-1, :] # cut the length of trajectories to H
 
 obs = torch.FloatTensor(obs).to(device)
+
 attr = obs # Conditioned on the normalized initial states
 attr_dim = attr.shape[1]
-assert attr_dim == env.state_size
+assert attr_dim == env.state_size * 2
 
 actions = torch.FloatTensor(actions).to(device)
 sigma_data = actions.std().item()
@@ -57,11 +61,14 @@ action_cond_ode.load()
 
 for i in range(10):
     attr_t = attr[i*10].unsqueeze(0)
+    print(attr_t.shape)
     attr_n = attr_t.cpu().detach().numpy()[0]
+    print(attr_n.shape)
     # attr = np.array([ 0.3909,  0.0145,  0.3958, -0.0049, -0.0034,  0.0314,  0.0000,  0.9766,
     #         0.0561,  0.6911])
-    print("attr: ", end="")
-    print(attr_n*std + mean)
+    # print("attr: ", end="")
+    # print(attr_n[:2]*std + mean, end=", ")
+    # print(attr_n[2:]*std + mean, end=", ")
     # attr_t = torch.FloatTensor(attr).to(device).unsqueeze(0)
 
     traj_len = 100
@@ -70,17 +77,23 @@ for i in range(10):
     sampled = action_cond_ode.sample(attr_t, traj_len, n_samples, w=1.2)
 
     sampled = sampled.cpu().detach().numpy()
-    # sampled = sampled * max_traj_array
     sampled = sampled * std + mean
 
-    # print(sampled.shape)
+    init_state = attr_n[:10]    # shape (10,)
+    final_state = attr_n[10:]   # shape (10,)
 
-    attr_n = attr_n * std + mean
+    init_state = init_state * std + mean
+    final_state = final_state * std + mean
+
+    attr_n = np.concatenate([init_state, final_state])
+
     plt.figure(figsize=(20, 8))
     plt.plot(attr_n[4], attr_n[5], 'bo')
     plt.plot(attr_n[7], attr_n[8], 'o', color='orange')
+    plt.plot(attr_n[14], attr_n[15], 'bo')
+    plt.plot(attr_n[17], attr_n[18], 'o', color='orange')
     plt.plot(sampled[0, :, 4], sampled[0, :, 5], color='blue')
     plt.plot(sampled[0, :, 7], sampled[0, :, 8], color='orange')
-    plt.savefig("figs3/conditional_action_diffusion_transformer%s.png" % i)
+    plt.savefig("fig_finalclamp/conditional_action_diffusion_transformer%s.png" % i)
 
 
