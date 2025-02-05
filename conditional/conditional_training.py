@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-n_gradient_steps = 100_000
+n_gradient_steps = 1_000_000
 batch_size = 64
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 100 # horizon, length of each trajectory
@@ -54,15 +54,17 @@ sigma_data = actions.std().item()
 # Training
 
 print("Conditional Action Diffusion Transformer without projections")
-action_cond_ode = Conditional_ODE(env, attr_dim, sigma_data, device=device, N=20, **model_size)
-action_cond_ode.load()
-# action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="")
-# action_cond_ode.save()
+action_cond_ode = Conditional_ODE(env, attr_dim, sigma_data, device=device, N=100, **model_size)
+# action_cond_ode.load(extra="clamp_smallvary")
+action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="clamp_smallvary")
+action_cond_ode.save(extra="clamp_smallvary")
 
 noise_std = 0.05
+noise = np.array([0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0])
+obs_temp = obs_temp + noise_std * noise
 obs_temp_tensor = torch.FloatTensor(obs_temp).to(device)  # ensure it's a tensor
-obs_test = obs_temp_tensor + noise_std * torch.randn_like(obs)
-attr_test = obs_test
+# obs_test = obs_temp_tensor + noise_std * torch.randn_like(obs)
+attr_test = obs_temp_tensor
 
 for i in range(10):
     attr_t = attr_test[i*10].unsqueeze(0)
@@ -74,7 +76,7 @@ for i in range(10):
     traj_len = 100
     n_samples = 1
 
-    sampled = action_cond_ode.sample(attr_t, traj_len, n_samples, w=1.2)
+    sampled = action_cond_ode.sample(attr_t, traj_len, n_samples, w=1.)
 
     sampled = sampled.cpu().detach().numpy()
     sampled = sampled * std + mean
@@ -94,6 +96,6 @@ for i in range(10):
     plt.plot(attr_n[17], attr_n[18], 'o', color='orange')
     plt.plot(sampled[0, :, 4], sampled[0, :, 5], color='blue')
     plt.plot(sampled[0, :, 7], sampled[0, :, 8], color='orange')
-    plt.savefig("fig_clamp_smallvary/conditional_action_diffusion_transformer%s.png" % i)
+    plt.savefig("fig_clamp_smallvary2/conditional_action_diffusion_transformer%s.png" % i)
 
 

@@ -254,6 +254,17 @@ class Conditional_ODE():
         mask = (torch.rand(*condition.shape, device=self.device) > 0.2).int()
         pred = self.D(x + eps, sigma, condition, mask)            
         loss = (loss_mask * self.loss_weighting(sigma) * (pred - x)**2).mean()
+
+        # Extract the predicted start/end and the conditioned start/end.
+        pred_start = pred[:, 0, :self.state_size]
+        pred_end   = pred[:, -1, :self.state_size]
+        cond_start = condition[:, :self.state_size]
+        cond_end   = condition[:, self.state_size:]
+        endpoint_loss = ((pred_start - cond_start)**2).mean() + ((pred_end - cond_end)**2).mean()
+        
+        # Weight the endpoint loss (adjust the coefficient as needed)
+        loss = loss + 5.0 * endpoint_loss
+
         self.optim.zero_grad()
         loss.backward()
         grad_norm = torch.nn.utils.clip_grad_norm_(self.F.parameters(), 10.)
@@ -337,11 +348,11 @@ class Conditional_ODE():
     
     
     def save(self, extra:str = ""):
-        torch.save({'model': self.F.state_dict(), 'model_ema': self.F_ema.state_dict()}, "trained_models/"+ self.filename+extra+"finalclamp.pt")
+        torch.save({'model': self.F.state_dict(), 'model_ema': self.F_ema.state_dict()}, "trained_models/"+ self.filename+extra+".pt")
         
     
     def load(self, extra:str = ""):    
-        name = "trained_models/" + self.filename + extra + "finalclamp.pt"
+        name = "trained_models/" + self.filename + extra + ".pt"
         if os.path.isfile(name):
             print("Loading " + name)
             checkpoint = torch.load(name, map_location=self.device, weights_only=True)
