@@ -24,6 +24,17 @@ np.savetxt("data/traj_std.csv", std, delimiter=",")
 trajectory = (trajectory - mean) / std
 trajectory = (trajectory).reshape(-1, 100, 10)
 
+# trajectory = trajectory * std + mean
+# plt.figure(figsize=(20, 8))
+# for traj in trajectory:
+#     plt.plot(traj[0, 4], traj[0, 5], 'go', markersize=8)
+#     plt.plot(traj[0, 7], traj[0, 8], 'go', markersize=8)
+# plt.show()
+
+# # print(np.shape(trajectory))
+# import sys
+# sys.exit()
+
 N_trajs = trajectory.shape[0] # number of trajectories for training
 
 # define an enviornment objcet which has attrubutess like name, state_size, action_size etc
@@ -66,6 +77,7 @@ obs_temp_tensor = torch.FloatTensor(obs_temp).to(device)  # ensure it's a tensor
 # obs_test = obs_temp_tensor + noise_std * torch.randn_like(obs)
 attr_test = obs_temp_tensor
 
+trajectory = trajectory * std + mean
 for i in range(10):
     attr_t = attr_test[i*10].unsqueeze(0)
     # print(attr_t)
@@ -90,12 +102,15 @@ for i in range(10):
     attr_n = np.concatenate([init_state, final_state])
 
     plt.figure(figsize=(20, 8))
+    for traj in trajectory:
+        plt.plot(traj[0, 4], traj[0, 5], 'go', markersize=8)
+        plt.plot(traj[0, 7], traj[0, 8], 'go', markersize=8)
     plt.plot(attr_n[4], attr_n[5], 'bo')
     plt.plot(attr_n[7], attr_n[8], 'o', color='orange')
     plt.plot(attr_n[14], attr_n[15], 'bo')
     plt.plot(attr_n[17], attr_n[18], 'o', color='orange')
     plt.plot(sampled[0, :, 4], sampled[0, :, 5], color='blue')
     plt.plot(sampled[0, :, 7], sampled[0, :, 8], color='orange')
-    plt.savefig("fig_clamp_vary0.05/conditional_action_diffusion_transformer%s.png" % i)
+    plt.savefig("figs/fig_clamp_vary0.05_test/conditional_action_diffusion_transformer%s.png" % i)
 
 
