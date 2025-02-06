@@ -55,9 +55,9 @@ sigma_data = actions.std().item()
 
 print("Conditional Action Diffusion Transformer without projections")
 action_cond_ode = Conditional_ODE(env, attr_dim, sigma_data, device=device, N=100, **model_size)
-# action_cond_ode.load(extra="clamp_smallvary")
-action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="clamp_smallvary")
-action_cond_ode.save(extra="clamp_smallvary")
+action_cond_ode.load(extra="clamp_smallvary")
+# action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="clamp_smallvary")
+# action_cond_ode.save(extra="clamp_smallvary")
 
 noise_std = 0.05
 noise = np.array([0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0])
@@ -96,6 +96,6 @@ for i in range(10):
     plt.plot(attr_n[17], attr_n[18], 'o', color='orange')
     plt.plot(sampled[0, :, 4], sampled[0, :, 5], color='blue')
     plt.plot(sampled[0, :, 7], sampled[0, :, 8], color='orange')
-    plt.savefig("fig_clamp_smallvary2/conditional_action_diffusion_transformer%s.png" % i)
+    plt.savefig("fig_clamp_vary0.05/conditional_action_diffusion_transformer%s.png" % i)
 
 
