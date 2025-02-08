@@ -13,7 +13,7 @@ H = 100 # horizon, length of each trajectory
 
 # loading the trajectories
 
-trajectory = np.loadtxt("data/trajs_noise0.7.csv",delimiter=",", dtype=float)
+trajectory = np.loadtxt("data/trajs_noise1.csv",delimiter=",", dtype=float)
 mean = trajectory.mean(axis=0)
 std = trajectory.std(axis=0)
 max_traj_array = np.max(trajectory, axis=0)
@@ -80,9 +80,9 @@ sigma_data = actions.std().item()
 
 print("Conditional Action Diffusion Transformer without projections")
 action_cond_ode = Conditional_ODE(env, attr_dim, sigma_data, device=device, N=100, **model_size)
-# action_cond_ode.load(extra="clamp_noise0.7")
-action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="clamp_noise0.7")
-action_cond_ode.save(extra="clamp_noise0.7")
+# action_cond_ode.load(extra="clamp_noise1")
+action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="clamp_noise1")
+action_cond_ode.save(extra="clamp_noise1")
 
 noise_std = 0.05
 noise = np.array([0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0])
@@ -121,6 +121,6 @@ for i in range(10):
     plt.plot(attr_n[17], attr_n[18], 'o', color='orange')
     plt.plot(sampled[0, :, 4], sampled[0, :, 5], color='blue')
     plt.plot(sampled[0, :, 7], sampled[0, :, 8], color='orange')
-    plt.savefig("figs/noise0.7_vary0.07/plot%s.png" % i)
+    plt.savefig("figs/noise1_vary0.05/plot%s.png" % i)
 
 
