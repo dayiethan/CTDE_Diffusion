@@ -13,7 +13,7 @@ H = 100 # horizon, length of each trajectory
 
 # loading the trajectories
 
-trajectory = np.loadtxt("data/full_traj_obstacle.csv",delimiter=",", dtype=float)
+trajectory = np.loadtxt("data/trajs_noise0.7.csv",delimiter=",", dtype=float)
 mean = trajectory.mean(axis=0)
 std = trajectory.std(axis=0)
 max_traj_array = np.max(trajectory, axis=0)
@@ -29,9 +29,23 @@ trajectory = (trajectory).reshape(-1, 100, 10)
 # for traj in trajectory:
 #     plt.plot(traj[0, 4], traj[0, 5], 'go', markersize=8)
 #     plt.plot(traj[0, 7], traj[0, 8], 'go', markersize=8)
-# plt.show()
+# plt.savefig("test0.5.png")
 
-# # print(np.shape(trajectory))
+# plt.figure(figsize=(20, 8))
+# for traj in trajectory07:
+#     plt.plot(traj[0, 4], traj[0, 5], 'bo', markersize=8)
+#     plt.plot(traj[0, 7], traj[0, 8], 'bo', markersize=8)
+# plt.savefig("test0.7.png")
+
+# for traj in trajectory[:]:  # Plot a few expert trajectories
+#     first_trajectory = traj
+#     x1 = [point[4] for point in first_trajectory]
+#     y1 = [point[5] for point in first_trajectory]
+#     x2 = [point[7] for point in first_trajectory]
+#     y2 = [point[8] for point in first_trajectory]
+#     plt.plot(x1, y1, 'b--')
+#     plt.plot(x2, y2, 'r--')
+
 # import sys
 # sys.exit()
 
@@ -66,24 +80,20 @@ sigma_data = actions.std().item()
 
 print("Conditional Action Diffusion Transformer without projections")
 action_cond_ode = Conditional_ODE(env, attr_dim, sigma_data, device=device, N=100, **model_size)
-action_cond_ode.load(extra="clamp_smallvary")
-# action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="clamp_smallvary")
-# action_cond_ode.save(extra="clamp_smallvary")
+# action_cond_ode.load(extra="clamp_noise0.7")
+action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="clamp_noise0.7")
+action_cond_ode.save(extra="clamp_noise0.7")
 
 noise_std = 0.05
 noise = np.array([0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0])
 obs_temp = obs_temp + noise_std * noise
 obs_temp_tensor = torch.FloatTensor(obs_temp).to(device)  # ensure it's a tensor
-# obs_test = obs_temp_tensor + noise_std * torch.randn_like(obs)
 attr_test = obs_temp_tensor
 
 trajectory = trajectory * std + mean
 for i in range(10):
     attr_t = attr_test[i*10].unsqueeze(0)
-    # print(attr_t)
     attr_n = attr_t.cpu().detach().numpy()[0]
-    # print(attr_n)
-    # print(" ")
 
     traj_len = 100
     n_samples = 1
@@ -111,6 +121,6 @@ for i in range(10):
     plt.plot(attr_n[17], attr_n[18], 'o', color='orange')
     plt.plot(sampled[0, :, 4], sampled[0, :, 5], color='blue')
     plt.plot(sampled[0, :, 7], sampled[0, :, 8], color='orange')
-    plt.savefig("figs/fig_clamp_vary0.05_test/conditional_action_diffusion_transformer%s.png" % i)
+    plt.savefig("figs/noise0.7_vary0.07/plot%s.png" % i)
 
 
