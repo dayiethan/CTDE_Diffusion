@@ -80,9 +80,9 @@ sigma_data = actions.std().item()
 
 print("Conditional Action Diffusion Transformer without projections")
 action_cond_ode = Conditional_ODE(env, attr_dim, sigma_data, device=device, N=100, **model_size)
-# action_cond_ode.load(extra="clamp_noise1")
-action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="clamp_noise1")
-action_cond_ode.save(extra="clamp_noise1")
+action_cond_ode.load(extra="clamp_noise1")
+# action_cond_ode.train(actions, attr, int(5*n_gradient_steps), batch_size, extra="clamp_noise1")
+# action_cond_ode.save(extra="clamp_noise1")
 
 noise_std = 0.05
 noise = np.array([0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0])
