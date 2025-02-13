@@ -3,6 +3,8 @@ import numpy as np
 from utils import Normalizer, set_seed
 from conditional_Action_DiT import Conditional_ODE, Conditional_Planner
 import matplotlib.pyplot as plt
+from discrete import *
+import sys
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -91,6 +93,10 @@ obs_temp_tensor = torch.FloatTensor(obs_temp).to(device)  # ensure it's a tensor
 attr_test = obs_temp_tensor
 
 trajectory = trajectory * std + mean
+ref = np.mean(trajectory, axis=0)
+ref_agent1 = ref[:, 4:6]
+ref_agent2 = ref[:, 7:9]
+
 for i in range(10):
     attr_t = attr_test[i*10].unsqueeze(0)
     attr_n = attr_t.cpu().detach().numpy()[0]
@@ -102,6 +108,15 @@ for i in range(10):
 
     sampled = sampled.cpu().detach().numpy()
     sampled = sampled * std + mean
+    test = np.mean(sampled, axis=0)
+    test_agent1 = test[:, 4:6]
+    test_agent2 = test[:, 7:9]
+
+    sys.setrecursionlimit(10000)
+    fast_frechet = FastDiscreteFrechetMatrix(euclidean)
+    frechet1 = fast_frechet.distance(ref_agent1,test_agent1)
+    frechet2 = fast_frechet.distance(ref_agent2,test_agent2)
+    print(frechet1, frechet2)
 
     init_state = attr_n[:10]    # shape (10,)
     final_state = attr_n[10:]   # shape (10,)
@@ -119,8 +134,9 @@ for i in range(10):
     plt.plot(attr_n[7], attr_n[8], 'o', color='orange')
     plt.plot(attr_n[14], attr_n[15], 'bo')
     plt.plot(attr_n[17], attr_n[18], 'o', color='orange')
-    plt.plot(sampled[0, :, 4], sampled[0, :, 5], color='blue')
-    plt.plot(sampled[0, :, 7], sampled[0, :, 8], color='orange')
+    plt.plot(sampled[0, :, 4], sampled[0, :, 5], color='blue', label=f"Agent 1 Traj (Frechet: {frechet1:.2f})")
+    plt.plot(sampled[0, :, 7], sampled[0, :, 8], color='orange', label=f"Agent 2 Traj (Frechet: {frechet2:.2f})")
+    plt.legend(loc="upper right", fontsize=14)
     plt.savefig("figs/noise1_vary0.05/plot%s.png" % i)
 
 
