@@ -52,6 +52,7 @@ class SequenceDataset(torch.utils.data.Dataset):
             "mahalfcheetah": "diffuser.datasets.mahalfcheetah",
             "mamujoco": "diffuser.datasets.mamujoco",
             "mpe": "diffuser.datasets.mpe",
+            "swap": "diffuser.datasets.swap",
             "smac": "diffuser.datasets.smac_env",
             "smacv2": "diffuser.datasets.smacv2_env",
         }[env_type]
