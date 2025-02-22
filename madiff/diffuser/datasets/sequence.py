@@ -3,6 +3,7 @@ from typing import Callable, List, Optional
 
 import numpy as np
 import torch
+import pdb
 
 from diffuser.datasets.buffer import ReplayBuffer
 from diffuser.datasets.normalization import DatasetNormalizer
@@ -57,7 +58,6 @@ class SequenceDataset(torch.utils.data.Dataset):
             "smacv2": "diffuser.datasets.smacv2_env",
         }[env_type]
         env_mod = importlib.import_module(env_mod_name)
-
         self.preprocess_fn = get_preprocess_fn(preprocess_fns, env)
         self.env = env = env_mod.load_environment(env)
         self.global_feats = env.metadata["global_feats"]
@@ -87,7 +87,7 @@ class SequenceDataset(torch.utils.data.Dataset):
         elif env_type == "smac" or env_type == "smacv2":
             itr = env_mod.sequence_dataset(env, self.preprocess_fn)
         else:
-            itr = env_mod.sequence_dataset(env, self.preprocess_fn)
+            itr = env_mod.sequence_dataset(env, self.preprocess_fn, 0)
 
         fields = ReplayBuffer(
             n_agents,
@@ -97,6 +97,7 @@ class SequenceDataset(torch.utils.data.Dataset):
             global_feats=self.global_feats,
             use_zero_padding=self.use_zero_padding,
         )
+ 
         for _, episode in enumerate(itr):
             fields.add_path(episode)
         fields.finalize()

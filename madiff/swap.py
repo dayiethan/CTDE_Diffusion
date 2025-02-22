@@ -68,7 +68,7 @@ class TwoUnicycle():
 env = TwoUnicycle()
 
 dataset = SequenceDataset(
-    env_type="mpe",       # or change to match your new environment type if needed
+    env_type="swap",       # or change to match your new environment type if needed
     env="TwoUnicycle",    # the name of your environment (this could also be swapped)
     n_agents=2,           # adjust as needed
     horizon=100,
