@@ -95,10 +95,10 @@ conv_model = ConvAttentionDeconv(
     env_ts_condition=False,
     condition_dropout=0.1,
     kernel_size=5,
-    residual_attn=True,
+    residual_attn=False,
     use_layer_norm=False,
     max_path_length=100,
-    use_temporal_attention=True
+    use_temporal_attention=False
 )
 
 diff_model = GaussianDiffusion(

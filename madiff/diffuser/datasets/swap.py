@@ -1,5 +1,6 @@
 import collections
 import os
+import pdb
 
 import gym
 import numpy as np
@@ -103,11 +104,12 @@ def make_env(scenario_name, benchmark=False, **kwargs):
             scenario.reward,
             scenario.observation,
             scenario.benchmark_data,
+            max_timestep=100,
             **kwargs,
         )
     else:
         env = MultiAgentEnv(
-            world, scenario.reset_world, scenario.reward, scenario.observation, **kwargs
+            world, scenario.reset_world, scenario.reward, scenario.observation, max_timestep=100, **kwargs
         )
     if scenario_name in ["simple_tag", "simple_world"]:
         env = PretrainedPreyWrapper(env, scenario_name)
