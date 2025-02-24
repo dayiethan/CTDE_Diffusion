@@ -210,6 +210,10 @@ class ConvAttentionDeconv(nn.Module):
             hiddens = self.self_attn[layer_idx + 1](hiddens)
             for i in range(self.n_agents):
                 resnet, resnet2, upsample = self.nets[i].ups[layer_idx]
+                if x[i].size(2) == 26:
+                    x[i] = x[i][..., :25]
+                # import pdb
+                # breakpoint()
                 x[i] = torch.cat((x[i], hiddens[:, i]), dim=1)
                 if self.use_layer_norm:
                     x[i] = self.layer_norm_cat[layer_idx](x[i])

@@ -9,7 +9,7 @@ class Scenario(BaseScenario):
         # set any world properties first
         world.dim_c = 2
         # num_agents = 3
-        num_landmarks = num_agents
+        num_landmarks = 0
         print(
             "\033[1;32m[simple_spread] num_agents: {}, num_landmarks: {}\033[1;0m".format(
                 num_agents, num_landmarks
@@ -127,7 +127,7 @@ class Scenario(BaseScenario):
                     self.is_collision(a, agent) and a.name != agent.name
                 ):  # modified by ling
                     rew -= 5  # modified by ling
-        return rew
+        return 0.
 
     # def reward(self, agent, world):
     #     # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
