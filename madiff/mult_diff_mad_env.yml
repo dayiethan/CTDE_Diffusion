@@ -133,7 +133,6 @@ dependencies:
       - markdown==3.7
       - markupsafe==2.1.5
       - matplotlib==3.6.3
-      - mjrl==1.0.0
       - ml-logger==0.8.69
       - mock==5.1.0
       - more-itertools==10.6.0

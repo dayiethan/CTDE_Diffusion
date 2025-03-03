@@ -497,4 +497,9 @@ class MADEvaluator:
         except (BrokenPipeError, EOFError, AttributeError, FileNotFoundError):
             pass
         # ensure the subproc is terminated
-        self._worker_process.terminate()
+        try:
+            if self._worker_process is not None:
+                self._worker_process.terminate()
+        except Exception:
+            pass
+        # self._worker_process.terminate()
