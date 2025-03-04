@@ -204,8 +204,8 @@ action_cond_ode2 = Conditional_ODE(env, attr_dim2, sigma_data2, device=device, N
 action_cond_ode1.load(extra="conditional1")
 action_cond_ode2.load(extra="conditional2")
 
-import pdb
-breakpoint()
+# import pdb
+# breakpoint()
 noise_std = 0.05
 noise = np.ones(np.shape(obs_temp1))
 obs_temp1 = obs_temp1 + noise_std * noise
@@ -222,8 +222,8 @@ ref_agent1 = ref1[:, :]
 ref_agent2 = ref2[:, :]
 
 for i in range(10):
-    attr_t1 = attr_test1[i*10].unsqueeze(0)
-    attr_t2 = attr_test2[i*10].unsqueeze(0)
+    attr_t1 = attr_test1[i*4].unsqueeze(0)
+    attr_t2 = attr_test2[i*4].unsqueeze(0)
     attr_n1 = attr_t1.cpu().detach().numpy()[0]
     attr_n2 = attr_t2.cpu().detach().numpy()[0]
 
