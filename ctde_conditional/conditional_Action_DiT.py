@@ -183,187 +183,435 @@ class SinusoidalPosEmb(nn.Module):
     
 #%% Diffusion ODE
     
-class Conditional_ODE():
-    def __init__(self, env, attr_dim: int, sigma_data: float,
-        sigma_min: float = 0.001, sigma_max: float = 50,
-        rho: float = 7, p_mean: float = -1.2, p_std: float = 1.2, 
-        d_model: int = 384, n_heads: int = 6, depth: int = 12,
-        device: str = "cpu", N: int = 5, lr: float = 2e-4):
-        """Predicts the sequence of actions to apply conditioned on the initial state
-        Diffusion trained according to EDM: "Elucidating the Design Space of Diffusion-Based Generative Models"
-        """
+# class Conditional_ODE():
+#     def __init__(self, env, attr_dim: int, sigma_data: float,
+#         sigma_min: float = 0.001, sigma_max: float = 50,
+#         rho: float = 7, p_mean: float = -1.2, p_std: float = 1.2, 
+#         d_model: int = 384, n_heads: int = 6, depth: int = 12,
+#         device: str = "cpu", N: int = 5, lr: float = 2e-4):
+#         """Predicts the sequence of actions to apply conditioned on the initial state
+#         Diffusion trained according to EDM: "Elucidating the Design Space of Diffusion-Based Generative Models"
+#         """
         
+#         self.task = env.name
+#         self.specs = f"{d_model}_{n_heads}_{depth}"
+#         self.filename = "Cond_ODE_" + self.task + "_specs_" + self.specs
+#         self.state_size = env.state_size
+#         self.action_size = env.action_size
+#         assert attr_dim == self.state_size * 2, "The attribute is the conditionement on the state"
+        
+#         self.sigma_data, self.sigma_min, self.sigma_max = sigma_data, sigma_min, sigma_max
+#         self.rho, self.p_mean, self.p_std = rho, p_mean, p_std
+        
+#         self.device = device
+#         self.F = DiT1d(self.action_size, attr_dim=attr_dim, d_model=d_model, n_heads=n_heads, depth=depth, dropout=0.1).to(device)
+#         self.F.train()
+#         # Exponential Moving Average (ema)
+#         self.F_ema = deepcopy(self.F).requires_grad_(False)
+#         self.F_ema.eval()
+#         self.optim = torch.optim.AdamW(self.F.parameters(), lr=lr, weight_decay=1e-4)
+#         self.set_N(N) # number of noise scales
+       
+#         print(f'Initialized Action Conditional ODE model with {count_parameters(self.F)} parameters.')
+        
+#     def ema_update(self, decay=0.999):
+#         for p, p_ema in zip(self.F.parameters(), self.F_ema.parameters()):
+#             p_ema.data = decay*p_ema.data + (1-decay)*p.data
+
+#     def set_N(self, N):
+#         self.N = N
+#         self.sigma_s = (self.sigma_max**(1/self.rho)+torch.arange(N, device=self.device)/(N-1)*\
+#             (self.sigma_min**(1/self.rho)-self.sigma_max**(1/self.rho)))**self.rho
+#         self.t_s = self.sigma_s
+#         self.scale_s = torch.ones_like(self.sigma_s) * 1.0
+#         self.dot_sigma_s = torch.ones_like(self.sigma_s) * 1.0
+#         self.dot_scale_s = torch.zeros_like(self.sigma_s)
+#         if self.t_s is not None:
+#             self.coeff1 = (self.dot_sigma_s/self.sigma_s + self.dot_scale_s/self.scale_s)
+#             self.coeff2 = self.dot_sigma_s/self.sigma_s*self.scale_s
+            
+#     def c_skip(self, sigma): return self.sigma_data**2/(self.sigma_data**2+sigma**2)
+#     def c_out(self, sigma): return sigma*self.sigma_data/(self.sigma_data**2+sigma**2).sqrt()
+#     def c_in(self, sigma): return 1/(self.sigma_data**2+sigma**2).sqrt()
+#     def c_noise(self, sigma): return 0.25*(sigma).log()
+#     def loss_weighting(self, sigma): return (self.sigma_data**2+sigma**2)/((sigma*self.sigma_data)**2)
+#     def sample_noise_distribution(self, N):
+#         log_sigma = torch.randn((N,1,1),device=self.device)*self.p_std + self.p_mean
+#         return log_sigma.exp()
+    
+#     def D(self, x, sigma, condition = None, mask = None, use_ema = False):
+#         c_skip, c_out, c_in, c_noise = self.c_skip(sigma), self.c_out(sigma), self.c_in(sigma), self.c_noise(sigma)
+#         F = self.F_ema if use_ema else self.F
+#         return c_skip*x + c_out*F(c_in*x, c_noise.squeeze(-1), condition, mask)
+    
+#     def update(self, x, condition):
+#         """Updates the DiT module given a trajectory batch x: (batch, horizon, state_size)
+#         and their corresponding attributes condition: (batch, attr_dim) """
+#         sigma = self.sample_noise_distribution(x.shape[0])
+#         eps = torch.randn_like(x) * sigma
+#         loss_mask = torch.ones_like(x)
+        
+#         mask = (torch.rand(*condition.shape, device=self.device) > 0.2).int()
+#         pred = self.D(x + eps, sigma, condition, mask)            
+#         loss = (loss_mask * self.loss_weighting(sigma) * (pred - x)**2).mean()
+
+#         # Extract the predicted start/end and the conditioned start/end.
+#         pred_start = pred[:, 0, :self.state_size]
+#         pred_end   = pred[:, -1, :self.state_size]
+#         cond_start = condition[:, :self.state_size]
+#         cond_end   = condition[:, self.state_size:]
+#         endpoint_loss = ((pred_start - cond_start)**2).mean() + ((pred_end - cond_end)**2).mean()
+        
+#         # Weight the endpoint loss (adjust the coefficient as needed)
+#         loss = loss + 5.0 * endpoint_loss
+
+#         self.optim.zero_grad()
+#         loss.backward()
+#         grad_norm = torch.nn.utils.clip_grad_norm_(self.F.parameters(), 10.)
+#         self.optim.step()
+#         self.ema_update()
+#         return loss.item(), grad_norm.item()
+    
+    
+#     def train(self, x_normalized:torch.Tensor, attributes:torch.Tensor, n_gradient_steps:int,
+#               batch_size:int = 32, extra:str="", time_limit=None):
+#         """Trains the DiT module from NORMALIZED data x_normalized: (nb trajs, horizon, action_size)
+#         The attributes are the initial states of each trajectory
+#         time_limit in seconds"""
+                
+#         print('Begins training of the Diffusion Transformer ' + self.filename + extra)
+#         if time_limit is not None:
+#             t0 = time.time()
+#             print(f"Training limited to {time_limit:.0f}s")
+            
+#         N_trajs = x_normalized.shape[0]
+#         loss_avg = 0.
+        
+#         pbar = tqdm(range(n_gradient_steps))
+#         for step in range(n_gradient_steps):
+            
+#             idx = np.random.randint(0, N_trajs, batch_size) # sample a random batch of trajectories
+#             x = x_normalized[idx].clone()
+#             attr = attributes[idx].clone()
+#             loss, grad_norm = self.update(x, attr)
+#             loss_avg += loss
+#             if (step+1) % 10 == 0:
+#                 pbar.set_description(f'step: {step+1} loss: {loss_avg / 10.:.4f} grad_norm: {grad_norm:.4f} ')
+#                 pbar.update(10)
+#                 loss_avg = 0.
+#                 self.save(extra)
+#                 if time_limit is not None and time.time() - t0 > time_limit:
+#                     print(f"Time limit reached at {time.time() - t0:.0f}s")
+#                     break
+                
+#         print('\nTraining completed!') 
+        
+    
+#     @torch.no_grad()
+#     def sample(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None):
+#         if N is not None and N != self.N:
+#             self.set_N(N)
+        
+#         # Initialize noise for the entire trajectory
+#         x = torch.randn((n_samples, traj_len, self.action_size), device=self.device) * self.sigma_s[0] * self.scale_s[0]
+        
+#         # Clamp the first timestep to match the initial condition
+#         # Assuming `attr` contains the initial state (normalized)
+#         # If `attr` is part of the state, adjust indices accordingly
+#         x[:, 0, :self.state_size] = attr[:, :self.state_size]  # Directly set the initial state
+#         x[:, -1, :self.state_size] = attr[:, self.state_size:]  # Directly set the final state
+
+#         original_attr = attr.clone()
+        
+#         # Doubling x, attr since we sample eps(conditioned) - eps(unconditioned)
+#         attr_mask = torch.ones_like(attr)
+#         attr = attr.repeat(2, 1)
+#         attr_mask = attr_mask.repeat(2, 1)
+#         attr_mask[n_samples:] = 0
+        
+#         for i in range(self.N):
+#             with torch.no_grad():
+#                 D = self.D(x.repeat(2, 1, 1) / self.scale_s[i], 
+#                         torch.ones((2 * n_samples, 1, 1), device=self.device) * self.sigma_s[i], 
+#                         attr, attr_mask, use_ema=True)
+#                 D = w * D[:n_samples] + (1 - w) * D[n_samples:]
+            
+#             delta = self.coeff1[i] * x - self.coeff2[i] * D
+#             dt = self.t_s[i] - self.t_s[i + 1] if i != self.N - 1 else self.t_s[i]
+#             x = x - delta * dt
+            
+#             # Re-clamp the initial state after each denoising step
+#             x[:, 0, :self.state_size] = original_attr[:, :self.state_size]  # Ensure it stays fixed
+#             x[:, -1, :self.state_size] = original_attr[:, self.state_size:]  # Ensure it stays fixed
+        
+#         return x   
+    
+    
+#     def save(self, extra:str = ""):
+#         torch.save({'model': self.F.state_dict(), 'model_ema': self.F_ema.state_dict()}, "trained_models/"+ self.filename+extra+".pt")
+        
+    
+#     def load(self, extra:str = ""):    
+#         name = "trained_models/" + self.filename + extra + ".pt"
+#         if os.path.isfile(name):
+#             print("Loading " + name)
+#             checkpoint = torch.load(name, map_location=self.device, weights_only=True)
+#             self.F.load_state_dict(checkpoint['model'])
+#             self.F_ema.load_state_dict(checkpoint['model_ema'])
+#             return True # loaded
+#         else:
+#             print("File " + name + " doesn't exist. Not loading anything.")
+#             return False # not loaded
+
+
+
+
+#%% Diffusion ODE with multiple models
+
+class Conditional_ODE():
+    def __init__(self, env, sigma_data: list, sigma_min: float = 0.001, sigma_max: float = 50,
+                 rho: float = 7, p_mean: float = -1.2, p_std: float = 1.2, 
+                 d_model: int = 384, n_heads: int = 6, depth: int = 12,
+                 attr_dim: int = None, device: str = "cpu", N: int = 5, lr: float = 2e-4,
+                 n_models: int = 2):
+        """
+        Predicts the sequence of actions to apply conditioned on the initial state.
+        Diffusion is trained according to EDM: "Elucidating the Design Space of Diffusion-Based Generative Models"
+        This version supports training any number (n_models) of diffusion transformers simultaneously.
+        
+        Parameters:
+         - env: environment object that must have attributes `name`, `state_size`, and `action_size`.
+         - sigma_data: list of sigma_data values, one per transformer. (Length must equal n_models.)
+         - attr_dim: should equal env.state_size * 2.
+        """
         self.task = env.name
         self.specs = f"{d_model}_{n_heads}_{depth}"
         self.filename = "Cond_ODE_" + self.task + "_specs_" + self.specs
+        
         self.state_size = env.state_size
         self.action_size = env.action_size
-        assert attr_dim == self.state_size * 2, "The attribute is the conditionement on the state"
+        if attr_dim is None:
+            attr_dim = env.state_size * 2
+        assert attr_dim == self.state_size * 2, "Attribute dimension must equal 2*state_size"
         
-        self.sigma_data, self.sigma_min, self.sigma_max = sigma_data, sigma_min, sigma_max
+        # Expect sigma_data to be a list with one sigma per model.
+        assert isinstance(sigma_data, list), "sigma_data must be a list"
+        assert len(sigma_data) == n_models, "Length of sigma_data must equal n_models"
+        self.sigma_data_list = sigma_data
+        
+        self.sigma_min, self.sigma_max = sigma_min, sigma_max
         self.rho, self.p_mean, self.p_std = rho, p_mean, p_std
-        
         self.device = device
-        self.F = DiT1d(self.action_size, attr_dim=attr_dim, d_model=d_model, n_heads=n_heads, depth=depth, dropout=0.1).to(device)
-        self.F.train()
-        # Exponential Moving Average (ema)
-        self.F_ema = deepcopy(self.F).requires_grad_(False)
-        self.F_ema.eval()
-        self.optim = torch.optim.AdamW(self.F.parameters(), lr=lr, weight_decay=1e-4)
-        self.set_N(N) # number of noise scales
-       
-        print(f'Initialized Action Conditional ODE model with {count_parameters(self.F)} parameters.')
+        
+        # Create n_models diffusion transformers and their EMA copies.
+        self.n_models = n_models
+        self.F_list = nn.ModuleList()
+        self.F_ema_list = []
+        for i in range(n_models):
+            model = DiT1d(self.action_size, attr_dim=attr_dim, d_model=d_model,
+                           n_heads=n_heads, depth=depth, dropout=0.1).to(device)
+            model.train()
+            self.F_list.append(model)
+            self.F_ema_list.append(deepcopy(model).requires_grad_(False).eval())
+        
+        # Create a single optimizer for all transformer parameters.
+        all_params = []
+        for model in self.F_list:
+            all_params += list(model.parameters())
+        self.optim = torch.optim.AdamW(all_params, lr=lr, weight_decay=1e-4)
+        
+        self.set_N(N)  # number of noise scales
+        
+        total_params = sum(p.numel() for p in all_params)
+        print(f'Initialized {self.n_models} Diffusion Transformer(s) with total parameters: {total_params}')
         
     def ema_update(self, decay=0.999):
-        for p, p_ema in zip(self.F.parameters(), self.F_ema.parameters()):
-            p_ema.data = decay*p_ema.data + (1-decay)*p.data
+        """Update the EMA copy for each transformer."""
+        for i in range(self.n_models):
+            for p, p_ema in zip(self.F_list[i].parameters(), self.F_ema_list[i].parameters()):
+                p_ema.data = decay * p_ema.data + (1 - decay) * p.data
 
     def set_N(self, N):
         self.N = N
-        self.sigma_s = (self.sigma_max**(1/self.rho)+torch.arange(N, device=self.device)/(N-1)*\
-            (self.sigma_min**(1/self.rho)-self.sigma_max**(1/self.rho)))**self.rho
+        self.sigma_s = (self.sigma_max**(1/self.rho) +
+                        torch.arange(N, device=self.device) / (N-1) *
+                        (self.sigma_min**(1/self.rho) - self.sigma_max**(1/self.rho)))**self.rho
         self.t_s = self.sigma_s
         self.scale_s = torch.ones_like(self.sigma_s) * 1.0
         self.dot_sigma_s = torch.ones_like(self.sigma_s) * 1.0
         self.dot_scale_s = torch.zeros_like(self.sigma_s)
         if self.t_s is not None:
-            self.coeff1 = (self.dot_sigma_s/self.sigma_s + self.dot_scale_s/self.scale_s)
-            self.coeff2 = self.dot_sigma_s/self.sigma_s*self.scale_s
+            self.coeff1 = (self.dot_sigma_s / self.sigma_s + self.dot_scale_s / self.scale_s)
+            self.coeff2 = self.dot_sigma_s / self.sigma_s * self.scale_s
             
-    def c_skip(self, sigma): return self.sigma_data**2/(self.sigma_data**2+sigma**2)
-    def c_out(self, sigma): return sigma*self.sigma_data/(self.sigma_data**2+sigma**2).sqrt()
-    def c_in(self, sigma): return 1/(self.sigma_data**2+sigma**2).sqrt()
-    def c_noise(self, sigma): return 0.25*(sigma).log()
-    def loss_weighting(self, sigma): return (self.sigma_data**2+sigma**2)/((sigma*self.sigma_data)**2)
+    # The following helper functions now use the per-model sigma_data.
+    def c_skip(self, sigma, model_index=0):
+        sigma_data = self.sigma_data_list[model_index]
+        return sigma_data**2 / (sigma_data**2 + sigma**2)
+    
+    def c_out(self, sigma, model_index=0):
+        sigma_data = self.sigma_data_list[model_index]
+        return sigma * sigma_data / ((sigma_data**2 + sigma**2)**0.5)
+    
+    def c_in(self, sigma, model_index=0):
+        sigma_data = self.sigma_data_list[model_index]
+        return 1 / ((sigma_data**2 + sigma**2)**0.5)
+    
+    def c_noise(self, sigma, model_index=0):
+        return 0.25 * sigma.log()
+    
+    def loss_weighting(self, sigma, model_index=0):
+        sigma_data = self.sigma_data_list[model_index]
+        return (sigma_data**2 + sigma**2) / ((sigma * sigma_data)**2)
+    
     def sample_noise_distribution(self, N):
-        log_sigma = torch.randn((N,1,1),device=self.device)*self.p_std + self.p_mean
+        log_sigma = torch.randn((N, 1, 1), device=self.device) * self.p_std + self.p_mean
         return log_sigma.exp()
     
-    def D(self, x, sigma, condition = None, mask = None, use_ema = False):
-        c_skip, c_out, c_in, c_noise = self.c_skip(sigma), self.c_out(sigma), self.c_in(sigma), self.c_noise(sigma)
-        F = self.F_ema if use_ema else self.F
-        return c_skip*x + c_out*F(c_in*x, c_noise.squeeze(-1), condition, mask)
+    def D(self, x, sigma, condition=None, mask=None, use_ema=False, model_index=0):
+        """
+        Denoising function using the specified transformer.
+        """
+        c_skip = self.c_skip(sigma, model_index=model_index)
+        c_out  = self.c_out(sigma, model_index=model_index)
+        c_in   = self.c_in(sigma, model_index=model_index)
+        c_noise = self.c_noise(sigma, model_index=model_index)
+        F = self.F_ema_list[model_index] if use_ema else self.F_list[model_index]
+        return c_skip * x + c_out * F(c_in * x, c_noise.squeeze(-1), condition, mask)
     
-    def update(self, x, condition):
-        """Updates the DiT module given a trajectory batch x: (batch, horizon, state_size)
-        and their corresponding attributes condition: (batch, attr_dim) """
-        sigma = self.sample_noise_distribution(x.shape[0])
-        eps = torch.randn_like(x) * sigma
-        loss_mask = torch.ones_like(x)
+    def train(self,
+              x_normalized_list: list,
+              attributes_list: list,
+              n_gradient_steps: int,
+              batch_size: int = 32,
+              extra: str = "",
+              time_limit=None):
+        """
+        Trains the diffusion transformers on multiple datasets.
         
-        mask = (torch.rand(*condition.shape, device=self.device) > 0.2).int()
-        pred = self.D(x + eps, sigma, condition, mask)            
-        loss = (loss_mask * self.loss_weighting(sigma) * (pred - x)**2).mean()
-
-        # Extract the predicted start/end and the conditioned start/end.
-        pred_start = pred[:, 0, :self.state_size]
-        pred_end   = pred[:, -1, :self.state_size]
-        cond_start = condition[:, :self.state_size]
-        cond_end   = condition[:, self.state_size:]
-        endpoint_loss = ((pred_start - cond_start)**2).mean() + ((pred_end - cond_end)**2).mean()
-        
-        # Weight the endpoint loss (adjust the coefficient as needed)
-        loss = loss + 5.0 * endpoint_loss
-
-        self.optim.zero_grad()
-        loss.backward()
-        grad_norm = torch.nn.utils.clip_grad_norm_(self.F.parameters(), 10.)
-        self.optim.step()
-        self.ema_update()
-        return loss.item(), grad_norm.item()
-    
-    
-    def train(self, x_normalized:torch.Tensor, attributes:torch.Tensor, n_gradient_steps:int,
-              batch_size:int = 32, extra:str="", time_limit=None):
-        """Trains the DiT module from NORMALIZED data x_normalized: (nb trajs, horizon, action_size)
-        The attributes are the initial states of each trajectory
-        time_limit in seconds"""
-                
-        print('Begins training of the Diffusion Transformer ' + self.filename + extra)
+        x_normalized_list: list of training data tensors, one per transformer.
+            Each tensor should have shape (n_trajs, horizon, action_size).
+        attributes_list: list of attribute tensors, one per transformer.
+            Each tensor should have shape (n_trajs, attr_dim) where attr_dim = state_size * 2.
+        n_gradient_steps: number of gradient steps.
+        batch_size: batch size per transformer.
+        time_limit: training time limit in seconds (optional).
+        """
+        print(f'Begins training of {self.n_models} Diffusion Transformer(s): {self.filename + extra}')
         if time_limit is not None:
             t0 = time.time()
             print(f"Training limited to {time_limit:.0f}s")
             
-        N_trajs = x_normalized.shape[0]
-        loss_avg = 0.
+        assert len(x_normalized_list) == self.n_models and len(attributes_list) == self.n_models, \
+            "Length of training data lists must equal n_models"
+        
+        N_trajs_list = [x.shape[0] for x in x_normalized_list]
+        loss_avg = 0.0
         
         pbar = tqdm(range(n_gradient_steps))
         for step in range(n_gradient_steps):
+            loss_total = 0.0
+            for i in range(self.n_models):
+                idx = np.random.randint(0, N_trajs_list[i], batch_size)
+                x = x_normalized_list[i][idx].clone()   # shape: (batch_size, horizon, action_size)
+                attr = attributes_list[i][idx].clone()    # shape: (batch_size, attr_dim)
+                
+                sigma = self.sample_noise_distribution(x.shape[0])
+                eps = torch.randn_like(x) * sigma
+                loss_mask = torch.ones_like(x)
+                mask = (torch.rand(*attr.shape, device=self.device) > 0.2).int()
+                
+                pred = self.D(x + eps, sigma, condition=attr, mask=mask, model_index=i)
+                loss = (loss_mask * self.loss_weighting(sigma, model_index=i) * (pred - x) ** 2).mean()
+                
+                pred_start = pred[:, 0, :self.state_size]
+                pred_end   = pred[:, -1, :self.state_size]
+                cond_start = attr[:, :self.state_size]
+                cond_end   = attr[:, self.state_size:]
+                endpoint_loss = ((pred_start - cond_start) ** 2).mean() + ((pred_end - cond_end) ** 2).mean()
+                loss = loss + 5.0 * endpoint_loss
+                
+                loss_total += loss
             
-            idx = np.random.randint(0, N_trajs, batch_size) # sample a random batch of trajectories
-            x = x_normalized[idx].clone()
-            attr = attributes[idx].clone()
-            loss, grad_norm = self.update(x, attr)
-            loss_avg += loss
-            if (step+1) % 10 == 0:
-                pbar.set_description(f'step: {step+1} loss: {loss_avg / 10.:.4f} grad_norm: {grad_norm:.4f} ')
+            self.optim.zero_grad()
+            loss_total.backward()
+            all_params = []
+            for model in self.F_list:
+                all_params += list(model.parameters())
+            grad_norm = torch.nn.utils.clip_grad_norm_(all_params, 10.0)
+            self.optim.step()
+            self.ema_update()
+            
+            loss_avg += loss_total.item()
+            if (step + 1) % 10 == 0:
+                pbar.set_description(f'step: {step+1} loss: {loss_avg/10:.4f} grad_norm: {grad_norm:.4f}')
                 pbar.update(10)
-                loss_avg = 0.
+                loss_avg = 0.0
                 self.save(extra)
                 if time_limit is not None and time.time() - t0 > time_limit:
                     print(f"Time limit reached at {time.time() - t0:.0f}s")
                     break
-                
-        print('\nTraining completed!')        
+        print('\nTraining completed!')
         
-    
     @torch.no_grad()
-    def sample(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None):
+    def sample(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0):
+        """
+        Samples a trajectory using the EMA copy of the specified transformer.
+        
+        attr: attribute tensor of shape (n_samples, attr_dim)
+        traj_len: trajectory length.
+        model_index: which transformer to use.
+        """
         if N is not None and N != self.N:
             self.set_N(N)
         
-        # Initialize noise for the entire trajectory
         x = torch.randn((n_samples, traj_len, self.action_size), device=self.device) * self.sigma_s[0] * self.scale_s[0]
-        
-        # Clamp the first timestep to match the initial condition
-        # Assuming `attr` contains the initial state (normalized)
-        # If `attr` is part of the state, adjust indices accordingly
-        x[:, 0, :self.state_size] = attr[:, :self.state_size]  # Directly set the initial state
-        x[:, -1, :self.state_size] = attr[:, self.state_size:]  # Directly set the final state
-
+        x[:, 0, :self.state_size] = attr[:, :self.state_size]
+        x[:, -1, :self.state_size] = attr[:, self.state_size:]
         original_attr = attr.clone()
         
-        # Doubling x, attr since we sample eps(conditioned) - eps(unconditioned)
         attr_mask = torch.ones_like(attr)
-        attr = attr.repeat(2, 1)
-        attr_mask = attr_mask.repeat(2, 1)
-        attr_mask[n_samples:] = 0
+        attr_cat = attr.repeat(2, 1)
+        attr_mask_cat = attr_mask.repeat(2, 1)
+        attr_mask_cat[n_samples:] = 0
         
         for i in range(self.N):
             with torch.no_grad():
-                D = self.D(x.repeat(2, 1, 1) / self.scale_s[i], 
-                        torch.ones((2 * n_samples, 1, 1), device=self.device) * self.sigma_s[i], 
-                        attr, attr_mask, use_ema=True)
-                D = w * D[:n_samples] + (1 - w) * D[n_samples:]
-            
-            delta = self.coeff1[i] * x - self.coeff2[i] * D
-            dt = self.t_s[i] - self.t_s[i + 1] if i != self.N - 1 else self.t_s[i]
+                D_out = self.D(x.repeat(2, 1, 1) / self.scale_s[i],
+                               torch.ones((2 * n_samples, 1, 1), device=self.device) * self.sigma_s[i],
+                               condition=attr_cat,
+                               mask=attr_mask_cat,
+                               use_ema=True,
+                               model_index=model_index)
+                D_out = w * D_out[:n_samples] + (1 - w) * D_out[n_samples:]
+            delta = self.coeff1[i] * x - self.coeff2[i] * D_out
+            dt = self.t_s[i] - self.t_s[i+1] if i != self.N - 1 else self.t_s[i]
             x = x - delta * dt
-            
-            # Re-clamp the initial state after each denoising step
-            x[:, 0, :self.state_size] = original_attr[:, :self.state_size]  # Ensure it stays fixed
-            x[:, -1, :self.state_size] = original_attr[:, self.state_size:]  # Ensure it stays fixed
+            x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
+            x[:, -1, :self.state_size] = original_attr[:, self.state_size:]
+        return x
+    
+    def save(self, extra: str = ""):
+        """Saves the state dictionaries for all transformers and their EMA copies."""
+        state = {}
+        for i in range(self.n_models):
+            state[f"model_{i}"] = self.F_list[i].state_dict()
+            state[f"model_ema_{i}"] = self.F_ema_list[i].state_dict()
+        torch.save(state, "trained_models/" + self.filename + extra + ".pt")
         
-        return x   
-    
-    
-    def save(self, extra:str = ""):
-        torch.save({'model': self.F.state_dict(), 'model_ema': self.F_ema.state_dict()}, "trained_models/"+ self.filename+extra+".pt")
-        
-    
-    def load(self, extra:str = ""):    
+    def load(self, extra: str = ""):
+        """Loads state dictionaries for all transformers and their EMA copies."""
         name = "trained_models/" + self.filename + extra + ".pt"
         if os.path.isfile(name):
             print("Loading " + name)
-            checkpoint = torch.load(name, map_location=self.device, weights_only=True)
-            self.F.load_state_dict(checkpoint['model'])
-            self.F_ema.load_state_dict(checkpoint['model_ema'])
-            return True # loaded
+            checkpoint = torch.load(name, map_location=self.device)
+            for i in range(self.n_models):
+                self.F_list[i].load_state_dict(checkpoint[f"model_{i}"])
+                self.F_ema_list[i].load_state_dict(checkpoint[f"model_ema_{i}"])
+            return True
         else:
             print("File " + name + " doesn't exist. Not loading anything.")
-            return False # not loaded
-
-
+            return False
 
 
 #%%

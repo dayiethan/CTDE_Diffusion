@@ -1,14 +1,14 @@
 import torch
 import numpy as np
 from utils import Normalizer, set_seed
-from conditional_Action_DiT import Conditional_ODE, Conditional_Planner
+from conditional_Action_DiT import Conditional_ODE
 import matplotlib.pyplot as plt
 from discrete import *
 import sys
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-n_gradient_steps = 1_000_000
+n_gradient_steps = 100_000
 batch_size = 64
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 100 # horizon, length of each trajectory
@@ -24,59 +24,15 @@ obstacle = (10, 0, 4.0)  # Single central obstacle: (x, y, radius)
 import csv
 all_points1 = []    # want modes 1, 2, 4, 6
 all_points2 = []    # want modes 1, 2, 3, 5
-with open('data/mode6_agent1.csv', 'r') as file:
+with open('data/trajs_noise1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
-        x, y = float(row[0]), float(row[1])
-        all_points1.append([x, y])
-all_points1 = all_points1[:1000]
-with open('data/mode4_agent1.csv', 'r') as file:
-    reader = csv.reader(file)
-    for row in reader:
-        x, y = float(row[0]), float(row[1])
-        all_points1.append([x, y])
-all_points1 = all_points1[:2000]
-with open('data/mode2_agent1.csv', 'r') as file:
-    reader = csv.reader(file)
-    for row in reader:
-        x, y = float(row[0]), float(row[1])
-        all_points1.append([x, y])
-all_points1 = all_points1[:3000]
-with open('data/mode1_agent1.csv', 'r') as file:
-    reader = csv.reader(file)
-    for row in reader:
-        x, y = float(row[0]), float(row[1])
-        all_points1.append([x, y])
-all_points1 = all_points1[:4000]
+        x1, y1 = float(row[4]), float(row[5])
+        x2, y2 = float(row[7]), float(row[8])
+        all_points1.append([x1, y1])
+        all_points2.append([x2, y2])
 
-
-with open('data/mode5_agent2.csv', 'r') as file:
-    reader = csv.reader(file)
-    for row in reader:
-        x, y = float(row[0]), float(row[1])
-        all_points2.append([x, y])
-all_points2 = all_points2[:1000]
-with open('data/mode3_agent2.csv', 'r') as file:
-    reader = csv.reader(file)
-    for row in reader:
-        x, y = float(row[0]), float(row[1])
-        all_points2.append([x, y])
-all_points2 = all_points2[:2000]
-with open('data/mode2_agent2.csv', 'r') as file:
-    reader = csv.reader(file)
-    for row in reader:
-        x, y = float(row[0]), float(row[1])
-        all_points2.append([x, y])
-all_points2 = all_points2[:3000]
-with open('data/mode1_agent2.csv', 'r') as file:
-    reader = csv.reader(file)
-    for row in reader:
-        x, y = float(row[0]), float(row[1])
-        all_points2.append([x, y])
-all_points2 = all_points2[:4000]
-
-
-num_trajectories = 40
+num_trajectories = 1000
 points_per_trajectory = 100
 
 expert_data1 = [
@@ -132,18 +88,6 @@ for traj in expert_data2:
 X_train2 = torch.tensor(np.array(X_train2), dtype=torch.float32)  # Shape: (N, 4)
 Y_train2 = torch.tensor(np.array(Y_train2), dtype=torch.float32)  # Shape: (N, 2)
 
-# trajectory = np.loadtxt("data/trajs_noise1.csv",delimiter=",", dtype=float)
-# mean = trajectory.mean(axis=0)
-# std = trajectory.std(axis=0)
-# max_traj_array = np.max(trajectory, axis=0)
-# np.savetxt("data/max_traj_array_rand.csv", max_traj_array, delimiter=",")
-# np.savetxt("data/traj_mean.csv", mean, delimiter=",")
-# np.savetxt("data/traj_std.csv", std, delimiter=",")
-# # trajectory = trajectory/max_traj_array
-# trajectory = (trajectory - mean) / std
-# trajectory = (trajectory).reshape(-1, 100, 10)
-# N_trajs = trajectory.shape[0] # number of trajectories for training
-
 # define an enviornment objcet which has attrubutess like name, state_size, action_size etc
 class TwoUnicycle():
     def __init__(self, state_size=2, action_size=2):
@@ -178,35 +122,17 @@ actions2 = torch.FloatTensor(actions2).to(device)
 sigma_data1 = actions1.std().item()
 sigma_data2 = actions2.std().item()
 
-# obs_init = trajectory[:, 0, :] # only keep the initial states of trajectories
-# obs_final = trajectory[:, -1, :]
-# obs = np.hstack([obs_init, obs_final])
-# obs_temp = obs
-# actions = trajectory[:, :H-1, :] # cut the length of trajectories to H
-
-# obs = torch.FloatTensor(obs).to(device)
-
-# attr = obs # Conditioned on the normalized initial states
-# attr_dim = attr.shape[1]
-# assert attr_dim == env.state_size * 2
-
-# actions = torch.FloatTensor(actions).to(device)
-# sigma_data = actions.std().item()
-
 
 # Training
-action_cond_ode1 = Conditional_ODE(env, attr_dim1, sigma_data1, device=device, N=100, **model_size)
-action_cond_ode2 = Conditional_ODE(env, attr_dim2, sigma_data2, device=device, N=100, **model_size)
-# action_cond_ode1.train(actions1, attr1, int(5*n_gradient_steps), batch_size, extra="conditional1")
-# action_cond_ode2.train(actions2, attr2, int(5*n_gradient_steps), batch_size, extra="conditional")
-# action_cond_ode1.save(extra="conditional1")
-# action_cond_ode2.save(extra="conditional")
-action_cond_ode1.load(extra="conditional1")
-action_cond_ode2.load(extra="conditional2")
+action_cond_ode = Conditional_ODE(env, attr_dim1, [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="conditional_1000traj")
+action_cond_ode.save(extra="conditional_1000traj")
+# action_cond_ode1.load(extra="conditional1_1000traj")
+# action_cond_ode2.load(extra="conditional2_1000traj")
 
 # import pdb
 # breakpoint()
-noise_std = 0.05
+noise_std = 0.
 noise = np.ones(np.shape(obs_temp1))
 obs_temp1 = obs_temp1 + noise_std * noise
 obs_temp2 = obs_temp2 + noise_std * noise
@@ -222,8 +148,8 @@ ref_agent1 = ref1[:, :]
 ref_agent2 = ref2[:, :]
 
 for i in range(10):
-    attr_t1 = attr_test1[i*4].unsqueeze(0)
-    attr_t2 = attr_test2[i*4].unsqueeze(0)
+    attr_t1 = attr_test1[i*10].unsqueeze(0)
+    attr_t2 = attr_test2[i*10].unsqueeze(0)
     attr_n1 = attr_t1.cpu().detach().numpy()[0]
     attr_n2 = attr_t2.cpu().detach().numpy()[0]
 
@@ -275,6 +201,6 @@ for i in range(10):
     plt.plot(sampled1[0, :, 0], sampled1[0, :, 1], color='blue', label=f"Agent 1 Traj (Frechet: {frechet1:.2f})")
     plt.plot(sampled2[0, :, 0], sampled2[0, :, 1], color='orange', label=f"Agent 2 Traj (Frechet: {frechet2:.2f})")
     plt.legend(loc="upper right", fontsize=14)
-    plt.savefig("figs/plot%s.png" % i)
+    plt.savefig("figs/1000_traj/plot%s.png" % i)
 
 
