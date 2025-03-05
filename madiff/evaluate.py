@@ -96,22 +96,10 @@ time = np.arange(trajectory.shape[0])
 
 plt.figure(figsize=(20, 8))
 trajectory1_a1 = samples_np[0, :, 0, :]
-for traj in trajectory:
-    plt.plot(traj[0, 4], traj[0, 5], 'go', markersize=8)
-    plt.plot(traj[0, 7], traj[0, 8], 'go', markersize=8)
-plt.savefig("test0.5.png")
+trajectory1_a2 = samples_np[0, :, 1, :]
+plt.plot(trajectory1_a1[:, 7], trajectory1_a1[:, 8], color='blue')
+plt.plot(trajectory1_a2[:, 4], trajectory1_a1[:, 5], color='orange')
 
-plt.figure(figsize=(20, 8))
-for traj in trajectory:
-    plt.plot(traj[0, 4], traj[0, 5], 'bo', markersize=8)
-    plt.plot(traj[0, 7], traj[0, 8], 'bo', markersize=8)
-plt.savefig("test0.7.png")
-
-plt.figure(figsize=(10, 6))
-for i in range(trajectory.shape[1]):
-    plt.plot(time, trajectory[:, i], label=f"Feature {i}")
-plt.xlabel("Time Step")
-plt.ylabel("Feature Value")
-plt.title("State Features Over Time for Agent 0 (Sample 0)")
-plt.legend()
+plt.xlabel("X")
+plt.ylabel("Y")
 plt.savefig("fig")
