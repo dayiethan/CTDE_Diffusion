@@ -369,10 +369,10 @@ class SinusoidalPosEmb(nn.Module):
 #%% Diffusion ODE with multiple models
 
 class Conditional_ODE():
-    def __init__(self, env, sigma_data: list, sigma_min: float = 0.001, sigma_max: float = 50,
+    def __init__(self, env, attr_dim: list, sigma_data: list, sigma_min: float = 0.001, sigma_max: float = 50,
                  rho: float = 7, p_mean: float = -1.2, p_std: float = 1.2, 
                  d_model: int = 384, n_heads: int = 6, depth: int = 12,
-                 attr_dim: int = None, device: str = "cpu", N: int = 5, lr: float = 2e-4,
+                 device: str = "cpu", N: int = 5, lr: float = 2e-4,
                  n_models: int = 2):
         """
         Predicts the sequence of actions to apply conditioned on the initial state.
@@ -391,8 +391,8 @@ class Conditional_ODE():
         self.state_size = env.state_size
         self.action_size = env.action_size
         if attr_dim is None:
-            attr_dim = env.state_size * 2
-        assert attr_dim == self.state_size * 2, "Attribute dimension must equal 2*state_size"
+            attr_dim = [env.state_size * 2]*n_models
+        assert attr_dim[0] == self.state_size * 2, "Attribute dimension must equal 2*state_size"
         
         # Expect sigma_data to be a list with one sigma per model.
         assert isinstance(sigma_data, list), "sigma_data must be a list"
@@ -400,6 +400,7 @@ class Conditional_ODE():
         self.sigma_data_list = sigma_data
         
         self.sigma_min, self.sigma_max = sigma_min, sigma_max
+        print(type(self.sigma_max), type(self.sigma_min))
         self.rho, self.p_mean, self.p_std = rho, p_mean, p_std
         self.device = device
         
@@ -408,7 +409,7 @@ class Conditional_ODE():
         self.F_list = nn.ModuleList()
         self.F_ema_list = []
         for i in range(n_models):
-            model = DiT1d(self.action_size, attr_dim=attr_dim, d_model=d_model,
+            model = DiT1d(self.action_size, attr_dim=attr_dim[i], d_model=d_model,
                            n_heads=n_heads, depth=depth, dropout=0.1).to(device)
             model.train()
             self.F_list.append(model)

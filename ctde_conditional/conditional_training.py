@@ -124,11 +124,10 @@ sigma_data2 = actions2.std().item()
 
 
 # Training
-action_cond_ode = Conditional_ODE(env, attr_dim1, [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="conditional_1000traj")
-action_cond_ode.save(extra="conditional_1000traj")
-# action_cond_ode1.load(extra="conditional1_1000traj")
-# action_cond_ode2.load(extra="conditional2_1000traj")
+action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="conditional_1000traj")
+# action_cond_ode.save(extra="conditional_1000traj")
+action_cond_ode.load(extra="conditional_1000traj")
 
 # import pdb
 # breakpoint()
@@ -156,8 +155,8 @@ for i in range(10):
     traj_len = 100
     n_samples = 1
 
-    sampled1 = action_cond_ode1.sample(attr_t1, traj_len, n_samples, w=1.)
-    sampled2 = action_cond_ode2.sample(attr_t2, traj_len, n_samples, w=1.)
+    sampled1 = action_cond_ode.sample(attr_t1, traj_len, n_samples, w=1., model_index = 0)
+    sampled2 = action_cond_ode.sample(attr_t2, traj_len, n_samples, w=1., model_index = 1)
 
     sampled1 = sampled1.cpu().detach().numpy()
     sampled2 = sampled2.cpu().detach().numpy()
