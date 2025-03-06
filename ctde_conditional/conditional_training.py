@@ -131,7 +131,7 @@ action_cond_ode.load(extra="conditional_1000traj")
 
 # import pdb
 # breakpoint()
-noise_std = 0.
+noise_std = 0.05
 noise = np.ones(np.shape(obs_temp1))
 obs_temp1 = obs_temp1 + noise_std * noise
 obs_temp2 = obs_temp2 + noise_std * noise
@@ -200,6 +200,6 @@ for i in range(10):
     plt.plot(sampled1[0, :, 0], sampled1[0, :, 1], color='blue', label=f"Agent 1 Traj (Frechet: {frechet1:.2f})")
     plt.plot(sampled2[0, :, 0], sampled2[0, :, 1], color='orange', label=f"Agent 2 Traj (Frechet: {frechet2:.2f})")
     plt.legend(loc="upper right", fontsize=14)
-    plt.savefig("figs/1000_traj/plot%s.png" % i)
+    plt.savefig("figs/traj1000_noise0.05/plot%s.png" % i)
 
 

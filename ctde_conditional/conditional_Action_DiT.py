@@ -400,7 +400,6 @@ class Conditional_ODE():
         self.sigma_data_list = sigma_data
         
         self.sigma_min, self.sigma_max = sigma_min, sigma_max
-        print(type(self.sigma_max), type(self.sigma_min))
         self.rho, self.p_mean, self.p_std = rho, p_mean, p_std
         self.device = device
         
