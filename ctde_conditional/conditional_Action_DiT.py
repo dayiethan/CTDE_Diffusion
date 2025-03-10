@@ -525,10 +525,8 @@ class Conditional_ODE():
                 loss = (loss_mask * self.loss_weighting(sigma, model_index=i) * (pred - x) ** 2).mean()
                 
                 pred_start = pred[:, 0, :self.state_size]
-                pred_end   = pred[:, -1, :self.state_size]
                 cond_start = attr[:, :self.state_size]
-                cond_end   = attr[:, self.state_size:]
-                endpoint_loss = ((pred_start - cond_start) ** 2).mean() + ((pred_end - cond_end) ** 2).mean()
+                endpoint_loss = ((pred_start - cond_start) ** 2).mean()
                 loss = loss + 5.0 * endpoint_loss
                 
                 loss_total += loss

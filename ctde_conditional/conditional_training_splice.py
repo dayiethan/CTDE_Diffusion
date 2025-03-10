@@ -14,7 +14,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 n_gradient_steps = 100_000
 batch_size = 64
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
-H = 100 # horizon, length of each trajectory
+H = 10 # horizon, length of each trajectory
 
 # Define initial and final points, and a single central obstacle
 initial_point_up = np.array([0.0, 0.0])
@@ -148,9 +148,9 @@ sigma_data2 = actions2.std().item()
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T10")
-action_cond_ode.save(extra="_T10")
-# action_cond_ode.load(extra="_T10")
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T10_2")
+# action_cond_ode.save(extra="_T10_2")
+action_cond_ode.load(extra="_T10_2")
 
 
 
@@ -174,12 +174,13 @@ ref_agent2 = ref2[:, :]
 
 # Sampling
 for i in range(10):
-    attr_t1 = attr_test1[i*10].unsqueeze(0)
-    attr_t2 = attr_test2[i*10].unsqueeze(0)
+    _i = np.random.randint(0, 10000)
+    attr_t1 = attr_test1[_i].unsqueeze(0)
+    attr_t2 = attr_test2[_i].unsqueeze(0)
     attr_n1 = attr_t1.cpu().detach().numpy()[0]
     attr_n2 = attr_t2.cpu().detach().numpy()[0]
 
-    traj_len = 100
+    traj_len = 10
     n_samples = 1
 
     sampled1 = action_cond_ode.sample(attr_t1, traj_len, n_samples, w=1., model_index = 0)
@@ -227,6 +228,6 @@ for i in range(10):
     plt.plot(sampled1[0, :, 0], sampled1[0, :, 1], color='blue')
     plt.plot(sampled2[0, :, 0], sampled2[0, :, 1], color='orange')
     # plt.legend(loc="upper right", fontsize=14)
-    plt.savefig("figs/T10/plot%s.png" % i)
+    plt.savefig("figs/T10_2/plot%s.png" % (i+10))
 
 
