@@ -83,7 +83,10 @@ expert_data1 = (expert_data1 - mean) / std
 expert_data2 = (expert_data2 - mean) / std
 orig1 = (orig1 - mean) / std
 orig2 = (orig2 - mean) / std
-
+with open("data/mean.npy", "wb") as f:
+    np.save(f, mean)
+with open("data/std.npy", "wb") as f:
+    np.save(f, std)
 
 
 # Prepare Data for Training
@@ -144,6 +147,9 @@ actions1 = torch.FloatTensor(actions1).to(device)
 actions2 = torch.FloatTensor(actions2).to(device)
 sigma_data1 = actions1.std().item()
 sigma_data2 = actions2.std().item()
+sig = np.array([sigma_data1, sigma_data2])
+with open("data/sigma_data.npy", "wb") as f:
+    np.save(f, sig)
 
 
 # Training
@@ -170,7 +176,7 @@ ref2 = np.mean(expert_data2, axis=0)
 ref_agent1 = ref1[:, :]
 ref_agent2 = ref2[:, :]
 
-
+sys.exit()
 
 # Sampling
 for i in range(10):
