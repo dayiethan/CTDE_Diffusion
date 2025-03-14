@@ -8,6 +8,7 @@ from discrete import *
 import sys
 import pdb
 import csv
+from mpc_util import mpc_plan
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -41,40 +42,6 @@ with open("data/sigma_data.npy", "rb") as f:
 # Training
 action_cond_ode = Conditional_ODE(env, [4, 4], sig.tolist(), device=device, N=100, n_models = 2, **model_size)
 action_cond_ode.load(extra="_T10_2")
-
-
-def mpc_plan(ode_model, env, initial_state, fixed_goal, model_i, segment_length=H, total_steps=T):
-    """
-    Plans a full trajectory (total_steps long) by iteratively planning
-    segment_length-steps using the diffusion model.
-    
-    Parameters:
-      - ode_model: the Conditional_ODE (diffusion model) instance.
-      - env: your environment, which must implement reset_to() and step().
-      - initial_state: a numpy array of shape (state_size,) (the current state).
-      - fixed_goal: a numpy array of shape (state_size,) representing the final goal.
-      - segment_length: number of timesteps to plan in each segment.
-      - total_steps: total length of the planned trajectory.
-    
-    Returns:
-      - full_traj: a numpy array of shape (total_steps, state_size)
-    """
-    full_traj = []
-    current_state = initial_state.copy()
-    n_segments = total_steps // segment_length
-    for seg in range(n_segments):
-        cond = np.hstack([current_state, fixed_goal])
-        cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
-        sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=model_i)
-        segment = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
-
-        if seg == 0:
-            full_traj.extend(segment)
-        else:
-            full_traj.extend(segment[1:])
-
-        current_state = segment[-1]
-    return np.array(full_traj)
 
 
 # --- 2. MPC Planning and Video Generation ---

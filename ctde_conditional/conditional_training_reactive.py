@@ -83,9 +83,9 @@ expert_data1 = (expert_data1 - mean) / std
 expert_data2 = (expert_data2 - mean) / std
 orig1 = (orig1 - mean) / std
 orig2 = (orig2 - mean) / std
-with open("data/mean.npy", "wb") as f:
+with open("data/mean_reactive.npy", "wb") as f:
     np.save(f, mean)
-with open("data/std.npy", "wb") as f:
+with open("data/std_reactive.npy", "wb") as f:
     np.save(f, std)
 
 
@@ -127,8 +127,8 @@ obs_init1 = expert_data1[:, 0, :]
 obs_init2 = expert_data2[:, 0, :]
 obs_final1 = np.repeat(orig1[:, -1, :], repeats=10, axis=0)
 obs_final2 = np.repeat(orig2[:, -1, :], repeats=10, axis=0)
-obs1 = np.hstack([obs_init1, obs_final1])
-obs2 = np.hstack([obs_init2, obs_final2])
+obs1 = np.hstack([obs_init1, obs_final1, obs_init2, obs_final2])
+obs2 = np.hstack([obs_init2, obs_final2, obs_init1, obs_final1])
 obs_temp1 = obs1
 obs_temp2 = obs2
 actions1 = expert_data1[:, :H-1, :]
@@ -140,23 +140,25 @@ attr1 = obs1
 attr2 = obs2
 attr_dim1 = attr1.shape[1]
 attr_dim2 = attr2.shape[1]
-assert attr_dim1 == env.state_size * 2
-assert attr_dim2 == env.state_size * 2
+assert attr_dim1 == env.state_size * 4
+assert attr_dim2 == env.state_size * 4
 
 actions1 = torch.FloatTensor(actions1).to(device)
 actions2 = torch.FloatTensor(actions2).to(device)
 sigma_data1 = actions1.std().item()
 sigma_data2 = actions2.std().item()
 sig = np.array([sigma_data1, sigma_data2])
-with open("data/sigma_data.npy", "wb") as f:
+with open("data/sigma_data_reactive.npy", "wb") as f:
     np.save(f, sig)
 
+breakpoint()
+sys.exit()
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T10_2")
-# action_cond_ode.save(extra="_T10_2")
-action_cond_ode.load(extra="_T10_2")
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T10_reactive")
+# action_cond_ode.save(extra="_T10_reactive")
+action_cond_ode.load(extra="_T10_reactive")
 
 
 
@@ -208,9 +210,9 @@ for i in range(10):
     # print(frechet1, frechet2)
 
     init_state1 = attr_n1[:2]
-    final_state1 = attr_n1[2:]
+    final_state1 = attr_n1[2:4]
     init_state2 = attr_n2[:2]
-    final_state2 = attr_n2[2:]
+    final_state2 = attr_n2[2:4]
 
     init_state1 = init_state1 * std + mean
     final_state1 = final_state1 * std + mean
@@ -234,6 +236,6 @@ for i in range(10):
     plt.plot(sampled1[0, :, 0], sampled1[0, :, 1], color='blue')
     plt.plot(sampled2[0, :, 0], sampled2[0, :, 1], color='orange')
     # plt.legend(loc="upper right", fontsize=14)
-    plt.savefig("figs/T10_2/plot%s.png" % (i+10))
+    plt.savefig("figs/T10_reactive/plot%s.png" % i)
 
 
