@@ -58,6 +58,21 @@ expert_data1 = np.array(expert_data1)
 expert_data2 = np.array(expert_data2)
 
 
+# plt.figure(figsize=(20, 14))
+# for traj in expert_data2[:100]:
+#     traj = np.array(traj)
+#     plt.plot(traj[:, 0], traj[:, 1], 'b-', alpha=0.5)
+# plt.xlabel('X')
+# plt.ylabel('Y')
+# plt.xlim([-1, 21])
+# plt.ylim([-7, 7])
+# plt.title('Sample Trajectories from Expert Data 2')
+# plt.grid(True)
+# plt.savefig("test.png")
+
+# sys.exit()
+
+
 
 # Unspliced trajectories to get final positions
 orig1 = [
@@ -155,7 +170,7 @@ breakpoint()
 sys.exit()
 
 # Training
-action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
+action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, lin_scale = 256, **model_size)
 # action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T10_reactive")
 # action_cond_ode.save(extra="_T10_reactive")
 action_cond_ode.load(extra="_T10_reactive")

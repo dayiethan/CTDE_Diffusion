@@ -36,10 +36,11 @@ class ContinuousCondEmbedder(nn.Module):
     The embedding transforms the discrete 1-hot into a continuous vector, don't need that here.
     Just a regular affine layer to make the initial state of the right dimension."""
     
-    def __init__(self, attr_dim: int, hidden_size: int):
+    def __init__(self, attr_dim: int, hidden_size: int, lin_scale: int):
         super().__init__()
         self.attr_dim = attr_dim
-        self.embedding = nn.Linear(attr_dim, int(attr_dim*128)) # 1 layer affine to transform initial state into embedding vector
+        self.lin_scale = lin_scale
+        self.embedding = nn.Linear(attr_dim, int(attr_dim*lin_scale)) # 1 layer affine to transform initial state into embedding vector
         self.attn = nn.MultiheadAttention(128, num_heads=2, batch_first=True)
         self.linear = nn.Linear(128 * attr_dim, hidden_size)
     
@@ -48,7 +49,7 @@ class ContinuousCondEmbedder(nn.Module):
         attr: (batch_size, attr_dim)
         mask: (batch_size, attr_dim) 0 or 1, 0 means ignoring
         '''
-        emb = self.embedding(attr).reshape((-1, self.attr_dim, 128)) # (b, attr_dim, 128)
+        emb = self.embedding(attr).reshape((-1, self.attr_dim, self.lin_scale)) # (b, attr_dim, 128)
         if mask is not None: emb *= mask.unsqueeze(-1) # (b, attr_dim, 128)
         emb, _ = self.attn(emb, emb, emb) # (b, attr_dim, 128)
         return self.linear(einops.rearrange(emb, 'b c d -> b (c d)')) # (b, hidden_size)
@@ -105,13 +106,13 @@ class Finallayer1d(nn.Module):
     
 class DiT1d(nn.Module):
     def __init__(self, x_dim: int, attr_dim: int, d_model: int = 384, 
-                 n_heads: int = 6, depth: int = 12, dropout: float = 0.1):
+                 n_heads: int = 6, depth: int = 12, dropout: float = 0.1, lin_scale: int = 256):
         super().__init__()
         self.attr_dim = attr_dim # dimension of the attributes
         self.x_dim, self.d_model, self.n_heads, self.depth = x_dim, d_model, n_heads, depth
         self.x_proj = nn.Linear(x_dim, d_model)
         self.t_emb = TimeEmbedding(d_model)
-        self.attr_proj = ContinuousCondEmbedder(attr_dim, d_model)
+        self.attr_proj = ContinuousCondEmbedder(attr_dim, d_model, lin_scale)
         self.pos_emb = SinusoidalPosEmb(d_model)
         self.pos_emb_cache = None
         self.blocks = nn.ModuleList([
@@ -186,7 +187,7 @@ class Conditional_ODE():
     def __init__(self, env, attr_dim: list, sigma_data: list, sigma_min: float = 0.001, sigma_max: float = 50,
                  rho: float = 7, p_mean: float = -1.2, p_std: float = 1.2, 
                  d_model: int = 384, n_heads: int = 6, depth: int = 12,
-                 device: str = "cpu", N: int = 5, lr: float = 2e-4,
+                 device: str = "cpu", N: int = 5, lr: float = 2e-4, lin_scale = 256,
                  n_models: int = 2):
         """
         Predicts the sequence of actions to apply conditioned on the initial state.
@@ -223,7 +224,7 @@ class Conditional_ODE():
         self.F_ema_list = []
         for i in range(n_models):
             model = DiT1d(self.action_size, attr_dim=attr_dim[i], d_model=d_model,
-                           n_heads=n_heads, depth=depth, dropout=0.1).to(device)
+                           n_heads=n_heads, depth=depth, dropout=0.1, lin_scale=lin_scale).to(device)
             model.train()
             self.F_list.append(model)
             self.F_ema_list.append(deepcopy(model).requires_grad_(False).eval())
@@ -341,7 +342,7 @@ class Conditional_ODE():
                 pred_start = pred[:, 0, :self.state_size]
                 cond_start = attr[:, :self.state_size]
                 endpoint_loss = ((pred_start - cond_start) ** 2).mean()
-                loss = loss + 5.0 * endpoint_loss
+                loss = loss + 2.0 * endpoint_loss
                 
                 loss_total += loss
             
