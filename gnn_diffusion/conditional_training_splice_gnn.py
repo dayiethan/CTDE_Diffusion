@@ -13,6 +13,8 @@ import csv
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+print(device)
+
 # Parameters
 n_gradient_steps = 100_000
 batch_size = 64
