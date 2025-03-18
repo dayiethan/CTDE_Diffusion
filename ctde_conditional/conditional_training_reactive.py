@@ -272,6 +272,6 @@ for i in range(10):
     plt.plot(sampled1[0, :, 0], sampled1[0, :, 1], color='blue')
     plt.plot(sampled2[0, :, 0], sampled2[0, :, 1], color='orange')
     # plt.legend(loc="upper right", fontsize=14)
-    plt.savefig("figs/T10_reactive/plot%s.png" % i)
+    plt.savefig("figs/T10_reactivemode/plot%s.png" % i)
 
 
