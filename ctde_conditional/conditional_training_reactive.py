@@ -91,23 +91,21 @@ modes = []
 for i in range(len(orig1)):
     traj1 = orig1[i]
     traj2 = orig2[i]
-    if np.min(traj2[:, 1]) < -5:
+    if np.min(traj2[:, 1]) < -5:    # 6: Red goes very low
         modes.append(6)
-    elif np.max(traj2[:, 1]) > 5:
+    elif np.max(traj2[:, 1]) > 5:   # 5: Red goes very high
         modes.append(5)
-    elif np.min(traj1[:, 1]) < -5:
+    elif np.min(traj1[:, 1]) < -5:  # 4: Blue goes very low
         modes.append(4)
-    elif np.max(traj1[:, 1]) > 5:
+    elif np.max(traj1[:, 1]) > 5:   # 3: Blue goes very high
         modes.append(3)
-    elif np.min(traj1[:, 1]) < 0:
+    elif np.average(traj1[:, 1]) < np.average(traj2[:, 1]): # 2: Red goes up
         modes.append(2)
-    elif np.max(traj2[:, 1]) > 0:
+    elif np.average(traj1[:, 1]) > np.average(traj2[:, 1]): # 1: Blue goes up
         modes.append(1)
     else:
         print(i)
 
-breakpoint()
-sys.exit()
 
 combined_data1 = np.concatenate((expert_data1, expert_data2), axis=0)
 combined_data2 = np.concatenate((orig1, orig2), axis=0)
@@ -165,8 +163,10 @@ obs_init1 = expert_data1[:, 0, :]
 obs_init2 = expert_data2[:, 0, :]
 obs_final1 = np.repeat(orig1[:, -1, :], repeats=10, axis=0)
 obs_final2 = np.repeat(orig2[:, -1, :], repeats=10, axis=0)
-obs1 = np.hstack([obs_init1, obs_final1, obs_init2, obs_final2])
-obs2 = np.hstack([obs_init2, obs_final2, obs_init1, obs_final1])
+modes = np.repeat(modes, repeats=10, axis=0)
+modes = modes.reshape(-1, 1)
+obs1 = np.hstack([obs_init1, obs_final1, obs_init2, obs_final2, modes])
+obs2 = np.hstack([obs_init2, obs_final2, obs_init1, obs_final1, modes])
 obs_temp1 = obs1
 obs_temp2 = obs2
 actions1 = expert_data1[:, :H-1, :]
@@ -178,8 +178,8 @@ attr1 = obs1
 attr2 = obs2
 attr_dim1 = attr1.shape[1]
 attr_dim2 = attr2.shape[1]
-assert attr_dim1 == env.state_size * 4
-assert attr_dim2 == env.state_size * 4
+assert attr_dim1 == env.state_size * 4 + 1
+assert attr_dim2 == env.state_size * 4 + 1
 
 actions1 = torch.FloatTensor(actions1).to(device)
 actions2 = torch.FloatTensor(actions2).to(device)
@@ -189,14 +189,12 @@ sig = np.array([sigma_data1, sigma_data2])
 with open("data/sigma_data_reactive.npy", "wb") as f:
     np.save(f, sig)
 
-breakpoint()
-sys.exit()
 
 # Training
-action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, lin_scale = 256, **model_size)
-# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T10_reactive")
-# action_cond_ode.save(extra="_T10_reactive")
-action_cond_ode.load(extra="_T10_reactive")
+action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, lin_scale = 128, **model_size)
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T10_reactivemode")
+action_cond_ode.save(extra="_T10_reactivemode")
+# action_cond_ode.load(extra="_T10_reactivemode")
 
 
 
