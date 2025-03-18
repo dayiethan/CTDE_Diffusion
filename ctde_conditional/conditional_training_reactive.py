@@ -86,6 +86,29 @@ orig2 = [
 orig1 = np.array(orig1)
 orig2 = np.array(orig2)
 
+modes = []
+
+for i in range(len(orig1)):
+    traj1 = orig1[i]
+    traj2 = orig2[i]
+    if np.min(traj2[:, 1]) < -5:
+        modes.append(6)
+    elif np.max(traj2[:, 1]) > 5:
+        modes.append(5)
+    elif np.min(traj1[:, 1]) < -5:
+        modes.append(4)
+    elif np.max(traj1[:, 1]) > 5:
+        modes.append(3)
+    elif np.min(traj1[:, 1]) < 0:
+        modes.append(2)
+    elif np.max(traj2[:, 1]) > 0:
+        modes.append(1)
+    else:
+        print(i)
+
+breakpoint()
+sys.exit()
+
 combined_data1 = np.concatenate((expert_data1, expert_data2), axis=0)
 combined_data2 = np.concatenate((orig1, orig2), axis=0)
 mean1 = np.mean(combined_data1, axis=(0,1))
