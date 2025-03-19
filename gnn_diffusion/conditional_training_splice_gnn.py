@@ -167,6 +167,7 @@ edge_index = edge_index.repeat(1, batch_size)  # Shape: (2, 2 * batch_size)
 # Adjust node indices for batched graph (ensuring unique node indices per batch)
 offsets = torch.arange(batch_size) * 2  # Offsets for each batch
 edge_index = edge_index + offsets.repeat_interleave(2).unsqueeze(0)
+edge_index = edge_index.to(device)
 
 # Forward pass through GNN
 with torch.no_grad():
