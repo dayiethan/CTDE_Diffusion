@@ -52,19 +52,19 @@ diff_model = GaussianDiffusion(
         n_timesteps=1000,            # can adjust
         clip_denoised=True,
         predict_epsilon=True,
-        action_weight=10.0,
+        action_weight=20.0,
         hidden_dim=256,
-        loss_discount=1.0,
+        loss_discount=0.99,
         returns_condition=False,
-        condition_guidance_w=1.2
+        condition_guidance_w=3.0
     )
 
-data = torch.load("checkpoints/checkpoint/state_99000.pt")
+data = torch.load("/mnt/data1/chendazhong/CTDE_Diffusion/madiff/madiff_model.pt")
 diff_model.load_state_dict(data['model'])
 diff_model.to(device)
 
 diff_model.eval()
-diff_model.set_ddim_scheduler(n_ddim_steps=15)
+diff_model.set_ddim_scheduler(n_ddim_steps=50)
 
 horizon = diff_model.horizon + diff_model.history_horizon
 batch_size = 16  # or any batch size you are using
@@ -82,6 +82,8 @@ with torch.no_grad():
         verbose=True,
         return_diffusion=False
     )
+    print("Sample shape:", samples.shape)
+    print("First sample values:", samples[0])
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -98,8 +100,12 @@ plt.figure(figsize=(20, 8))
 trajectory1_a1 = samples_np[0, :, 0, :]
 trajectory1_a2 = samples_np[0, :, 1, :]
 plt.plot(trajectory1_a1[:, 7], trajectory1_a1[:, 8], color='blue')
-plt.plot(trajectory1_a2[:, 4], trajectory1_a1[:, 5], color='orange')
+plt.plot(trajectory1_a2[:, 4], trajectory1_a2[:, 5], color='orange')
+print("Sample trajectory shape:", samples_np.shape)
+
+print("First agent trajectory first 5 steps:\n", samples_np[0, :5, 0, :])
+print("Second agent trajectory first 5 steps:\n", samples_np[0, :5, 1, :])
 
 plt.xlabel("X")
 plt.ylabel("Y")
-plt.savefig("fig")
+plt.savefig("/mnt/data1/chendazhong/CTDE_Diffusion/madiff/fig2.png")
