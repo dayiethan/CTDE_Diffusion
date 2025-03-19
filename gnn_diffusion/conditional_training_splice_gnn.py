@@ -154,6 +154,9 @@ output_dim = 4
 # Instantiate the GNN
 gnn = TwoAgentGNN(input_dim, hidden_dim, output_dim).to(device)
 
+# save the model
+torch.save(gnn.state_dict(), "trained_models/gnn_model.pt")
+
 # Stack observations to form a batch of agent pairs
 x_batch = torch.cat([obs1, obs2], dim=0)  # Shape: (20000, 4)
 
