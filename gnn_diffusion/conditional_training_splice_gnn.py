@@ -16,7 +16,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
 # Parameters
-n_gradient_steps = 100_000
+n_gradient_steps = 10_000
 batch_size = 64
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 10 # horizon, length of each trajectory
@@ -187,9 +187,9 @@ sigma_data = actions.std().item()
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1], [sigma_data], device=device, N=100, n_models = 1, **model_size)
-action_cond_ode.train([actions], [embeddings], int(5*n_gradient_steps), batch_size, extra="_T10_2")
-action_cond_ode.save(extra="_T10_2_gnn")
-# action_cond_ode.load(extra="_T10_2")
+# action_cond_ode.train([actions], [embeddings], int(3*n_gradient_steps), batch_size, extra="_T10_2")
+# action_cond_ode.save(extra="_T10_2_gnn")
+action_cond_ode.load(extra="_T10_2_gnn")
 
 
 
