@@ -22,6 +22,8 @@ from tqdm import tqdm
 from copy import deepcopy
 from typing import Optional
 import matplotlib.pyplot as plt
+from torch_geometric.nn import GraphConv
+import torch.nn.functional as F
 
 
 #%% Diffusion Transformer
@@ -29,6 +31,17 @@ import matplotlib.pyplot as plt
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
+class TwoAgentGNN(torch.nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(TwoAgentGNN, self).__init__()
+        self.conv1 = GraphConv(input_dim, hidden_dim)
+        self.conv2 = GraphConv(hidden_dim, output_dim)
+
+    def forward(self, x, edge_index):
+        x = self.conv1(x, edge_index)
+        x = F.relu(x)
+        x = self.conv2(x, edge_index)
+        return x  # Output separate embeddings for each agent
 
 class ContinuousCondEmbedder(nn.Module):
     """Modified from DiscreteCondEmbedder to embed the initial state,
@@ -219,17 +232,24 @@ class Conditional_ODE():
         self.n_models = n_models
         self.F_list = nn.ModuleList()
         self.F_ema_list = []
-        for i in range(n_models):
-            model = DiT1d(self.action_size, attr_dim=attr_dim[i], d_model=d_model,
+        self.model = DiT1d(self.action_size, attr_dim=attr_dim[0], d_model=d_model,
                            n_heads=n_heads, depth=depth, dropout=0.1).to(device)
-            model.train()
-            self.F_list.append(model)
-            self.F_ema_list.append(deepcopy(model).requires_grad_(False).eval())
+        self.model.train()
+        self.deep_copy = deepcopy(self.model).requires_grad_(False).eval()
+        for i in range(n_models):
+            self.F_list.append(self.model)
+            self.F_ema_list.append(self.deep_copy)
+
+        # create gnn for our problem
+        gnn_hidden_dim = 16
+        self.gnn = TwoAgentGNN(attr_dim[0], gnn_hidden_dim, attr_dim[0]).to(device)
         
         # Create a single optimizer for all transformer parameters.
         all_params = []
-        for model in self.F_list:
-            all_params += list(model.parameters())
+        all_params += list(self.model.parameters())
+        all_params += list(self.gnn.parameters())
+        # for model in self.F_list:
+        #     all_params += list(model.parameters())
         self.optim = torch.optim.AdamW(all_params, lr=lr, weight_decay=1e-4)
         
         self.set_N(N)  # number of noise scales
@@ -319,6 +339,14 @@ class Conditional_ODE():
         
         N_trajs_list = [x.shape[0] for x in x_normalized_list]
         loss_avg = 0.0
+
+        edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long)  # Shape: (2, 2)
+
+        edge_index = edge_index.repeat(1, batch_size)  # Shape: (2, 2 * batch_size)
+
+        # Adjust node indices for batched graph (ensuring unique node indices per batch)
+        offsets = torch.arange(batch_size) * 2  # Offsets for each batch
+        edge_index = edge_index + offsets.repeat_interleave(2).unsqueeze(0)  # Shape: (2, 2 * batch_size)
         
         pbar = tqdm(range(n_gradient_steps))
         for step in range(n_gradient_steps):
@@ -327,13 +355,27 @@ class Conditional_ODE():
                 idx = np.random.randint(0, N_trajs_list[i], batch_size)
                 x = x_normalized_list[i][idx].clone()   # shape: (batch_size, horizon, action_size)
                 attr = attributes_list[i][idx].clone()    # shape: (batch_size, attr_dim)
+                attr1 = attributes_list[0][idx].clone()
+                attr2 = attributes_list[1][idx].clone()
+
+                # Stack attr_1 and attr_2 to create a (batch_size, 2, attr_dim) tensor
+                node_features = torch.stack([attr1, attr2], dim=1)  # Shape: (batch_size, 2, attr_dim)
+
+                # Reshape to (batch_size * 2, attr_dim) for GNN input
+                node_features = node_features.view(-1, attr1.shape[-1])  # Shape: (batch_size * 2, attr_dim)
+
+                embeddings = self.gnn(node_features, edge_index)  # Shape: (batch_size * 2, embedding_dim)
+
+                embeddings = embeddings.view(batch_size, 2, -1)  # Shape: (batch_size, 2, embedding_dim)
+
+                embeddings_i = embeddings[:, i, :]
                 
                 sigma = self.sample_noise_distribution(x.shape[0])
                 eps = torch.randn_like(x) * sigma
                 loss_mask = torch.ones_like(x)
-                mask = (torch.rand(*attr.shape, device=self.device) > 0.2).int()
+                mask = (torch.rand(*attr1.shape, device=self.device) > 0.2).int()
                 
-                pred = self.D(x + eps, sigma, condition=attr, mask=mask, model_index=i)
+                pred = self.D(x + eps, sigma, condition=embeddings_i, mask=mask, model_index=i)
                 loss = (loss_mask * self.loss_weighting(sigma, model_index=i) * (pred - x) ** 2).mean()
                 
                 pred_start = pred[:, 0, :self.state_size]

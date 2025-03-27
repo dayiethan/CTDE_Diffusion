@@ -62,6 +62,9 @@ y2 = [point[1] for point in first_trajectory2]
 expert_data1 = np.array(expert_data1)
 expert_data2 = np.array(expert_data2)
 
+print(expert_data1.shape)
+print(expert_data2.shape)
+
 
 # Unspliced trajectories to get final positions
 orig1 = [
@@ -74,6 +77,9 @@ orig2 = [
 ]
 orig1 = np.array(orig1)
 orig2 = np.array(orig2)
+
+print(orig1.shape)
+print(orig2.shape)
 
 combined_data1 = np.concatenate((expert_data1, expert_data2), axis=0)
 combined_data2 = np.concatenate((orig1, orig2), axis=0)
@@ -155,7 +161,13 @@ output_dim = 4
 gnn = TwoAgentGNN(input_dim, hidden_dim, output_dim).to(device)
 
 # save the model
-torch.save(gnn.state_dict(), "trained_models/gnn_model.pt")
+# torch.save(gnn.state_dict(), "trained_models/gnn_model.pt")
+
+# Load the model
+gnn.load_state_dict(torch.load("trained_models/gnn_model.pt", map_location=device))
+
+print(obs1.shape)
+print(obs2.shape)
 
 # Stack observations to form a batch of agent pairs
 x_batch = torch.cat([obs1, obs2], dim=0)  # Shape: (20000, 4)
@@ -171,6 +183,12 @@ edge_index = edge_index.repeat(1, batch_size)  # Shape: (2, 2 * batch_size)
 offsets = torch.arange(batch_size) * 2  # Offsets for each batch
 edge_index = edge_index + offsets.repeat_interleave(2).unsqueeze(0)
 edge_index = edge_index.to(device)
+
+print(edge_index)
+
+print(edge_index.shape)
+
+sys.exit()
 
 # Forward pass through GNN
 with torch.no_grad():
@@ -191,9 +209,6 @@ action_cond_ode = Conditional_ODE(env, [attr_dim1], [sigma_data], device=device,
 # action_cond_ode.save(extra="_T10_2_gnn")
 action_cond_ode.load(extra="_T10_2_gnn")
 
-
-
-
 # Sampling preparation
 noise_std = 0.
 noise = np.ones(np.shape(obs_temp1))
@@ -210,7 +225,9 @@ ref2 = np.mean(expert_data2, axis=0)
 ref_agent1 = ref1[:, :]
 ref_agent2 = ref2[:, :]
 
-sys.exit()
+edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long)
+
+# sys.exit()
 
 # Sampling
 for i in range(10):
@@ -220,11 +237,17 @@ for i in range(10):
     attr_n1 = attr_t1.cpu().detach().numpy()[0]
     attr_n2 = attr_t2.cpu().detach().numpy()[0]
 
+    print(attr_t1.shape)
+    print(attr_t2.shape)
+
+    emb1 = gnn(attr_t1, edge_index)
+    emb2 = gnn(attr_t2, edge_index)
+
     traj_len = 10
     n_samples = 1
 
-    sampled1 = action_cond_ode.sample(attr_t1, traj_len, n_samples, w=1., model_index = 0)
-    sampled2 = action_cond_ode.sample(attr_t2, traj_len, n_samples, w=1., model_index = 1)
+    sampled1 = action_cond_ode.sample(emb1, traj_len, n_samples, w=1., model_index = 0)
+    sampled2 = action_cond_ode.sample(emb2, traj_len, n_samples, w=1., model_index = 1)
 
     sampled1 = sampled1.cpu().detach().numpy()
     sampled2 = sampled2.cpu().detach().numpy()
