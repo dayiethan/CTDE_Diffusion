@@ -79,37 +79,37 @@ class PolicyPlayer:
         pos_zd = np.random.uniform(0.15, 0.35)
 
         #wp0
-        waypoint = {"goal_pos": np.array([0.64, -0.3, 0.03]),
+        waypoint = {"goal_pos": np.array([0.65, -0.3, 0.03]),
                      "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
                      "gripper": -1}
         self.waypoints_robot0.append(waypoint)
 
         #wp1
-        waypoint = {"goal_pos": np.array([0.64, -0.3, 0.03]),
+        waypoint = {"goal_pos": np.array([0.65, -0.3, 0.03]),
                      "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
                      "gripper": 1}
         self.waypoints_robot0.append(waypoint)
 
         #wp2
-        waypoint = {"goal_pos": np.array([0.64, -0.3, 0.4]),
+        waypoint = {"goal_pos": np.array([0.65, -0.3, 0.4]),
                      "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
                      "gripper": 1}
         self.waypoints_robot0.append(waypoint)
         
         #wp3
-        waypoint = {"goal_pos": np.array([0.64, 0.3, 0.4]),
+        waypoint = {"goal_pos": np.array([0.65, 0.3, 0.4]),
                      "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
                      "gripper": 1}
         self.waypoints_robot0.append(waypoint)
 
         #wp4
-        waypoint = {"goal_pos": np.array([0.64, 0.3, 0.03]),
+        waypoint = {"goal_pos": np.array([0.65, 0.3, 0.03]),
                      "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
                      "gripper": 1}
         self.waypoints_robot0.append(waypoint)
 
         #wp5
-        waypoint = {"goal_pos": np.array([0.64, 0.3, 0.03]),
+        waypoint = {"goal_pos": np.array([0.65, 0.3, 0.03]),
                      "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
                      "gripper": -1}
         self.waypoints_robot0.append(waypoint)
