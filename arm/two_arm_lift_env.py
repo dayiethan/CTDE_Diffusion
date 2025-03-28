@@ -364,7 +364,7 @@ class TwoArmLiftRole(TwoArmEnv):
             y_range=[0.0, 0.0],
             ensure_object_boundary_in_range=False,
             ensure_valid_placement=True,
-            reference_pos=self.table_offset + np.array([0., 0., 1.]),
+            reference_pos=self.table_offset + np.array([0., 0., .2]),
             rotation=(0, 0)
         )
 
