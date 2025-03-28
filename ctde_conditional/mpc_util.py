@@ -156,3 +156,53 @@ def mpc_plan_mode_multi(ode_model, env, initial_states, fixed_goals, mode, segme
     # Optionally, transpose so that time is the first dimension:
     # full_traj = np.transpose(full_traj, (1, 0, 2))
     return full_traj
+
+def collision_cost(traj, obstacle, safety_margin=0.5):
+    # traj: (segment_length, state_size) trajectory
+    # obstacle: tuple (ox, oy, r)
+    # Compute cost as, for example, inverse of the distance to the obstacle at each timestep.
+    cost = 0
+    ox, oy, r = obstacle
+    for state in traj:
+        x, y = state[:2]
+        dist = np.sqrt((x - ox)**2 + (y - oy)**2)
+        # If within the safety margin, add a high penalty
+        if dist < safety_margin:
+            cost += 1e3
+        else:
+            cost += 1.0 / dist  # lower cost for further states
+    return cost
+
+def mpc_plan_multi_safe(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100, n_candidates=5):
+    n_agents = len(initial_states)
+    current_states = initial_states.copy()  # update each segment
+    full_segments = []
+    n_segments = total_steps // segment_length
+
+    for seg in range(n_segments):
+        seg_trajectories = []
+        for i in range(n_agents):
+            best_traj = None
+            best_cost = float('inf')
+            # Sample multiple candidates
+            for _ in range(n_candidates):
+                cond = [current_states[i], fixed_goals[i]]
+                for j in range(n_agents):
+                    if j != i:
+                        cond.append(current_states[j])
+                        cond.append(fixed_goals[j])
+                        obstacle = (current_states[j][0], current_states[j][1], 2)
+                cond_vector = np.hstack(cond)
+                cond_tensor = torch.tensor(cond_vector, dtype=torch.float32, device=device).unsqueeze(0)
+                sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)
+                candidate = sampled.cpu().detach().numpy()[0]
+                cost = collision_cost(candidate, obstacle)
+                if cost < best_cost:
+                    best_cost = cost
+                    best_traj = candidate
+            seg_trajectories.append(best_traj)
+            current_states[i] = best_traj[-1]
+        seg_array = np.stack(seg_trajectories, axis=0)
+        full_segments.append(seg_array)
+    full_traj = np.concatenate(full_segments, axis=1)
+    return full_traj
