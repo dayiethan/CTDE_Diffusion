@@ -131,6 +131,7 @@ def mpc_plan_safe(ode_model, env, initial_states, fixed_goals, segment_length=10
         valid_segment = False
         while not valid_segment:
           seg_trajectories = []
+          current_states_temp = initial_states.copy()
           # For each agent, build its own condition and sample a trajectory segment.
           likely_vec = np.zeros(n_agents*2)
           for i in range(n_agents):
@@ -152,12 +153,15 @@ def mpc_plan_safe(ode_model, env, initial_states, fixed_goals, segment_length=10
               likely_vec[i*2 + 1] = seg_i[-1][1]
               seg_trajectories.append(seg_i)
               # Update current state for agent i (using the last state from the segment)
-              current_states[i] = seg_i[-1]
+              current_states_temp[i] = seg_i[-1]
+              # current_states[i] = seg_i[-1]
           prob = expert_likelihood(gmm, likely_vec)
           print(prob)
-          if prob > 0.05:
+          if prob > 0.045:
               print("valid")
               valid_segment = True
+              for i in range(n_agents):
+                  current_states[i] = current_states_temp[i]
         # Stack the segments for all agents. Shape: (n_agents, segment_length, state_size)
         seg_array = np.stack(seg_trajectories, axis=0)
         full_segments.append(seg_array)
