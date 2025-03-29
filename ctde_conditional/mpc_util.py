@@ -155,7 +155,7 @@ def mpc_plan_safe(ode_model, env, initial_states, fixed_goals, segment_length=10
               current_states[i] = seg_i[-1]
           prob = expert_likelihood(gmm, likely_vec)
           print(prob)
-          if prob > 0.1:
+          if prob > 0:
               print("valid")
               valid_segment = True
         # Stack the segments for all agents. Shape: (n_agents, segment_length, state_size)
