@@ -8,6 +8,9 @@ from discrete import *
 import sys
 import pdb
 import csv
+from gmm import expert_likelihood
+from joblib import dump, load
+import pdb
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -100,6 +103,70 @@ def mpc_plan_multi(ode_model, env, initial_states, fixed_goals, segment_length=1
     # full_traj = np.transpose(full_traj, (1, 0, 2))
     return full_traj
 
+def mpc_plan_safe(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100):
+    """
+    Plans a full multi-agent trajectory by repeatedly sampling 10-step segments with a safety filter.
+    Each agent’s condition is built as:
+      [ own current state, own goal, other_agent_1 current state, other_agent_1 goal, ... ]
+      
+    Parameters:
+      - ode_model: the diffusion model (must support sample() that accepts a single condition tensor).
+      - env: the environment (to get state dimensions, etc.)
+      - initial_states: numpy array of shape (n_agents, state_size) with each agent's current state.
+      - fixed_goals: numpy array of shape (n_agents, state_size) with each agent's final desired state.
+      - segment_length: number of timesteps planned per segment.
+      - total_steps: total number of timesteps for the full trajectory.
+      
+    Returns:
+      - full_traj: numpy array of shape (total_steps, n_agents, state_size)
+    """
+    n_agents = len(initial_states)
+    current_states = initial_states.copy()  # will be updated at every segment
+    full_segments = []
+    n_segments = total_steps // segment_length
+    gmm = load("expert_gmm.pkl")
+
+    # Loop over planning segments.
+    for seg in range(n_segments):
+        valid_segment = False
+        while not valid_segment:
+          seg_trajectories = []
+          # For each agent, build its own condition and sample a trajectory segment.
+          likely_vec = np.zeros(n_agents*2)
+          for i in range(n_agents):
+              # Start with agent i's current state and goal.
+              cond = [current_states[i], fixed_goals[i]]
+              # Append other agents' current state and goal.
+              for j in range(n_agents):
+                  if j != i:
+                      cond.append(current_states[j])
+                      cond.append(fixed_goals[j])
+              # Create a 1D condition vector for agent i.
+              cond_vector = np.hstack(cond)
+              # Convert to tensor.
+              cond_tensor = torch.tensor(cond_vector, dtype=torch.float32, device=device).unsqueeze(0)
+              # Sample a segment for agent i.
+              sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)
+              seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, state_size)
+              likely_vec[i*2] = seg_i[-1][0]
+              likely_vec[i*2 + 1] = seg_i[-1][1]
+              seg_trajectories.append(seg_i)
+              # Update current state for agent i (using the last state from the segment)
+              current_states[i] = seg_i[-1]
+          prob = expert_likelihood(gmm, likely_vec)
+          print(prob)
+          if prob > 0.1:
+              print("valid")
+              valid_segment = True
+        # Stack the segments for all agents. Shape: (n_agents, segment_length, state_size)
+        seg_array = np.stack(seg_trajectories, axis=0)
+        full_segments.append(seg_array)
+
+    # Concatenate segments along the time axis.
+    # This yields an array of shape (n_agents, total_steps, state_size)
+    full_traj = np.concatenate(full_segments, axis=1)
+    return full_traj
+
 
 def mpc_plan_mode_multi(ode_model, env, initial_states, fixed_goals, mode, segment_length=10, total_steps=100):
     """
@@ -157,13 +224,15 @@ def mpc_plan_mode_multi(ode_model, env, initial_states, fixed_goals, mode, segme
     # full_traj = np.transpose(full_traj, (1, 0, 2))
     return full_traj
 
-def collision_cost(traj, obstacle, safety_margin=0.5):
+def collision_cost(traj, obstacles, safety_margin=0.5):
     # traj: (segment_length, state_size) trajectory
     # obstacle: tuple (ox, oy, r)
     # Compute cost as, for example, inverse of the distance to the obstacle at each timestep.
-    cost = 0
-    ox, oy, r = obstacle
-    for state in traj:
+    costs = []
+    for obstacle in obstacles:
+      cost = 0
+      ox, oy, r = obstacle
+      for state in traj:
         x, y = state[:2]
         dist = np.sqrt((x - ox)**2 + (y - oy)**2)
         # If within the safety margin, add a high penalty
@@ -171,16 +240,19 @@ def collision_cost(traj, obstacle, safety_margin=0.5):
             cost += 1e3
         else:
             cost += 1.0 / dist  # lower cost for further states
-    return cost
+      costs.append(cost)
+    return max(costs)
 
 def mpc_plan_multi_safe(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100, n_candidates=5):
     n_agents = len(initial_states)
     current_states = initial_states.copy()  # update each segment
     full_segments = []
     n_segments = total_steps // segment_length
+    gmm = load('expert_gmm.pkl')
 
     for seg in range(n_segments):
         seg_trajectories = []
+        obstacles = []
         for i in range(n_agents):
             best_traj = None
             best_cost = float('inf')
@@ -192,11 +264,13 @@ def mpc_plan_multi_safe(ode_model, env, initial_states, fixed_goals, segment_len
                         cond.append(current_states[j])
                         cond.append(fixed_goals[j])
                         obstacle = (current_states[j][0], current_states[j][1], 2)
+                        obstacles.append(obstacle)
                 cond_vector = np.hstack(cond)
                 cond_tensor = torch.tensor(cond_vector, dtype=torch.float32, device=device).unsqueeze(0)
                 sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)
                 candidate = sampled.cpu().detach().numpy()[0]
-                cost = collision_cost(candidate, obstacle)
+                breakpoint()
+                cost = collision_cost(candidate, obstacles)
                 if cost < best_cost:
                     best_cost = cost
                     best_traj = candidate

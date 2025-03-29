@@ -8,7 +8,7 @@ from discrete import *
 import sys
 import pdb
 import csv
-from mpc_util import mpc_plan_multi_safe
+from mpc_util import mpc_plan_safe
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -56,7 +56,7 @@ for i in range(10):
     final2 = final_point_down + noise_std * np.random.randn(*np.shape(final_point_down))
     final2 = (final2 - mean) / std
 
-    planned_trajs = mpc_plan_multi_safe(action_cond_ode, env, [initial1, initial2], [final1, final2], segment_length=H, total_steps=T)
+    planned_trajs = mpc_plan_safe(action_cond_ode, env, [initial1, initial2], [final1, final2], segment_length=H, total_steps=T)
     planned_traj1 = planned_trajs[0] * std + mean
     planned_traj2 = planned_trajs[1] * std + mean
 
@@ -72,7 +72,7 @@ for i in range(10):
     plt.xlabel("x")
     plt.ylabel("y")
     plt.title("MPC Planned Trajectory")
-    plt.savefig("figs/mpc/reactive_collision/mpc_traj_%s.png" % i)
+    plt.savefig("figs/mpc/reactive_safety/mpc_traj_%s.png" % i)
     plt.show()
 
     # Generate a video of the planning process:
@@ -122,6 +122,6 @@ for i in range(10):
                                 blit=True, interval=50)
 
 
-    ani.save("figs/mpc/reactive_collision/mpc_ani_%s.mp4" % i, writer="ffmpeg", fps=12)
+    ani.save("figs/mpc/reactive_safety/mpc_ani_%s.mp4" % i, writer="ffmpeg", fps=12)
     plt.close()
     print("MPC planning and video generation complete.")
