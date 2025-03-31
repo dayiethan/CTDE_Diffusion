@@ -3,6 +3,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 import pdb
+import pickle as pkl
 
 import robosuite as suite
 from robosuite.controllers import load_composite_controller_config
@@ -56,7 +57,7 @@ class PolicyPlayer:
 
         self.setup_waypoints()
 
-    def reset(self, seed = 0):
+    def reset(self, seed = 0, mode = 1):
         """
         Resetting environment. Re-initializing the waypoints too.
         """
@@ -70,57 +71,92 @@ class PolicyPlayer:
         self.pot_handle0_pos = self.robot0_base_ori_rotm.T @ (self.env._handle0_xpos - self.robot0_base_pos) + self.pot_handle_offset
         self.pot_handle1_pos = self.robot1_base_ori_rotm.T @ (self.env._handle1_xpos - self.robot1_base_pos) + self.pot_handle_offset
 
-        self.setup_waypoints()
+        self.setup_waypoints(mode = mode)
 
         self.rollout = []
 
         return obs
 
-    def setup_waypoints(self):
+    def setup_waypoints(self, mode = 1):
         self.waypoints_robot0 = []
         self.waypoints_robot1 = []
+
+        robot0_x_init = self.pot_handle0_pos[0]
+        robot0_y_init = self.pot_handle0_pos[1]
+        robot0_z_init = self.pot_handle0_pos[2]
+        robot1_x_init = self.pot_handle1_pos[0]
+        robot1_y_init = self.pot_handle1_pos[1]
+        robot1_z_init = self.pot_handle1_pos[2]
+
+        if mode == 1:
+            rotm0 = self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix()
+            rotm1 = self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix()
+            robot0_x_pass = robot0_x_init
+            robot0_y_pass = robot0_y_init
+            robot0_z_pass = 0.4
+            robot1_x_pass = robot1_x_init
+            robot1_y_pass = robot1_y_init
+            robot1_z_pass = 0.4
+        elif mode == 2:
+            rotm0 = self.R_be_home @ R.from_euler('z', -np.pi/2).as_matrix()
+            rotm0 = self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix()
+            rotm1 = self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix()
+            robot0_x_pass = robot0_x_init + 0.15
+            robot0_y_pass = robot0_y_init
+            robot0_z_pass = 0.4
+            robot1_x_pass = robot1_x_init - 0.15
+            robot1_y_pass = robot1_y_init
+            robot1_z_pass = 0.4
+        elif mode == 3:
+            rotm0 = self.R_be_home @ R.from_euler('z', -np.pi/2).as_matrix()
+            rotm0 = self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix()
+            rotm1 = self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix()
+            robot0_x_pass = robot0_x_init - 0.15
+            robot0_y_pass = robot0_y_init
+            robot0_z_pass = 0.4
+            robot1_x_pass = robot1_x_init + 0.15
+            robot1_y_pass = robot1_y_init
+            robot1_z_pass = 0.4
+        else:
+            raise ValueError("Invalid mode. Please choose a valid mode (1, 2, or 3).")
 
         """
         Robot 0 Waypoints
         """
 
-        robot0_x_init = self.pot_handle0_pos[0]
-        robot0_y_init = self.pot_handle0_pos[1]
-        robot0_z_init = self.pot_handle0_pos[2]
-
         #wp0
-        waypoint = {"goal_pos": np.array([robot0_x_init, robot0_y_init, robot0_z_init]),
-                     "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
+        waypoint = {"goal_pos": np.array([robot0_x_init, robot0_y_pass, robot0_z_init]),
+                     "goal_rotm": rotm0,
                      "gripper": -1}
         self.waypoints_robot0.append(waypoint)
 
         #wp1
-        waypoint = {"goal_pos": np.array([robot0_x_init, robot0_y_init, robot0_z_init]),
-                     "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
+        waypoint = {"goal_pos": np.array([robot0_x_init, robot0_y_pass, robot0_z_init]),
+                     "goal_rotm": rotm0,
                      "gripper": 1}
         self.waypoints_robot0.append(waypoint)
 
         #wp2
-        waypoint = {"goal_pos": np.array([robot0_x_init, robot0_y_init, 0.4]),
-                     "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
+        waypoint = {"goal_pos": np.array([robot0_x_pass, robot0_y_pass, robot0_z_pass]),
+                     "goal_rotm": rotm0,
                      "gripper": 1}
         self.waypoints_robot0.append(waypoint)
         
         #wp3
-        waypoint = {"goal_pos": np.array([robot0_x_init, 0.3, 0.4]),
-                     "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
+        waypoint = {"goal_pos": np.array([robot0_x_pass, -robot0_y_pass, robot0_z_pass]),
+                     "goal_rotm": rotm0,
                      "gripper": 1}
         self.waypoints_robot0.append(waypoint)
 
         #wp4
-        waypoint = {"goal_pos": np.array([robot0_x_init, 0.3, robot0_z_init]),
-                     "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
+        waypoint = {"goal_pos": np.array([robot0_x_init, -robot0_y_pass, robot0_z_init]),
+                     "goal_rotm": rotm0,
                      "gripper": 1}
         self.waypoints_robot0.append(waypoint)
 
         #wp5
-        waypoint = {"goal_pos": np.array([robot0_x_init, 0.3, robot0_z_init]),
-                     "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
+        waypoint = {"goal_pos": np.array([robot0_x_init, -robot0_y_pass, robot0_z_init]),
+                     "goal_rotm": rotm0,
                      "gripper": -1}
         self.waypoints_robot0.append(waypoint)
 
@@ -128,43 +164,39 @@ class PolicyPlayer:
         Robot 1 Waypoints
         """
 
-        robot1_x_init = self.pot_handle1_pos[0]
-        robot1_y_init = self.pot_handle1_pos[1]
-        robot1_z_init = self.pot_handle1_pos[2]
-
         #wp0
-        waypoint = {"goal_pos": np.array([robot1_x_init, robot1_y_init, robot1_z_init]),
-                     "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
+        waypoint = {"goal_pos": np.array([robot1_x_init, robot1_y_pass, robot1_z_init]),
+                     "goal_rotm": rotm1,
                      "gripper": -1}
         self.waypoints_robot1.append(waypoint)
 
         #wp1
-        waypoint = {"goal_pos": np.array([robot1_x_init, robot1_y_init, robot1_z_init]),
-                     "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
+        waypoint = {"goal_pos": np.array([robot1_x_init, robot1_y_pass, robot1_z_init]),
+                     "goal_rotm": rotm1,
                      "gripper": 1}
         self.waypoints_robot1.append(waypoint)
 
         #wp2
-        waypoint = {"goal_pos": np.array([robot1_x_init, robot1_y_init, 0.4]),
-                     "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
+        waypoint = {"goal_pos": np.array([robot1_x_pass, robot1_y_pass, robot1_z_pass]),
+                     "goal_rotm": rotm1,
                      "gripper": 1}
         self.waypoints_robot1.append(waypoint)
 
         #wp3
-        waypoint = {"goal_pos": np.array([robot1_x_init, -0.3, 0.4]),
-                     "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
+        waypoint = {"goal_pos": np.array([robot1_x_pass, -robot1_y_pass, robot1_z_pass]),
+                     "goal_rotm": rotm1,
                      "gripper": 1}
         self.waypoints_robot1.append(waypoint)
 
         #wp4
-        waypoint = {"goal_pos": np.array([robot1_x_init, -0.3, robot1_z_init]),
-                     "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
+        waypoint = {"goal_pos": np.array([robot1_x_init, -robot1_y_pass, robot1_z_init]),
+                     "goal_rotm": rotm1,
                      "gripper": 1}
         self.waypoints_robot1.append(waypoint)
 
         #wp5
-        waypoint = {"goal_pos": np.array([robot1_x_init, -0.3, robot1_z_init]),
-                     "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
+        waypoint = {"goal_pos": np.array([robot1_x_init, -robot1_y_pass, robot1_z_init]),
+                     "goal_rotm": rotm1,
                      "gripper": -1}
         self.waypoints_robot1.append(waypoint)
 
@@ -207,11 +239,11 @@ class PolicyPlayer:
             return False
 
     
-    def get_demo(self, seed):
+    def get_demo(self, seed, mode):
         """
         Main file to get the demonstration data
         """
-        obs = self.reset(seed)
+        obs = self.reset(seed, mode)
 
         max_step_move = int(15 * self.control_freq) # 15 seconds
         max_step_grip = int(0.9 * self.control_freq)
@@ -409,21 +441,6 @@ if __name__ == "__main__":
     CAMERA_NAMES = ['frontview', 'birdview', 'agentview', 'sideview', 'robot0_robotview', 'robot0_eye_in_hand', 'robot1_robotview', 'robot1_eye_in_hand']
     controller_config = load_composite_controller_config(robot="Kinova3", controller="kinova.json")
 
-    # env = TwoArmHandoverRole(
-    # robots=["Kinova3", "Kinova3"],  #["Baxter"]
-    # gripper_types="default",
-    # controller_configs=controller_config,
-    # has_renderer=True,
-    # has_offscreen_renderer=True,
-    # use_camera_obs=True,
-    # prehensile=False,
-    # render_camera=None,
-    # camera_names=CAMERA_NAMES,
-    # camera_heights=256,
-    # camera_widths=256,
-    # camera_depths=True,
-    # camera_segmentations='instance',
-    # )
     env = TwoArmLiftRole(
     robots=["Kinova3", "Kinova3"],
     gripper_types="default",
@@ -440,6 +457,7 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env)
-    # player.test()
-    rollout = player.get_demo(seed = 100)
-    print(len(rollout))
+    rollout = player.get_demo(seed = 100, mode = 1)
+    with open("rollout.pkl", "wb") as f:
+        pkl.dump(rollout, f)
+    breakpoint()

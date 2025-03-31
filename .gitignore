@@ -11,3 +11,4 @@ random/data/full_traj_rand_10000.csv
 madiff/diffuser/datasets/data/mpe/
 madiff/checkpoints/
 ctde_conditional/trained_models/
+arm/demos/
