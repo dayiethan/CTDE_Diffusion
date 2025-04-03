@@ -340,12 +340,12 @@ class Conditional_ODE():
         N_trajs_list = [x.shape[0] for x in x_normalized_list]
         loss_avg = 0.0
 
-        edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long)  # Shape: (2, 2)
+        edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long, device = self.device)  # Shape: (2, 2)
 
         edge_index = edge_index.repeat(1, batch_size)  # Shape: (2, 2 * batch_size)
 
         # Adjust node indices for batched graph (ensuring unique node indices per batch)
-        offsets = torch.arange(batch_size) * 2  # Offsets for each batch
+        offsets = (torch.arange(batch_size) * 2).to(self.device)  # Offsets for each batch
         edge_index = edge_index + offsets.repeat_interleave(2).unsqueeze(0)  # Shape: (2, 2 * batch_size)
         
         pbar = tqdm(range(n_gradient_steps))
@@ -408,40 +408,88 @@ class Conditional_ODE():
     @torch.no_grad()
     def sample(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0):
         """
-        Samples a trajectory using the EMA copy of the specified transformer.
-        
+        Samples a trajectory using the EMA copy of the specified transformer, conditioned on GNN embeddings.
+
         attr: attribute tensor of shape (n_samples, attr_dim)
         traj_len: trajectory length.
         model_index: which transformer to use.
         """
         if N is not None and N != self.N:
             self.set_N(N)
-        
+
         x = torch.randn((n_samples, traj_len, self.action_size), device=self.device) * self.sigma_s[0] * self.scale_s[0]
-        x[:, 0, :self.state_size] = attr[:, :self.state_size]
-        # x[:, -1, :self.state_size] = attr[:, self.state_size:]
-        original_attr = attr.clone()
-        
-        attr_mask = torch.ones_like(attr)
-        attr_cat = attr.repeat(2, 1)
-        attr_mask_cat = attr_mask.repeat(2, 1)
-        attr_mask_cat[n_samples:] = 0
-        
+        x[:, 0, :self.state_size] = attr[model_index][:, :self.state_size]
+        original_attr = attr[model_index].clone()
+
+        # Construct edge index for batch processing
+        batch_size = n_samples
+        edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long, device=self.device).repeat(1, batch_size)
+        offsets = (torch.arange(batch_size) * 2).to(self.device)
+        edge_index = edge_index + offsets.repeat_interleave(2).unsqueeze(0)
+
+        # Prepare node features for GNN
+        attr1 = attr[0].clone()
+        attr2 = attr[1].clone()
+        node_features = torch.stack([attr1, attr2], dim=1).view(-1, attr[model_index].shape[-1])  # Shape: (batch_size * 2, attr_dim)
+
+        # Get GNN embeddings
+        with torch.no_grad():
+            gnn_embeddings = self.gnn(node_features, edge_index)  # Shape: (batch_size * 2, embedding_dim)
+            gnn_embeddings = gnn_embeddings.view(batch_size, 2, -1)  # Shape: (batch_size, 2, embedding_dim)
+            embeddings = gnn_embeddings[:, model_index, :]
+
         for i in range(self.N):
             with torch.no_grad():
-                D_out = self.D(x.repeat(2, 1, 1) / self.scale_s[i],
-                               torch.ones((2 * n_samples, 1, 1), device=self.device) * self.sigma_s[i],
-                               condition=attr_cat,
-                               mask=attr_mask_cat,
-                               use_ema=True,
-                               model_index=model_index)
-                D_out = w * D_out[:n_samples] + (1 - w) * D_out[n_samples:]
-            delta = self.coeff1[i] * x - self.coeff2[i] * D_out
-            dt = self.t_s[i] - self.t_s[i+1] if i != self.N - 1 else self.t_s[i]
-            x = x - delta * dt
-            x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
-            # x[:, -1, :self.state_size] = original_attr[:, self.state_size:]
+                D_out = self.D(x / self.scale_s[i],
+                            torch.ones((n_samples, 1, 1), device=self.device) * self.sigma_s[i],
+                            condition=embeddings,  # Use GNN embeddings
+                            mask=torch.ones_like(attr[model_index]),
+                            use_ema=True,
+                            model_index=model_index)
+
+                delta = self.coeff1[i] * x - self.coeff2[i] * D_out
+                dt = self.t_s[i] - self.t_s[i+1] if i != self.N - 1 else self.t_s[i]
+                x = x - delta * dt
+                x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
+
         return x
+
+    # def sample(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0):
+    #     """
+    #     Samples a trajectory using the EMA copy of the specified transformer.
+        
+    #     attr: attribute tensor of shape (n_samples, attr_dim)
+    #     traj_len: trajectory length.
+    #     model_index: which transformer to use.
+    #     """
+    #     if N is not None and N != self.N:
+    #         self.set_N(N)
+        
+    #     x = torch.randn((n_samples, traj_len, self.action_size), device=self.device) * self.sigma_s[0] * self.scale_s[0]
+    #     x[:, 0, :self.state_size] = attr[:, :self.state_size]
+    #     # x[:, -1, :self.state_size] = attr[:, self.state_size:]
+    #     original_attr = attr.clone()
+        
+    #     attr_mask = torch.ones_like(attr)
+    #     attr_cat = attr.repeat(2, 1)
+    #     attr_mask_cat = attr_mask.repeat(2, 1)
+    #     attr_mask_cat[n_samples:] = 0
+        
+    #     for i in range(self.N):
+    #         with torch.no_grad():
+    #             D_out = self.D(x.repeat(2, 1, 1) / self.scale_s[i],
+    #                            torch.ones((2 * n_samples, 1, 1), device=self.device) * self.sigma_s[i],
+    #                            condition=attr_cat,
+    #                            mask=attr_mask_cat,
+    #                            use_ema=True,
+    #                            model_index=model_index)
+    #             D_out = w * D_out[:n_samples] + (1 - w) * D_out[n_samples:]
+    #         delta = self.coeff1[i] * x - self.coeff2[i] * D_out
+    #         dt = self.t_s[i] - self.t_s[i+1] if i != self.N - 1 else self.t_s[i]
+    #         x = x - delta * dt
+    #         x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
+    #         # x[:, -1, :self.state_size] = original_attr[:, self.state_size:]
+    #     return x
     
     def save(self, extra: str = ""):
         """Saves the state dictionaries for all transformers and their EMA copies."""
@@ -449,21 +497,46 @@ class Conditional_ODE():
         for i in range(self.n_models):
             state[f"model_{i}"] = self.F_list[i].state_dict()
             state[f"model_ema_{i}"] = self.F_ema_list[i].state_dict()
+
+        # Save the GNN model
+        state["gnn"] = self.gnn.state_dict()
         torch.save(state, "trained_models/" + self.filename + extra + ".pt")
-        
+
     def load(self, extra: str = ""):
-        """Loads state dictionaries for all transformers and their EMA copies."""
+        """Loads state dictionaries for all transformers, their EMA copies, and the GNN."""
         name = "trained_models/" + self.filename + extra + ".pt"
         if os.path.isfile(name):
             print("Loading " + name)
             checkpoint = torch.load(name, map_location=self.device)
+            
             for i in range(self.n_models):
                 self.F_list[i].load_state_dict(checkpoint[f"model_{i}"])
                 self.F_ema_list[i].load_state_dict(checkpoint[f"model_ema_{i}"])
+            
+            # Load the GNN model
+            if "gnn" in checkpoint:
+                self.gnn.load_state_dict(checkpoint["gnn"])
+            else:
+                print("Warning: No GNN state found in checkpoint.")
+
             return True
         else:
             print("File " + name + " doesn't exist. Not loading anything.")
             return False
+        
+    # def load(self, extra: str = ""):
+    #     """Loads state dictionaries for all transformers and their EMA copies."""
+    #     name = "trained_models/" + self.filename + extra + ".pt"
+    #     if os.path.isfile(name):
+    #         print("Loading " + name)
+    #         checkpoint = torch.load(name, map_location=self.device)
+    #         for i in range(self.n_models):
+    #             self.F_list[i].load_state_dict(checkpoint[f"model_{i}"])
+    #             self.F_ema_list[i].load_state_dict(checkpoint[f"model_ema_{i}"])
+    #         return True
+    #     else:
+    #         print("File " + name + " doesn't exist. Not loading anything.")
+    #         return False
 
 
 #%%

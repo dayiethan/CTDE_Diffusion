@@ -154,9 +154,9 @@ with open("data/sigma_data.npy", "wb") as f:
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T10_2")
-action_cond_ode.save(extra="_T10_2")
-# action_cond_ode.load(extra="_T10_2_1")
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T10_2")
+# action_cond_ode.save(extra="_T10_2")
+action_cond_ode.load(extra="_T10_2")
 
 
 
@@ -180,6 +180,7 @@ ref_agent2 = ref2[:, :]
 
 # Sampling
 for i in range(10):
+    print("Run: ",i)
     _i = np.random.randint(0, 10000)
     attr_t1 = attr_test1[_i].unsqueeze(0)
     attr_t2 = attr_test2[_i].unsqueeze(0)
@@ -189,8 +190,8 @@ for i in range(10):
     traj_len = 10
     n_samples = 1
 
-    sampled1 = action_cond_ode.sample(attr_t1, traj_len, n_samples, w=1., model_index = 0)
-    sampled2 = action_cond_ode.sample(attr_t2, traj_len, n_samples, w=1., model_index = 1)
+    sampled1 = action_cond_ode.sample([attr_t1, attr_t2], traj_len, n_samples, w=1., model_index = 0)
+    sampled2 = action_cond_ode.sample([attr_t1, attr_t2], traj_len, n_samples, w=1., model_index = 1)
 
     sampled1 = sampled1.cpu().detach().numpy()
     sampled2 = sampled2.cpu().detach().numpy()
