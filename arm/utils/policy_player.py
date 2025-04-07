@@ -2,17 +2,37 @@ import time
 
 import numpy as np
 import matplotlib.pyplot as plt
-
-import robosuite as suite
-from robosuite.controllers import load_composite_controller_config
-
-from two_arm_handover_role import TwoArmHandoverRole
-
 from scipy.spatial.transform import Rotation as R
 
+import robosuite as suite
+import robosuite.macros as macros
+macros.IMAGE_CONVENTION = "opencv"
+
+import copy
+from utils.transform_utils import SE3_log_map, SE3_exp_map
 
 class PolicyPlayer:
     def __init__ (self, env, render= True):
+        '''
+        Playing of scripted policy for the two-arm handover role environment
+        env: TwoArmHandoverRole environment
+        render: bool, whether to render the environment
+
+        NOTE: The waypoints are hardcoded in the setup_waypoints function
+        NOTE: Observations are modified to be the "local"
+        For example, obs['robot0_eef_pos'] is the position of the robot0 end-effector in the robot0 base frame
+        obs['robot0_eef_quat_site'] is the orientation of the robot0 end-effector in the robot0 base frame
+
+        NOTE outputs only rollout, composed of 
+        rollout["observations"] = [obs0, obs1, obs2, ...]
+        obs0: dictionary with observation keys
+        rollout["actions"] = [action0, action1, action2, ...] 
+        action0: numpy array of shape (14,) with the action for robot0 and robot1
+
+        Now the preprocessing on the observation is not needed.
+        '''
+
+        #TODO(JS) Update the Policy player so that the actions are in the P-control action towards the waypoints
         
         
         self.env = env
@@ -43,8 +63,8 @@ class PolicyPlayer:
 
         obs = self.reset()
 
-        # robot0_init_rotm_world = R.from_quat(obs['robot0_eef_quat_site'], scalar_first = False).as_matrix()
-        # robot1_init_rotm_world = R.from_quat(obs['robot1_eef_quat_site'], scalar_first = False).as_matrix()
+        robot0_init_rotm_world = R.from_quat(obs['robot0_eef_quat_site'], scalar_first = False).as_matrix()
+        robot1_init_rotm_world = R.from_quat(obs['robot1_eef_quat_site'], scalar_first = False).as_matrix()
 
         self.n_action = self.env.action_spec[0].shape[0]
 
@@ -58,7 +78,16 @@ class PolicyPlayer:
         self.handle_length = self.env.hammer.handle_length
         self.hammer_headsize = 2*self.env.hammer.head_halfsize
 
-        self.rollout = []
+        jnt_id_0 = self.env.sim.model.joint_name2id("gripper0_right_finger_joint") #gripper0_right_finger_joint, gripper0_right_right_outer_knuckle_joint
+        self.qpos_index_0 = self.env.sim.model.jnt_qposadr[jnt_id_0]
+        jnt_id_1 = self.env.sim.model.joint_name2id("gripper1_right_finger_joint") #gripper0_right_finger_joint, gripper0_right_right_outer_knuckle_joint
+        self.qpos_index_1 = self.env.sim.model.jnt_qposadr[jnt_id_1]
+
+        self.rollout = {}
+        self.rollout["observations"] = []
+        self.rollout["actions"] = []
+
+        # self.gripper_action = [] # contains {"robot0_gripper": action0[-1], "robot0_gripper": action1[-1]}
         self.setup_waypoints()
 
         return obs
@@ -108,7 +137,7 @@ class PolicyPlayer:
         if self.handle_length < 0.12:
             robot1_pos_xd = 1.45 - robot0_pos_xd - self.handle_length * 0.5
         else:
-            robot1_pos_xd = 1.45 - robot0_pos_xd - self.handle_length * 0.5 + np.random.uniform(-0.02, 0.00)
+            robot1_pos_xd = 1.47 - robot0_pos_xd - self.handle_length * 0.5 + np.random.uniform(-0.02, 0.00)
         #wp0
         waypoint = {"goal_pos": np.array([0.5, 0, 0.4]),
                     "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix(),
@@ -139,11 +168,24 @@ class PolicyPlayer:
                     "gripper": 1}
         self.waypoints_robot1.append(waypoint)
         
-
-    def convert_action_robot(self, robot_goal_pos, robot_goal_rotm, robot_gripper):
+    #alpha = 0.75 was working
+    def convert_action_robot(self, robot_pos, robot_rotm, robot_goal_pos, robot_goal_rotm, robot_gripper, alpha = 0.5):
         action = np.zeros(int(self.n_action/2))
-        action[0:3] = robot_goal_pos
-        action[3:6] = R.from_matrix(robot_goal_rotm).as_rotvec()
+
+        g = np.eye(4)
+        g[0:3, 0:3] = robot_rotm
+        g[0:3, 3] = robot_pos
+
+        gd = np.eye(4)
+        gd[0:3, 0:3] = robot_goal_rotm
+        gd[0:3, 3] = robot_goal_pos
+
+        xi = SE3_log_map(np.linalg.inv(g) @ gd)
+
+        gd_modified = g @ SE3_exp_map(alpha * xi)
+
+        action[0:3] = gd_modified[:3,3]
+        action[3:6] = R.from_matrix(gd_modified[:3,:3]).as_rotvec()
         action[6] = robot_gripper
 
         return action
@@ -168,7 +210,6 @@ class PolicyPlayer:
         pos_diff = pos1 - pos2
         rotm_diff = rotm2.T @ rotm1
 
-
         distance = np.sqrt(0.5 * np.linalg.norm(pos_diff)**2 + np.trace(np.eye(3) - rotm_diff))
 
         if distance < threshold:
@@ -183,7 +224,7 @@ class PolicyPlayer:
         """
         obs = self.reset(seed)
         print("hammer length:", self.env.hammer.handle_length)
-        print("distance between tables:", self.robot0_base_pos - self.robot1_base_pos)
+        # print("distance between tables:", self.robot0_base_pos - self.robot1_base_pos)
 
         max_step_move = int(15 * self.control_freq) # 15 seconds
         max_step_grip = int(0.5 * self.control_freq)
@@ -199,25 +240,28 @@ class PolicyPlayer:
             if not robot0_arrived:
                 goal_pos0 = self.waypoints_robot0[0]["goal_pos"]
                 goal_rotm0 = self.waypoints_robot0[0]["goal_rotm"]
-                action0 = self.convert_action_robot(goal_pos0, goal_rotm0, self.waypoints_robot0[0]["gripper"])
+                action0 = self.convert_action_robot(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, self.waypoints_robot0[0]["gripper"])
                 robot0_arrived = self.check_arrived(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, threshold = 0.1)
 
             if not robot1_arrived_0:
                 goal_pos1 = self.waypoints_robot1[0]["goal_pos"]
                 goal_rotm1 = self.waypoints_robot1[0]["goal_rotm"]
-                action1 = self.convert_action_robot(goal_pos1, goal_rotm1, self.waypoints_robot1[0]["gripper"])
+                action1 = self.convert_action_robot(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, self.waypoints_robot1[0]["gripper"])
                 robot1_arrived_0 = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.2)
 
             elif robot1_arrived_0 and not robot1_arrived_1:
                 # print(" I am here")
                 goal_pos1 = self.waypoints_robot1[1]["goal_pos"]
                 goal_rotm1 = self.waypoints_robot1[1]["goal_rotm"]
-                action1 = self.convert_action_robot(goal_pos1, goal_rotm1, self.waypoints_robot1[1]["gripper"])
-                robot1_arrived_1 = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.05)
+                action1 = self.convert_action_robot(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, self.waypoints_robot1[1]["gripper"])
+                robot1_arrived_1 = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.01)
 
             action = np.hstack([action0, action1])
             obs, reward, done, info = self.env.step(action)
-            self.rollout.append(obs)
+
+            self.rollout["observations"].append(self.process_obs(obs))
+            self.rollout["actions"].append(action)
+            
             if self.render:
                 self.env.render()
 
@@ -234,19 +278,20 @@ class PolicyPlayer:
             if not robot0_arrived:
                 goal_pos0 = self.waypoints_robot0[1]["goal_pos"]
                 goal_rotm0 = self.waypoints_robot0[1]["goal_rotm"]
-                action0 = self.convert_action_robot(goal_pos0, goal_rotm0, self.waypoints_robot0[1]["gripper"])
-                robot0_arrived = self.check_arrived(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, threshold = 0.05)
+                action0 = self.convert_action_robot(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, self.waypoints_robot0[1]["gripper"])
+                robot0_arrived = self.check_arrived(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, threshold = 0.01)
 
             if not robot1_arrived:
                 goal_pos1 = self.waypoints_robot1[2]["goal_pos"]
                 goal_rotm1 = self.waypoints_robot1[2]["goal_rotm"]
-                action1 = self.convert_action_robot(goal_pos1, goal_rotm1, self.waypoints_robot1[2]["gripper"])
-                robot1_arrived = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.05)
+                action1 = self.convert_action_robot(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, self.waypoints_robot1[2]["gripper"])
+                robot1_arrived = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.01)
 
             action = np.hstack([action0, action1])
             obs, reward, done, info = self.env.step(action)
-            self.rollout.append(obs)
-
+            self.rollout["observations"].append(self.process_obs(obs))
+            self.rollout["actions"].append(action)
+            
             if self.render:
                 self.env.render()
 
@@ -259,15 +304,19 @@ class PolicyPlayer:
 
             goal_pos0 = self.waypoints_robot0[1]["goal_pos"]
             goal_rotm0 = self.waypoints_robot0[1]["goal_rotm"]
-            action0 = self.convert_action_robot(goal_pos0, goal_rotm0, self.waypoints_robot0[1]["gripper"])
+            action0 = self.convert_action_robot(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, self.waypoints_robot0[1]["gripper"])
 
             goal_pos1 = self.waypoints_robot1[3]["goal_pos"]
             goal_rotm1 = self.waypoints_robot1[3]["goal_rotm"]
-            action1 = self.convert_action_robot(goal_pos1, goal_rotm1, self.waypoints_robot1[3]["gripper"])
+            action1 = self.convert_action_robot(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, self.waypoints_robot1[3]["gripper"])
 
             action = np.hstack([action0, action1])
             obs, reward, done, info = self.env.step(action)
-            self.env.render()
+            self.rollout["observations"].append(self.process_obs(obs))
+            self.rollout["actions"].append(action)
+            
+            if self.render:
+                self.env.render()
 
         # stage 4: robot0 move to wp2 (open gripper) robot1 stay in wp3 (close gripper)
         for i in range(max_step_grip):
@@ -275,15 +324,16 @@ class PolicyPlayer:
 
             goal_pos0 = self.waypoints_robot0[2]["goal_pos"]
             goal_rotm0 = self.waypoints_robot0[2]["goal_rotm"]
-            action0 = self.convert_action_robot(goal_pos0, goal_rotm0, self.waypoints_robot0[2]["gripper"])
+            action0 = self.convert_action_robot(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, self.waypoints_robot0[2]["gripper"])
 
             goal_pos1 = self.waypoints_robot1[3]["goal_pos"]
             goal_rotm1 = self.waypoints_robot1[3]["goal_rotm"]
-            action1 = self.convert_action_robot(goal_pos1, goal_rotm1, self.waypoints_robot1[3]["gripper"])
+            action1 = self.convert_action_robot(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, self.waypoints_robot1[3]["gripper"])
 
             action = np.hstack([action0, action1])
             obs, reward, done, info = self.env.step(action)
-            self.rollout.append(obs)
+            self.rollout["observations"].append(self.process_obs(obs))
+            self.rollout["actions"].append(action)
             
             if self.render:
                 self.env.render()
@@ -297,19 +347,20 @@ class PolicyPlayer:
             if not robot0_arrived:
                 goal_pos0 = self.waypoints_robot0[3]["goal_pos"]
                 goal_rotm0 = self.waypoints_robot0[3]["goal_rotm"]
-                action0 = self.convert_action_robot(goal_pos0, goal_rotm0, self.waypoints_robot0[3]["gripper"])
+                action0 = self.convert_action_robot(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, self.waypoints_robot0[3]["gripper"])
                 robot0_arrived = self.check_arrived(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, threshold = 0.1)
 
             if not robot1_arrived:
                 goal_pos1 = self.waypoints_robot1[4]["goal_pos"]
                 goal_rotm1 = self.waypoints_robot1[4]["goal_rotm"]
-                action1 = self.convert_action_robot(goal_pos1, goal_rotm1, self.waypoints_robot1[4]["gripper"])
+                action1 = self.convert_action_robot(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, self.waypoints_robot1[4]["gripper"])
                 robot1_arrived = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.1)
 
             action = np.hstack([action0, action1])
             obs, reward, done, info = self.env.step(action)
-            self.rollout.append(obs)
-
+            self.rollout["observations"].append(self.process_obs(obs))
+            self.rollout["actions"].append(action)
+            
             if self.render:
                 self.env.render()
 
@@ -318,10 +369,25 @@ class PolicyPlayer:
         
         return self.rollout
 
+    def process_obs(self, obs):
+
+        processed_obs = copy.deepcopy(obs)
+        robot0_pos, robot0_rotm, robot1_pos, robot1_rotm = self.get_poses(obs)
+
+        processed_obs['robot0_eef_pos'] = robot0_pos
+        processed_obs['robot0_eef_quat_site'] = R.from_matrix(robot0_rotm).as_quat()
+
+        processed_obs['robot1_eef_pos'] = robot1_pos
+        processed_obs['robot1_eef_quat_site'] = R.from_matrix(robot1_rotm).as_quat()
+
+        processed_obs['robot0_gripper_pos'] = self.env.sim.data.qpos[self.qpos_index_0]
+        processed_obs['robot1_gripper_pos'] = self.env.sim.data.qpos[self.qpos_index_1]
+
+        return processed_obs
 
     def test(self):
         """
-        TTesting the environment during the development of the scripted policy
+        Testing the environment during the development of the scripted policy
         """
         goal_pos0 = np.array([0.6, 0, 0.2])
         goal_pos1 = np.array([0.6, 0, 0.2])
@@ -342,31 +408,3 @@ class PolicyPlayer:
 
             print(obs['robot1_gripper_qpos'])
             
-
-    
-        
-if __name__ == "__main__":
-    CAMERA_NAMES = ["birdview", "robot0_leftview", "robot1_leftview",
-                        "robot0_eye_in_hand", "robot1_eye_in_hand"]
-    controller_config = load_composite_controller_config(robot="Kinova3", controller="kinova.json")
-
-    env = TwoArmHandoverRole(
-    robots=["Kinova3", "Kinova3"],  #["Baxter"]
-    gripper_types="default",
-    controller_configs=controller_config,
-    has_renderer=True,
-    has_offscreen_renderer=True,
-    use_camera_obs=True,
-    prehensile=False,
-    render_camera=None,
-    camera_names=CAMERA_NAMES,
-    camera_heights=256,
-    camera_widths=256,
-    camera_depths=True,
-    camera_segmentations='instance',
-    )
-
-    player = PolicyPlayer(env)
-    # player.test()
-    rollout = player.get_demo(seed = 100)
-    print(len(rollout))

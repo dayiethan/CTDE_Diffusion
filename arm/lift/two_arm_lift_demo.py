@@ -457,7 +457,6 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env)
-    rollout = player.get_demo(seed = 100, mode = 1)
+    rollout = player.get_demo(seed = 100, mode = 2)
     with open("rollout.pkl", "wb") as f:
         pkl.dump(rollout, f)
-    breakpoint()
