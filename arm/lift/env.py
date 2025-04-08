@@ -312,7 +312,7 @@ class TwoArmLiftRole(TwoArmEnv):
             if self.env_configuration == "opposed":
                 # Set up robots facing towards each other by rotating them from their default position
                 for robot, rotation in zip(self.robots, (np.pi / 2, -np.pi / 2)):
-                    xpos = robot.robot_model.base_xpos_offset["table"](self.table_full_size[0]-0.3)
+                    xpos = robot.robot_model.base_xpos_offset["table"](self.table_full_size[0])
                     rot = np.array((0, 0, rotation))
                     xpos = T.euler2mat(rot) @ np.array(xpos)
                     robot.robot_model.set_base_xpos(xpos)
@@ -336,7 +336,7 @@ class TwoArmLiftRole(TwoArmEnv):
 
         # initialize objects of interest
         self.pot = PotWithHandlesObject(name="pot")
-        self.obs = Box(name="obs", size=[0.15, 0.05, 0.15], rgba=[1, 0, 0, 1])
+        self.obs = Box(name="obs", size=[0.1, 0.1, 0.175], rgba=[1, 0, 0, 1])
 
         # Create placement initializer
         if self.placement_initializer is not None:
