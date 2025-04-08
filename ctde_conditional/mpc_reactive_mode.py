@@ -8,7 +8,7 @@ from discrete import *
 import sys
 import pdb
 import csv
-from mpc_util import mpc_plan_mode_multi
+from mpc_util import mpc_plan_mode_safe
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -57,7 +57,7 @@ for i in range(10):
     final2 = (final2 - mean) / std
     mode = 6
 
-    planned_trajs = mpc_plan_mode_multi(action_cond_ode, env, [initial1, initial2], [final1, final2], mode, segment_length=H, total_steps=T)
+    planned_trajs = mpc_plan_mode_safe(action_cond_ode, env, [initial1, initial2], [final1, final2], mode, segment_length=H, total_steps=T)
     planned_traj1 = planned_trajs[0] * std + mean
     planned_traj2 = planned_trajs[1] * std + mean
 

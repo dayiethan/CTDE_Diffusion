@@ -187,7 +187,7 @@ class Conditional_ODE():
     def __init__(self, env, attr_dim: list, sigma_data: list, sigma_min: float = 0.001, sigma_max: float = 50,
                  rho: float = 7, p_mean: float = -1.2, p_std: float = 1.2, 
                  d_model: int = 384, n_heads: int = 6, depth: int = 12,
-                 device: str = "cpu", N: int = 5, lr: float = 2e-4, lin_scale = 256,
+                 device: str = "cpu", N: int = 5, lr: float = 2e-4, lin_scale = 128,
                  n_models: int = 2):
         """
         Predicts the sequence of actions to apply conditioned on the initial state.

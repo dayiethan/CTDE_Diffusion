@@ -125,9 +125,9 @@ sigma_data2 = actions2.std().item()
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T10_2")
-action_cond_ode.save(extra="_T10_2")
-action_cond_ode.load(extra="_T10_2")
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T10_2")
+# action_cond_ode.save(extra="_T10_2")
+action_cond_ode.load(extra="_T100")
 
 # import pdb
 # breakpoint()
@@ -198,6 +198,6 @@ for i in range(10):
     plt.plot(sampled1[0, :, 0], sampled1[0, :, 1], color='blue', label=f"Agent 1 Traj (Frechet: {frechet1:.2f})")
     plt.plot(sampled2[0, :, 0], sampled2[0, :, 1], color='orange', label=f"Agent 2 Traj (Frechet: {frechet2:.2f})")
     plt.legend(loc="upper right", fontsize=14)
-    plt.savefig("figs/temp_T2/plot%s.png" % i)
+    plt.savefig("figs/temp_T100/plot%s.png" % i)
 
 
