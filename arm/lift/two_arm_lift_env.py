@@ -346,12 +346,12 @@ class TwoArmLiftRole(TwoArmEnv):
             self.placement_initializer = UniformRandomSampler(
                 name="ObjectSampler",
                 mujoco_objects=self.pot,
-                x_range=[-0.03, 0.03],
-                y_range=[-0.03, 0.03],
+                x_range=[-0.05, 0.05],
+                y_range=[-0.05, 0.05],
                 ensure_object_boundary_in_range=False,
                 ensure_valid_placement=True,
                 reference_pos=self.table_offset + np.array([0.3, 0., 0.]),
-                rotation=(0, 0)
+                rotation=np.pi
                 # rotation=(np.pi + -np.pi / 3, np.pi + np.pi / 3),
             )
         

@@ -7,7 +7,7 @@ import robosuite as suite
 from robosuite.controllers import load_composite_controller_config
 from robosuite.environments.manipulation.two_arm_handover import TwoArmHandover
 
-from two_arm_handover_role import TwoArmHandoverRole
+from arm.handoff.two_arm_handover_role import TwoArmHandoverRole
 import scipy
 print(scipy.__version__)
 
