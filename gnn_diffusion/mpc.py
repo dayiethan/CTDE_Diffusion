@@ -158,7 +158,7 @@ for i in range(10):
     # planned_traj2 = mpc_plan(action_cond_ode, env, [initial1, initial2], [final1, final2], 1, segment_length=H, total_steps=T)
     # planned_traj2 = planned_traj2 * std + mean
 
-    planned_trajs = mpc_plan_multi(action_cond_ode, env, [initial1, initial2], [final1, final2], segment_length=H, total_steps=T)
+    planned_trajs = mpc_plan_multi(action_cond_ode, env, [initial2, initial1], [final2, final1], segment_length=H, total_steps=T)
 
     planned_traj1 = planned_trajs[0] * std + mean
     planned_traj2 = planned_trajs[1] * std + mean
