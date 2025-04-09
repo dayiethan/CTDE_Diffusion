@@ -17,9 +17,7 @@ from transform_utils import SE3_log_map, SE3_exp_map
 
 
 class PolicyPlayer:
-    def __init__ (self, env, render= True):
-        
-        
+    def __init__ (self, env, render = False):
         self.env = env
 
         self.control_freq = env.control_freq
@@ -468,27 +466,6 @@ class PolicyPlayer:
         processed_obs['robot1_gripper_pos'] = self.env.sim.data.qpos[self.qpos_index_1]
 
         return processed_obs
-
-
-    def test(self):
-        """
-        TTesting the environment during the development of the scripted policy
-        """
-        goal_pos0 = np.array([0.6, 0, 0.2])
-        goal_pos1 = np.array([0.6, 0, 0.2])
-        goal_rotm0 = self.R_be_home
-        goal_rotm1 = self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix()
-
-
-        for i in range(self.max_steps):
-            action0 = self.convert_action_robot0(goal_pos0, goal_rotm0, 1) #(7,)
-            action1 = self.convert_action_robot1(goal_pos1, goal_rotm1, 1) #(7,)
-            action = np.hstack([action0, action1]) #(14,)
-
-            obs, reward, done, info = self.env.step(action)
-            self.env.render()
-
-            print(obs['robot1_gripper_qpos'])
             
 
     
@@ -501,18 +478,17 @@ if __name__ == "__main__":
     robots=["Kinova3", "Kinova3"],
     gripper_types="default",
     controller_configs=controller_config,
-    has_renderer=True,
+    has_renderer=False,
     has_offscreen_renderer=True,
-    use_camera_obs=True,
+    use_camera_obs=False,
     render_camera=None,
-    camera_names=CAMERA_NAMES,
-    camera_heights=256,
-    camera_widths=256,
-    camera_depths=True,
-    camera_segmentations='instance',
     )
 
-    player = PolicyPlayer(env)
-    rollout = player.get_demo(seed = 2000, mode = 3)
-    with open("rollouts/rollout_actions_obs.pkl", "wb") as f:
-        pkl.dump(rollout, f)
+    player = PolicyPlayer(env, render = False)
+    for i in range(100):   
+        rollout = player.get_demo(seed = i*10, mode = 2)
+        with open("rollouts/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
+            pkl.dump(rollout, f)
+        rollout = player.get_demo(seed = i*10, mode = 3)
+        with open("rollouts/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
+            pkl.dump(rollout, f)
