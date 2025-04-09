@@ -478,17 +478,18 @@ if __name__ == "__main__":
     robots=["Kinova3", "Kinova3"],
     gripper_types="default",
     controller_configs=controller_config,
-    has_renderer=False,
+    has_renderer=True,
     has_offscreen_renderer=True,
     use_camera_obs=False,
     render_camera=None,
     )
 
     player = PolicyPlayer(env, render = False)
-    for i in range(100):   
-        rollout = player.get_demo(seed = i*10, mode = 2)
-        with open("rollouts/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
-            pkl.dump(rollout, f)
-        rollout = player.get_demo(seed = i*10, mode = 3)
-        with open("rollouts/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
-            pkl.dump(rollout, f)
+    rollout = player.get_demo(seed = 100, mode = 2)
+    # for i in range(100):   
+    #     rollout = player.get_demo(seed = i*10, mode = 2)
+    #     with open("rollouts/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
+    #         pkl.dump(rollout, f)
+    #     rollout = player.get_demo(seed = i*10, mode = 3)
+    #     with open("rollouts/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
+    #         pkl.dump(rollout, f)
