@@ -16,6 +16,7 @@ import math
 import time
 import torch
 import einops
+import pdb
 import numpy as np
 import torch.nn as nn
 from tqdm import tqdm
@@ -300,7 +301,8 @@ class Conditional_ODE():
               n_gradient_steps: int,
               batch_size: int = 32,
               extra: str = "",
-              time_limit=None):
+              time_limit=None,
+              endpoint_loss: bool = False):
         """
         Trains the diffusion transformers on multiple datasets.
         
@@ -339,12 +341,13 @@ class Conditional_ODE():
                 pred = self.D(x + eps, sigma, condition=attr, mask=mask, model_index=i)
                 loss = (loss_mask * self.loss_weighting(sigma, model_index=i) * (pred - x) ** 2).mean()
                 
-                pred_start = pred[:, 0, :self.state_size]
-                cond_start = attr[:, :self.state_size]
-                endpoint_loss = ((pred_start - cond_start) ** 2).mean()
-                loss = loss + 2.0 * endpoint_loss
-                
-                loss_total += loss
+                if endpoint_loss:
+                    pred_start = pred[:, 0, :self.state_size]
+                    cond_start = attr[:, :self.state_size]
+                    endpoint_loss = ((pred_start - cond_start) ** 2).mean()
+                    loss = loss + 2.0 * endpoint_loss
+                else:
+                    loss_total += loss
             
             self.optim.zero_grad()
             loss_total.backward()

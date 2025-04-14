@@ -34,6 +34,22 @@ def rot6d_to_quat(rot6d):
     
     return quat
 
+def rot6d_to_rotvec(rot6d):
+    """Convert 6D rotation representation to quaternion.
+    Args:
+        rot6d (np.array): 6D rotation representation
+    """
+    x_raw = rot6d[:3]
+    y_raw = rot6d[3:]
+    x = x_raw / np.linalg.norm(x_raw)
+    z = np.cross(x, y_raw)
+    z = z / np.linalg.norm(z)
+    y = np.cross(z, x)
+    print(f"x: {x}, y: {y}, z: {z}")
+    rotvec = R.from_matrix(np.column_stack((x, y, z))).as_rotvec()
+    
+    return rotvec
+
 def SE3_log_map(g):
     p, R = g[:3,3], g[:3,:3]
     r = R.as_rotvec()

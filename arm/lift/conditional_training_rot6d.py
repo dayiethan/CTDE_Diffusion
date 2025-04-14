@@ -58,23 +58,25 @@ class TwoArmLift():
 
 env = TwoArmLift()
 
-obs_init1 = states1[:, 0, :]
-obs_init2 = states2[:, 0, :]
-obs_final1 = states1[:, -1, :]
-obs_final2 = states2[:, -1, :]
-obs1 = np.hstack([obs_init1, obs_final1])
-obs2 = np.hstack([obs_init2, obs_final2])
+# obs_init1 = states1[:, 0, :]
+# obs_init2 = states2[:, 0, :]
+# obs_final1 = states1[:, -1, :]
+# obs_final2 = states2[:, -1, :]
+# obs1 = np.hstack([obs_init1, obs_final1])
+# obs2 = np.hstack([obs_init2, obs_final2])
 actions1 = expert_data1[:, :H-1, :]
 actions2 = expert_data2[:, :H-1, :]
-obs1 = torch.FloatTensor(obs1).to(device)
-obs2 = torch.FloatTensor(obs2).to(device)
+with open("data/pot_states_rot6d_400.npy", "rb") as f:
+    obs = np.load(f)
+obs1 = torch.FloatTensor(obs).to(device)
+obs2 = torch.FloatTensor(obs).to(device)
 
 attr1 = obs1
 attr2 = obs2
 attr_dim1 = attr1.shape[1]
 attr_dim2 = attr2.shape[1]
-assert attr_dim1 == env.state_size * 2
-assert attr_dim2 == env.state_size * 2
+# assert attr_dim1 == env.state_size * 2
+# assert attr_dim2 == env.state_size * 2
 
 actions1 = torch.FloatTensor(actions1).to(device)
 actions2 = torch.FloatTensor(actions2).to(device)
@@ -84,6 +86,6 @@ sigma_data2 = actions2.std().item()
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T250_rot6d")
-action_cond_ode.save(extra="_T250_rot6d")
-action_cond_ode.load(extra="_T250_rot6d")
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T250_rot6d_pot", endpoint_loss=False)
+action_cond_ode.save(extra="_T250_rot6d_pot")
+action_cond_ode.load(extra="_T250_rot6d_pot")

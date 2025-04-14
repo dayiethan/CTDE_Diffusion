@@ -12,6 +12,7 @@ madiff/diffuser/datasets/data/mpe/
 madiff/checkpoints/
 ctde_conditional/trained_models/
 arm/lift/rollouts/
+arm/lift/rollouts_pot/
 arm/lift/trained_models/
 gnn_ctde/rollouts/
 gnn_ctde/trained_models/
