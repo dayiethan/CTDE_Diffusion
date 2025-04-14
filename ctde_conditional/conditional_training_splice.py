@@ -221,12 +221,10 @@ for i in range(10):
     attr_n2 = np.concatenate([init_state2, final_state2])
 
     plt.figure(figsize=(20, 8))
-    for traj in expert_data1:
-        plt.plot(traj[0, 0], traj[0, 1], 'go', markersize=8)
-        plt.plot(traj[-1, 0], traj[0, 1], 'go', markersize=8)
-    for traj in expert_data2:
-        plt.plot(traj[0, 0], traj[0, 1], 'go', markersize=8)
-        plt.plot(traj[-1, 0], traj[0, 1], 'go', markersize=8)
+    plt.scatter(expert_data1[:, 0, 0], expert_data1[:, 0, 1], color='green')
+    plt.scatter(expert_data2[:, 0, 0], expert_data2[:, 0, 1], color='green')
+    plt.scatter(expert_data1[:, -1, 0], expert_data1[:, -1, 1], color='green')
+    plt.scatter(expert_data2[:, -1, 0], expert_data2[:, -1, 1], color='green')
     plt.plot(attr_n1[0], attr_n1[1], 'bo')
     plt.plot(attr_n2[0], attr_n2[1], 'o', color='orange')
     plt.plot(attr_n1[2], attr_n1[3], 'bo')
@@ -234,6 +232,6 @@ for i in range(10):
     plt.plot(sampled1[0, :, 0], sampled1[0, :, 1], color='blue')
     plt.plot(sampled2[0, :, 0], sampled2[0, :, 1], color='orange')
     # plt.legend(loc="upper right", fontsize=14)
-    plt.savefig("figs/T10_2/plot%s.png" % (i+10))
+    plt.savefig("figs/temp_T10_2/plot%s.png" % (i+10))
 
 
