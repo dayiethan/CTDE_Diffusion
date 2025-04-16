@@ -6,7 +6,7 @@ random/checkpoints/*/*.pth
 decentralized/single_mode/checkpoints/*.pth
 decentralized/multi_mode/checkpoints_multimode/*.pth
 decentralized/multi_mode_alternating/checkpoints_alternating/*.pth
-decentralied/multi_mode_alternating/checkpoints_obstacle/*.pth
+decentralized/multi_mode_alternating/checkpoints_obstacle/*.pth
 random/data/full_traj_rand_10000.csv
 madiff/diffuser/datasets/data/mpe/
 madiff/checkpoints/
