@@ -382,7 +382,7 @@ class Conditional_ODE():
             self.set_N(N)
         
         x = torch.randn((n_samples, traj_len, self.action_size), device=self.device) * self.sigma_s[0] * self.scale_s[0]
-        x[:, 0, :self.state_size] = attr[:, :self.state_size]
+        # x[:, 0, :self.state_size] = attr[:, :self.state_size]
         # x[:, -1, :self.state_size] = attr[:, self.state_size:]
         original_attr = attr.clone()
         
@@ -403,7 +403,7 @@ class Conditional_ODE():
             delta = self.coeff1[i] * x - self.coeff2[i] * D_out
             dt = self.t_s[i] - self.t_s[i+1] if i != self.N - 1 else self.t_s[i]
             x = x - delta * dt
-            x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
+            # x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
             # x[:, -1, :self.state_size] = original_attr[:, self.state_size:]
         return x
     
