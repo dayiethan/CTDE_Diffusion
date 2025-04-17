@@ -2,19 +2,20 @@ from collections import OrderedDict
 
 import numpy as np
 
+from scipy.spatial.transform import Rotation
+
 import robosuite.utils.transform_utils as T
 from robosuite.environments.manipulation.two_arm_env import TwoArmEnv
 from robosuite.models.arenas import TableArena
-from robosuite.models.objects import PotWithHandlesObject
-from robosuite.models.objects.primitive.box import BoxObject as Box
+from robosuite.models.objects import HammerObject
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.observables import Observable, sensor
 from robosuite.utils.placement_samplers import UniformRandomSampler
 
 
-class TwoArmHandoffRole(TwoArmEnv):
+class TwoArmHandover(TwoArmEnv):
     """
-    This class corresponds to the lifting task for two robot arms.
+    This class corresponds to the handover task for two robot arms.
 
     Args:
         robots (str or list of str): Specification for specific robot(s)
@@ -52,6 +53,8 @@ class TwoArmHandoffRole(TwoArmEnv):
 
             :Note: Specifying "default" will automatically use the default noise settings.
                 Specifying None will automatically create the required dict with "magnitude" set to 0.0.
+
+        prehensile (bool): If true, handover object starts on the table. Else, the object starts in Arm0's gripper
 
         table_full_size (3-tuple): x, y, and z dimensions of the table.
 
@@ -148,7 +151,8 @@ class TwoArmHandoffRole(TwoArmEnv):
         controller_configs=None,
         gripper_types="default",
         initialization_noise="default",
-        table_full_size=(1.2, 0.6, 0.05),
+        prehensile=True,
+        table_full_size=(0.8, 1.2, 0.05),
         table_friction=(1.0, 5e-3, 1e-4),
         use_camera_obs=True,
         use_object_obs=True,
@@ -174,14 +178,20 @@ class TwoArmHandoffRole(TwoArmEnv):
         renderer="mjviewer",
         renderer_config=None,
     ):
+        # Task settings
+        self.prehensile = prehensile
+
         # settings for table top
         self.table_full_size = table_full_size
+        self.table_true_size = list(table_full_size)
+        # self.table_true_size[1] *= 0.25  # true size will only be partially wide
         self.table_friction = table_friction
-        self.table_offset = np.array((0, 0, 0.8))
+        self.table_offset = [0, 0, 0.8]
 
         # reward configuration
         self.reward_scale = reward_scale
         self.reward_shaping = reward_shaping
+        self.height_threshold = 0.1  # threshold above the table surface which the hammer is considered lifted
 
         # whether to use ground-truth object states
         self.use_object_obs = use_object_obs
@@ -223,17 +233,23 @@ class TwoArmHandoffRole(TwoArmEnv):
 
         Sparse un-normalized reward:
 
-            - a discrete reward of 3.0 is provided if the pot is lifted and is parallel within 30 deg to the table
+            - a discrete reward of 2.0 is provided when only Arm 1 is gripping the handle and has the handle
+              lifted above a certain threshold
 
-        Un-normalized summed components if using reward shaping:
+        Un-normalized max-wise components if using reward shaping:
 
-            - Reaching: in [0, 0.5], per-arm component that is proportional to the distance between each arm and its
-              respective pot handle, and exactly 0.5 when grasping the handle
-              - Note that the agent only gets the lifting reward when flipping no more than 30 degrees.
-            - Grasping: in {0, 0.25}, binary per-arm component awarded if the gripper is grasping its correct handle
-            - Lifting: in [0, 1.5], proportional to the pot's height above the table, and capped at a certain threshold
+            - Arm0 Reaching: (1) in [0, 0.25] proportional to the distance between Arm 0 and the handle
+            - Arm0 Grasping: (2) in {0, 0.5}, nonzero if Arm 0 is gripping the hammer (any part).
+            - Arm0 Lifting: (3) in {0, 1.0}, nonzero if Arm 0 lifts the handle from the table past a certain threshold
+            - Arm0 Hovering: (4) in {0, [1.0, 1.25]}, nonzero only if Arm0 is actively lifting the hammer, and is
+              proportional to the distance between the handle and Arm 1
+              conditioned on the handle being lifted from the table and being grasped by Arm 0
+            - Mutual Grasping: (5) in {0, 1.5}, nonzero if both Arm 0 and Arm 1 are gripping the hammer (Arm 1 must be
+              gripping the handle) while lifted above the table
+            - Handover: (6) in {0, 2.0}, nonzero when only Arm 1 is gripping the handle and has the handle
+              lifted above the table
 
-        Note that the final reward is normalized and scaled by reward_scale / 3.0 as
+        Note that the final reward is normalized and scaled by reward_scale / 2.0 as
         well so that the max score is equal to reward_scale
 
         Args:
@@ -242,59 +258,51 @@ class TwoArmHandoffRole(TwoArmEnv):
         Returns:
             float: reward value
         """
+        # Initialize reward
         reward = 0
 
-        # check if the pot is tilted more than 30 degrees
-        mat = T.quat2mat(self._pot_quat)
-        z_unit = [0, 0, 1]
-        z_rotated = np.matmul(mat, z_unit)
-        cos_z = np.dot(z_unit, z_rotated)
-        cos_30 = np.cos(np.pi / 6)
-        direction_coef = 1 if cos_z >= cos_30 else 0
+        # use a shaping reward if specified
+        if self.reward_shaping:
+            # Grab relevant parameters
+            arm0_grasp_any, arm1_grasp_handle, hammer_height, table_height = self._get_task_info()
+            # First, we'll consider the cases if the hammer is lifted above the threshold (step 3 - 6)
+            if hammer_height - table_height > self.height_threshold:
+                # Split cases depending on whether arm1 is currently grasping the handle or not
+                if arm1_grasp_handle:
+                    # Check if arm0 is grasping
+                    if arm0_grasp_any:
+                        # This is step 5
+                        reward = 1.5
+                    else:
+                        # This is step 6 (completed task!)
+                        reward = 2.0
+                # This is the case where only arm0 is grasping (step 2-3)
+                else:
+                    reward = 1.0
+                    # Add in up to 0.25 based on distance between handle and arm1
+                    dist = np.linalg.norm(self._gripper_1_to_handle)
+                    reaching_reward = 0.25 * (1 - np.tanh(1.0 * dist))
+                    reward += reaching_reward
+            # Else, the hammer is still on the ground ):
+            else:
+                # Split cases depending on whether arm0 is currently grasping the handle or not
+                if arm0_grasp_any:
+                    # This is step 2
+                    reward = 0.5
+                else:
+                    # This is step 1, we want to encourage arm0 to reach for the handle
+                    dist = np.linalg.norm(self._gripper_0_to_handle)
+                    reaching_reward = 0.25 * (1 - np.tanh(1.0 * dist))
+                    reward = reaching_reward
 
-        # check for goal completion: cube is higher than the table top above a margin
-        if self._check_success():
-            reward = 3.0 * direction_coef
-
-        # use a shaping reward
-        elif self.reward_shaping:
-            # lifting reward
-            pot_bottom_height = self.sim.data.site_xpos[self.pot_center_id][2] - self.pot.top_offset[2]
-            table_height = self.sim.data.site_xpos[self.table_top_id][2]
-            elevation = pot_bottom_height - table_height
-            r_lift = min(max(elevation - 0.05, 0), 0.15)
-            reward += 10.0 * direction_coef * r_lift
-
-            _gripper0_to_handle0 = self._gripper0_to_handle0
-            _gripper1_to_handle1 = self._gripper1_to_handle1
-
-            # gh stands for gripper-handle
-            # When grippers are far away, tell them to be closer
-
-            # Get contacts
-            (g0, g1) = (
-                (self.robots[0].gripper["right"], self.robots[0].gripper["left"])
-                if self.env_configuration == "single-robot"
-                else (self.robots[0].gripper, self.robots[1].gripper)
-            )
-
-            _g0h_dist = np.linalg.norm(_gripper0_to_handle0)
-            _g1h_dist = np.linalg.norm(_gripper1_to_handle1)
-
-            # Grasping reward
-            if self._check_grasp(gripper=g0, object_geoms=self.pot.handle0_geoms):
-                reward += 0.25
-            # Reaching reward
-            reward += 0.5 * (1 - np.tanh(10.0 * _g0h_dist))
-
-            # Grasping reward
-            if self._check_grasp(gripper=g1, object_geoms=self.pot.handle1_geoms):
-                reward += 0.25
-            # Reaching reward
-            reward += 0.5 * (1 - np.tanh(10.0 * _g1h_dist))
+        # Else this is the sparse reward setting
+        else:
+            # Provide reward if only Arm 1 is grasping the hammer and the handle lifted above the pre-defined threshold
+            if self._check_success():
+                reward = 2.0
 
         if self.reward_scale is not None:
-            reward *= self.reward_scale / 3.0
+            reward *= self.reward_scale / 2.0
 
         return reward
 
@@ -311,68 +319,93 @@ class TwoArmHandoffRole(TwoArmEnv):
         else:
             if self.env_configuration == "opposed":
                 # Set up robots facing towards each other by rotating them from their default position
-                for robot, rotation in zip(self.robots, (np.pi / 2, -np.pi / 2)):
+                for robot, rotation, offset in zip(self.robots, (np.pi / 2, -np.pi / 2), (-0.15, 0.15)):
                     xpos = robot.robot_model.base_xpos_offset["table"](self.table_full_size[0])
                     rot = np.array((0, 0, rotation))
                     xpos = T.euler2mat(rot) @ np.array(xpos)
+                    xpos += np.array((0, offset, 0))
                     robot.robot_model.set_base_xpos(xpos)
                     robot.robot_model.set_base_ori(rot)
             else:  # "parallel" configuration setting
                 # Set up robots parallel to each other but offset from the center
-                for robot, offset in zip(self.robots, (-0.25, 0.25)):
+                for robot, offset in zip(self.robots, (-0.6, 0.6)):
                     xpos = robot.robot_model.base_xpos_offset["table"](self.table_full_size[0])
                     xpos = np.array(xpos) + np.array((0, offset, 0))
                     robot.robot_model.set_base_xpos(xpos)
 
         # load model for table top workspace
         mujoco_arena = TableArena(
-            table_full_size=self.table_full_size,
-            table_friction=self.table_friction,
-            table_offset=self.table_offset,
+            table_full_size=self.table_true_size, table_friction=self.table_friction, table_offset=self.table_offset
         )
 
         # Arena always gets set to zero origin
         mujoco_arena.set_origin([0, 0, 0])
 
+        # Modify camera
+        agent0_cam_pos = [0.8894354364730311, -3.481824231498976e-08, 1.7383813133506494]
+        agent0_cam_quat = [0.6530981063842773, 0.2710406184196472, 0.27104079723358154, 0.6530979871749878]
+
+        agent1_cam_pos = [-agent0_cam_pos[0], -agent0_cam_pos[1], agent0_cam_pos[2]]
+        # rotm = Rotation.from_quat(agent0_cam_quat, scalar_first=True).as_matrix()
+        quat0 = np.array(agent0_cam_quat)
+        quat_scalar_last0 = np.array([quat0[1], quat0[2], quat0[3], quat0[0]])
+        rotm = Rotation.from_quat(quat_scalar_last0).as_matrix()
+        rot_z = Rotation.from_euler('z', 180, degrees=True).as_matrix()
+        rotm_rotated = rot_z @ rotm
+        # agent1_cam_quat = Rotation.from_matrix(rotm_rotated).as_quat(scalar_first = True)
+        agent1_cam_quat_scalar_last = Rotation.from_matrix(rotm_rotated).as_quat()
+        agent1_cam_quat = np.array([
+            agent1_cam_quat_scalar_last[3],
+            agent1_cam_quat_scalar_last[0],
+            agent1_cam_quat_scalar_last[1],
+            agent1_cam_quat_scalar_last[2]
+        ])
+
+
+        mujoco_arena.set_camera(
+            camera_name="robot0_leftview",
+            pos=agent0_cam_pos,
+            quat=agent0_cam_quat,
+        )
+        mujoco_arena.set_camera(
+            camera_name="robot1_leftview",
+            pos= agent1_cam_pos,
+            quat=agent1_cam_quat,
+        )
+        mujoco_arena.set_camera(
+            camera_name="birdview",
+            pos=[0, 0, 2.2],
+            quat=[0.7071, 0, 0, 0.7071],
+        )
+
         # initialize objects of interest
-        self.pot = PotWithHandlesObject(name="pot")
-        self.obs = Box(name="obs", size=[0.1, 0.1, 0.175], rgba=[1, 0, 0, 1])
+        self.hammer = HammerObject(name="hammer")
 
         # Create placement initializer
         if self.placement_initializer is not None:
             self.placement_initializer.reset()
-            self.placement_initializer.add_objects(self.pot)
+            self.placement_initializer.add_objects(self.hammer)
         else:
+            # Set rotation about y-axis if hammer starts on table else rotate about z if it starts in gripper
+            rotation_axis = "z" if self.prehensile else "y"
+
             self.placement_initializer = UniformRandomSampler(
                 name="ObjectSampler",
-                mujoco_objects=self.pot,
-                x_range=[-0.05, 0.05],
+                mujoco_objects=self.hammer,
+                x_range=[-0.1, 0.1],
                 y_range=[-0.05, 0.05],
+                rotation=np.pi/2,
+                rotation_axis=rotation_axis,
                 ensure_object_boundary_in_range=False,
                 ensure_valid_placement=True,
-                reference_pos=self.table_offset + np.array([0.3, 0., 0.]),
-                rotation=np.pi
-                # rotation=(np.pi + -np.pi / 3, np.pi + np.pi / 3),
+                reference_pos=self.table_offset,
             )
-        
-        # Create a separate placement initializer for the box
-        self.box_placement_initializer = UniformRandomSampler(
-            name="BoxSampler",
-            mujoco_objects=self.obs,
-            # Set x_range and y_range to [0, 0] so it always gets placed at the reference position.
-            x_range=[0.0, 0.0],
-            y_range=[0.0, 0.0],
-            ensure_object_boundary_in_range=False,
-            ensure_valid_placement=True,
-            reference_pos=self.table_offset + np.array([0., 0., .2]),
-            rotation=(0, 0)
-        )
 
         # task includes arena, robot, and objects of interest
         self.model = ManipulationTask(
             mujoco_arena=mujoco_arena,
             mujoco_robots=[robot.robot_model for robot in self.robots],
-            mujoco_objects=[self.pot, self.obs],
+            mujoco_objects=self.hammer,
         )
 
     def _setup_references(self):
@@ -383,12 +416,12 @@ class TwoArmHandoffRole(TwoArmEnv):
         """
         super()._setup_references()
 
-        # Additional object references from this env
-        self.pot_body_id = self.sim.model.body_name2id(self.pot.root_body)
-        self.handle0_site_id = self.sim.model.site_name2id(self.pot.important_sites["handle0"])
-        self.handle1_site_id = self.sim.model.site_name2id(self.pot.important_sites["handle1"])
+        # Hammer object references from this env
+        self.hammer_body_id = self.sim.model.body_name2id(self.hammer.root_body)
+        self.hammer_handle_geom_id = self.sim.model.geom_name2id(self.hammer.handle_geoms[0])
+
+        # General env references
         self.table_top_id = self.sim.model.site_name2id("table_top")
-        self.pot_center_id = self.sim.model.site_name2id(self.pot.important_sites["center"])
 
     def _setup_observables(self):
         """
@@ -403,27 +436,21 @@ class TwoArmHandoffRole(TwoArmEnv):
         if self.use_object_obs:
             modality = "object"
 
-            # position and rotation of object
+            # position and rotation of hammer
+            @sensor(modality=modality)
+            def hammer_pos(obs_cache):
+                return np.array(self._hammer_pos)
 
             @sensor(modality=modality)
-            def pot_pos(obs_cache):
-                return np.array(self.sim.data.body_xpos[self.pot_body_id])
+            def hammer_quat(obs_cache):
+                return np.array(self._hammer_quat)
 
             @sensor(modality=modality)
-            def pot_quat(obs_cache):
-                return T.convert_quat(self.sim.data.body_xquat[self.pot_body_id], to="xyzw")
+            def handle_xpos(obs_cache):
+                return np.array(self._handle_xpos)
 
-            @sensor(modality=modality)
-            def handle0_xpos(obs_cache):
-                return np.array(self._handle0_xpos)
-
-            @sensor(modality=modality)
-            def handle1_xpos(obs_cache):
-                return np.array(self._handle1_xpos)
-
-            sensors = [pot_pos, pot_quat, handle0_xpos, handle1_xpos]
+            sensors = [hammer_pos, hammer_quat, handle_xpos]
             names = [s.__name__ for s in sensors]
-
             arm_sensor_fns = []
             if self.env_configuration == "single-robot":
                 # If single-robot, we only have one robot. gripper 0 is always right and gripper 1 is always left
@@ -431,7 +458,7 @@ class TwoArmHandoffRole(TwoArmEnv):
                 pf1 = self.robots[0].robot_model.naming_prefix + "left_"
                 prefixes = [pf0, pf1]
                 arm_sensor_fns = [
-                    self._get_obj_eef_sensor(full_pf, f"handle{i}_xpos", f"gripper{i}_to_handle{i}", modality)
+                    self._get_obj_eef_sensor(full_pf, f"handle_xpos", f"gripper{i}_to_handle", modality)
                     for i, full_pf in enumerate(prefixes)
                 ]
             else:
@@ -442,9 +469,7 @@ class TwoArmHandoffRole(TwoArmEnv):
                 robot_full_prefixes = [self._get_arm_prefixes(robot, include_robot_name=True) for robot in self.robots]
                 for i, (arm_prefixes, full_prefixes) in enumerate(zip(robot_arm_prefixes, robot_full_prefixes)):
                     arm_sensor_fns += [
-                        self._get_obj_eef_sensor(
-                            full_pf, f"handle{i}_xpos", f"{arm_pf}gripper{i}_to_handle{i}", modality
-                        )
+                        self._get_obj_eef_sensor(full_pf, f"handle_xpos", f"{arm_pf}gripper{i}_to_handle", modality)
                         for arm_pf, full_pf in zip(arm_prefixes, full_prefixes)
                     ]
 
@@ -473,102 +498,159 @@ class TwoArmHandoffRole(TwoArmEnv):
             # Sample from the placement initializer for all objects
             object_placements = self.placement_initializer.sample()
 
-
             # Loop through all objects and reset their positions
             for obj_pos, obj_quat, obj in object_placements.values():
-                self.sim.data.set_joint_qpos(obj.joints[0], np.concatenate([np.array(obj_pos), np.array(obj_quat)]))
+                # If prehensile, set the object normally
+                if self.prehensile:
+                    self.sim.data.set_joint_qpos(obj.joints[0], np.concatenate([np.array(obj_pos), np.array(obj_quat)]))
+                # Else, set the object in the hand of the robot and loop a few steps to guarantee the robot is grasping
+                #   the object initially
+                else:
+                    eef_rot_quat = T.mat2quat(T.euler2mat([np.pi - T.mat2euler(self._eef0_xmat)[2], 0, 0]))
+                    obj_quat = T.quat_multiply(obj_quat, eef_rot_quat)
+                    for j in range(100):
+                        # Set object in hand always placing it in the right gripper
+                        obj_target_position = self._eef0_xpos + np.array([0, 0, 0.04])
+                        self.sim.data.set_joint_qpos(
+                            obj.joints[0], np.concatenate([obj_target_position, np.array(obj_quat)])
+                        )
+                        # Close gripper (action = 1) and prevent arm from moving
+                        if self.env_configuration == "single-robot":
+                            # Execute no-op action with gravity compensation
+                            torques = np.concatenate(
+                                [
+                                    self.robots[0].part_controllers["right"].torque_compensation,
+                                    self.robots[0].part_controllers["left"].torque_compensation,
+                                ]
+                            )
+                            self.sim.data.ctrl[self.robots[0]._ref_arm_joint_actuator_indexes] = torques
+                        else:
+                            # for robot in self.robots:
+                            #     print(f"Robot: {robot}")
+                            #     print(f"arm: {robot.arms}")
+                            #     print(f"controller: {robot.part_controllers}")
+                            robot_noops = [
+                                np.concatenate([robot.part_controllers[arm].torque_compensation for arm in robot.arms])
+                                for robot in self.robots
+                            ]
 
-            # Now sample and set the placement for the box.
-            box_placements = self.box_placement_initializer.sample()
-            for obj_pos, obj_quat, obj in box_placements.values():
-                self.sim.data.set_joint_qpos(
-                    obj.joints[0],
-                    np.concatenate([np.array(obj_pos), np.array(obj_quat)])
-                )
+                            # Execute no-op action with gravity compensation
+                            self.sim.data.ctrl[self.robots[0]._ref_arm_joint_actuator_indexes] = robot_noops[0]
+                            self.sim.data.ctrl[self.robots[1]._ref_arm_joint_actuator_indexes] = robot_noops[1]
+                        # Execute gripper action
+                        gripper_ac = [1] * self.robots[0].gripper["right"].dof
+                        gripper_ac = self.robots[0].gripper["right"].format_action(gripper_ac)
+                        self.robots[0].part_controllers["right_gripper"].set_goal(gripper_ac)
+                        # Take forward step
+                        self.sim.step()
 
-
-    def visualize(self, vis_settings):
+    def _get_task_info(self):
         """
-        In addition to super call, visualize gripper site proportional to the distance to each handle.
+        Helper function that grabs the current relevant locations of objects of interest within the environment
 
-        Args:
-            vis_settings (dict): Visualization keywords mapped to T/F, determining whether that specific
-                component should be visualized. Should have "grippers" keyword as well as any other relevant
-                options specified.
+        Returns:
+            4-tuple:
+
+                - (bool) True if Arm0 is grasping any part of the hammer
+                - (bool) True if Arm1 is grasping the hammer handle
+                - (float) Height of the hammer body
+                - (float) Height of the table surface
         """
-        # Run superclass method first
-        super().visualize(vis_settings=vis_settings)
+        # Get height of hammer and table and define height threshold
+        hammer_angle_offset = (self.hammer.handle_length / 2 + 2 * self.hammer.head_halfsize) * np.sin(
+            self._hammer_angle
+        )
+        hammer_height = (
+            self.sim.data.geom_xpos[self.hammer_handle_geom_id][2] - self.hammer.top_offset[2] - hammer_angle_offset
+        )
+        table_height = self.sim.data.site_xpos[self.table_top_id][2]
 
-        # Color the gripper visualization site according to its distance to each handle
-        if vis_settings["grippers"]:
-            handles = [self.pot.important_sites[f"handle{i}"] for i in range(2)]
-            grippers = (
-                [self.robots[0].gripper[arm] for arm in self.robots[0].arms]
-                if self.env_configuration == "single-robot"
-                else [robot.gripper for robot in self.robots]
-            )
-            for gripper, handle in zip(grippers, handles):
-                self._visualize_gripper_to_target(gripper=gripper, target=handle, target_type="site")
+        # Check if any Arm's gripper is grasping the hammer handle
+        (g0, g1) = (
+            (self.robots[0].gripper["right"], self.robots[0].gripper["left"])
+            if self.env_configuration == "single-robot"
+            else (self.robots[0].gripper, self.robots[1].gripper)
+        )
+        arm0_grasp_any = self._check_grasp(gripper=g0, object_geoms=self.hammer)
+        arm1_grasp_handle = self._check_grasp(gripper=g1, object_geoms=self.hammer.handle_geoms)
+
+        # Return all relevant values
+        return arm0_grasp_any, arm1_grasp_handle, hammer_height, table_height
 
     def _check_success(self):
         """
-        Check if pot is successfully lifted
+        Check if hammer is successfully handed off
 
         Returns:
-            bool: True if pot is lifted
+            bool: True if handover has been completed
         """
-        pot_bottom_height = self.sim.data.site_xpos[self.pot_center_id][2] - self.pot.top_offset[2]
-        table_height = self.sim.data.site_xpos[self.table_top_id][2]
-
-        # cube is higher than the table top above a margin
-        return pot_bottom_height > table_height + 0.10
-
-    @property
-    def _handle0_xpos(self):
-        """
-        Grab the position of the left (blue) hammer handle.
-
-        Returns:
-            np.array: (x,y,z) position of handle
-        """
-        return self.sim.data.site_xpos[self.handle0_site_id]
+        # Grab relevant params
+        arm0_grasp_any, arm1_grasp_handle, hammer_height, table_height = self._get_task_info()
+        return (
+            True
+            if arm1_grasp_handle and not arm0_grasp_any and hammer_height - table_height > self.height_threshold
+            else False
+        )
 
     @property
-    def _handle1_xpos(self):
+    def _handle_xpos(self):
         """
-        Grab the position of the right (green) hammer handle.
+        Grab the position of the hammer handle.
 
         Returns:
             np.array: (x,y,z) position of handle
         """
-        return self.sim.data.site_xpos[self.handle1_site_id]
+        return self.sim.data.geom_xpos[self.hammer_handle_geom_id]
 
     @property
-    def _pot_quat(self):
+    def _hammer_pos(self):
         """
-        Grab the orientation of the pot body.
+        Grab the position of the hammer body.
 
         Returns:
-            np.array: (x,y,z,w) quaternion of the pot body
+            np.array: (x,y,z) position of body
         """
-        return T.convert_quat(self.sim.data.body_xquat[self.pot_body_id], to="xyzw")
+        return np.array(self.sim.data.body_xpos[self.hammer_body_id])
 
     @property
-    def _gripper0_to_handle0(self):
+    def _hammer_quat(self):
         """
-        Calculate vector from gripper0 to the left pot handle.
+        Grab the orientation of the hammer body.
 
         Returns:
-            np.array: (dx,dy,dz) distance vector between handle and gripper0
+            np.array: (x,y,z,w) quaternion of the hammer body
         """
-        return self._gripper0_to_target(self.pot.important_sites["handle0"], target_type="site")
+        return T.convert_quat(self.sim.data.body_xquat[self.hammer_body_id], to="xyzw")
 
     @property
-    def _gripper1_to_handle1(self):
+    def _hammer_angle(self):
         """
-        Calculate vector from gripper1 to the right pot handle.
+        Calculate the angle of hammer with the ground, relative to it resting horizontally
+
+        Returns:
+            float: angle in radians
+        """
+        mat = T.quat2mat(self._hammer_quat)
+        z_unit = [0, 0, 1]
+        z_rotated = np.matmul(mat, z_unit)
+        return np.pi / 2 - np.arccos(np.dot(z_unit, z_rotated))
+
+    @property
+    def _gripper_0_to_handle(self):
+        """
+        Calculate vector from gripper0 to the hammer handle.
 
         Returns:
             np.array: (dx,dy,dz) distance vector between handle and EEF0
         """
-        return self._gripper1_to_target(self.pot.important_sites["handle1"], target_type="site")
+        return self._gripper0_to_target(self.hammer.handle_geoms[0], target_type="geom")
+
+    @property
+    def _gripper_1_to_handle(self):
+        """
+        Calculate vector from gripper1 to the hammer handle.
+
+        Returns:
+            np.array: (dx,dy,dz) distance vector between handle and EEF1
+        """
+        return self._gripper1_to_target(self.hammer.handle_geoms[0], target_type="geom")

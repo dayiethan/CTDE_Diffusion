@@ -6,8 +6,7 @@ import matplotlib.pyplot as plt
 import robosuite as suite
 from robosuite.controllers import load_composite_controller_config
 
-from two_arm_handover_role import TwoArmHandoverRole
-
+from env import TwoArmHandover
 from scipy.spatial.transform import Rotation as R
 
 
@@ -42,10 +41,6 @@ class PolicyPlayer:
                                   [0, 0, -1]])
 
         obs = self.reset()
-
-        # robot0_init_rotm_world = R.from_quat(obs['robot0_eef_quat_site'], scalar_first = False).as_matrix()
-        # robot1_init_rotm_world = R.from_quat(obs['robot1_eef_quat_site'], scalar_first = False).as_matrix()
-
         self.n_action = self.env.action_spec[0].shape[0]
 
     def reset(self, seed = 0):
@@ -346,24 +341,16 @@ class PolicyPlayer:
     
         
 if __name__ == "__main__":
-    CAMERA_NAMES = ["birdview", "robot0_leftview", "robot1_leftview",
-                        "robot0_eye_in_hand", "robot1_eye_in_hand"]
     controller_config = load_composite_controller_config(robot="Kinova3", controller="kinova.json")
 
-    env = TwoArmHandoverRole(
+    env = TwoArmHandover(
     robots=["Kinova3", "Kinova3"],  #["Baxter"]
     gripper_types="default",
     controller_configs=controller_config,
     has_renderer=True,
     has_offscreen_renderer=True,
-    use_camera_obs=True,
     prehensile=False,
     render_camera=None,
-    camera_names=CAMERA_NAMES,
-    camera_heights=256,
-    camera_widths=256,
-    camera_depths=True,
-    camera_segmentations='instance',
     )
 
     player = PolicyPlayer(env)
