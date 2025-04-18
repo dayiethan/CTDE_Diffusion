@@ -65,8 +65,6 @@ class PolicyPlayer:
         self.pot_handle0_pos = self.robot0_base_ori_rotm.T @ (self.env._handle0_xpos - self.robot0_base_pos) + self.pot_handle_offset
         self.pot_handle1_pos = self.robot1_base_ori_rotm.T @ (self.env._handle1_xpos - self.robot1_base_pos) + self.pot_handle_offset
 
-        self.setup_waypoints()
-
     def reset(self, seed = 0, mode = 1):
         """
         Resetting environment. Re-initializing the waypoints too.
@@ -85,182 +83,11 @@ class PolicyPlayer:
         jnt_id_1 = self.env.sim.model.joint_name2id("gripper1_right_finger_joint") #gripper0_right_finger_joint, gripper0_right_right_outer_knuckle_joint
         self.qpos_index_1 = self.env.sim.model.jnt_qposadr[jnt_id_1]
 
-        self.setup_waypoints(mode = mode)
-
         self.rollout = {}
         self.rollout["observations"] = []
         self.rollout["actions"] = []
 
         return obs
-
-    def setup_waypoints(self, mode = 1):
-        self.waypoints_robot0 = []
-        self.waypoints_robot1 = []
-
-        robot0_x_init = self.pot_handle0_pos[0]
-        robot0_y_init = self.pot_handle0_pos[1]
-        robot0_z_init = self.pot_handle0_pos[2]
-        robot1_x_init = self.pot_handle1_pos[0]
-        robot1_y_init = self.pot_handle1_pos[1]
-        robot1_z_init = self.pot_handle1_pos[2]
-
-        if mode == 1:
-            rotm0 = self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix()
-            rotm1 = self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix()
-            robot0_x_pass = robot0_x_init
-            robot0_y_pass = robot0_y_init
-            robot0_z_pass = 0.45
-            robot1_x_pass = robot1_x_init
-            robot1_y_pass = robot1_y_init
-            robot1_z_pass = 0.45
-        elif mode == 2:
-            rotm0 = self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix()
-            rotm1 = self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix()
-            robot0_x_pass = 0.815
-            robot0_y_pass = robot0_y_init
-            robot0_z_pass = 0.4
-            robot1_x_pass = 0.426
-            robot1_y_pass = robot1_y_init
-            robot1_z_pass = 0.4
-        elif mode == 3:
-            rotm0 = self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix()
-            rotm1 = self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix()
-            robot0_x_pass = 0.414
-            robot0_y_pass = robot0_y_init
-            robot0_z_pass = 0.4
-            robot1_x_pass = 0.826
-            robot1_y_pass = robot1_y_init
-            robot1_z_pass = 0.4
-        else:
-            raise ValueError("Invalid mode. Please choose a valid mode (1, 2, or 3).")
-
-        """
-        Robot 0 Waypoints
-        """
-
-        #wp0
-        waypoint = {"goal_pos": np.array([robot0_x_init, robot0_y_pass, robot0_z_init]),
-                     "goal_rotm": rotm0,
-                     "gripper": -1}
-        self.waypoints_robot0.append(waypoint)
-
-        #wp1
-        waypoint = {"goal_pos": np.array([robot0_x_init, robot0_y_pass, robot0_z_init]),
-                     "goal_rotm": rotm0,
-                     "gripper": 1}
-        self.waypoints_robot0.append(waypoint)
-
-        #wp2
-        waypoint = {"goal_pos": np.array([robot0_x_pass, robot0_y_pass, robot0_z_pass]),
-                     "goal_rotm": rotm0,
-                     "gripper": 1}
-        self.waypoints_robot0.append(waypoint)
-        
-        #wp3
-        waypoint = {"goal_pos": np.array([robot0_x_pass, -robot0_y_pass, robot0_z_pass]),
-                     "goal_rotm": rotm0,
-                     "gripper": 1}
-        self.waypoints_robot0.append(waypoint)
-
-        #wp4
-        waypoint = {"goal_pos": np.array([robot0_x_init, -robot0_y_pass, robot0_z_init]),
-                     "goal_rotm": rotm0,
-                     "gripper": 1}
-        self.waypoints_robot0.append(waypoint)
-
-        #wp5
-        waypoint = {"goal_pos": np.array([robot0_x_init, -robot0_y_pass, robot0_z_init]),
-                     "goal_rotm": rotm0,
-                     "gripper": -1}
-        self.waypoints_robot0.append(waypoint)
-
-        """
-        Robot 1 Waypoints
-        """
-
-        #wp0
-        waypoint = {"goal_pos": np.array([robot1_x_init, robot1_y_pass, robot1_z_init]),
-                     "goal_rotm": rotm1,
-                     "gripper": -1}
-        self.waypoints_robot1.append(waypoint)
-
-        #wp1
-        waypoint = {"goal_pos": np.array([robot1_x_init, robot1_y_pass, robot1_z_init]),
-                     "goal_rotm": rotm1,
-                     "gripper": 1}
-        self.waypoints_robot1.append(waypoint)
-
-        #wp2
-        waypoint = {"goal_pos": np.array([robot1_x_pass, robot1_y_pass, robot1_z_pass]),
-                     "goal_rotm": rotm1,
-                     "gripper": 1}
-        self.waypoints_robot1.append(waypoint)
-
-        #wp3
-        waypoint = {"goal_pos": np.array([robot1_x_pass, -robot1_y_pass, robot1_z_pass]),
-                     "goal_rotm": rotm1,
-                     "gripper": 1}
-        self.waypoints_robot1.append(waypoint)
-
-        #wp4
-        waypoint = {"goal_pos": np.array([robot1_x_init, -robot1_y_pass, robot1_z_init]),
-                     "goal_rotm": rotm1,
-                     "gripper": 1}
-        self.waypoints_robot1.append(waypoint)
-
-        #wp5
-        waypoint = {"goal_pos": np.array([robot1_x_init, -robot1_y_pass, robot1_z_init]),
-                     "goal_rotm": rotm1,
-                     "gripper": -1}
-        self.waypoints_robot1.append(waypoint)
-     
-    def convert_action_robot(self, robot_pos, robot_rotm, robot_goal_pos, robot_goal_rotm, robot_gripper, alpha = 0.5):
-        action = np.zeros(int(self.n_action/2))
-
-        g = np.eye(4)
-        g[0:3, 0:3] = robot_rotm
-        g[0:3, 3] = robot_pos
-
-        gd = np.eye(4)
-        gd[0:3, 0:3] = robot_goal_rotm
-        gd[0:3, 3] = robot_goal_pos
-
-        xi = SE3_log_map(np.linalg.inv(g) @ gd)
-
-        gd_modified = g @ SE3_exp_map(alpha * xi)
-
-        action[0:3] = gd_modified[:3,3]
-        action[3:6] = R.from_matrix(gd_modified[:3,:3]).as_rotvec()
-        action[6] = robot_gripper
-
-        return action
-    
-    def get_poses(self, obs):
-        robot0_pos_world = obs['robot0_eef_pos']
-        robot0_rotm_world = R.from_quat(obs['robot0_eef_quat_site']).as_matrix()
-
-        robot1_pos_world = obs['robot1_eef_pos']
-        robot1_rotm_world = R.from_quat(obs['robot1_eef_quat_site']).as_matrix()
-
-        robot0_pos = self.robot0_base_ori_rotm.T @ (robot0_pos_world - self.robot0_base_pos)
-        robot0_rotm = self.robot0_base_ori_rotm.T @ robot0_rotm_world
-
-        robot1_pos = self.robot1_base_ori_rotm.T @ (robot1_pos_world - self.robot1_base_pos)
-        robot1_rotm = self.robot1_base_ori_rotm.T @ robot1_rotm_world
-        
-        return robot0_pos, robot0_rotm, robot1_pos, robot1_rotm
-    
-    def check_arrived(self, pos1, rotm1, pos2, rotm2, threshold = 0.05):
-        pos_diff = pos1 - pos2
-        rotm_diff = rotm2.T @ rotm1
-
-
-        distance = np.sqrt(0.5 * np.linalg.norm(pos_diff)**2 + np.trace(np.eye(3) - rotm_diff))
-
-        if distance < threshold:
-            return True
-        else:
-            return False
         
     def load_model(self, type = "rotvec", state_dim = 7, action_dim = 7):
         n_gradient_steps = 100_000
@@ -272,7 +99,7 @@ class PolicyPlayer:
         expert_data1 = expert_data[:, :, :action_dim]
         expert_data2 = expert_data[:, :, action_dim:action_dim*2]
 
-        pot_states = np.load("data/pot_states_"+type+"_400.npy")
+        pot_states = np.load("data/pot_states_"+type+"_100.npy")
 
         # Compute mean and standard deviation
         combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
@@ -319,55 +146,9 @@ class PolicyPlayer:
         sigma_data2 = actions2.std().item()
 
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_T250_"+type+"_pot")
+        action_cond_ode.load(extra="_T250_"+type+"_pot_100")
 
         return action_cond_ode
-
-    def parse_data(self, rollout):
-        obs = rollout["observations"]
-        actions = np.array(rollout["actions"])
-        robot0_eef_pos = np.array([o["robot0_eef_pos"] for o in obs])
-        robot0_eef_quat = np.array([o["robot0_eef_quat"] for o in obs])
-        robot0_gripper_pos = np.array([o["robot0_gripper_pos"] for o in obs])
-        robot1_eef_pos = np.array([o["robot1_eef_pos"] for o in obs])
-        robot1_eef_quat = np.array([o["robot1_eef_quat"] for o in obs])
-        robot1_gripper_pos = np.array([o["robot1_gripper_pos"] for o in obs])
-
-        repeats_needed = 250 - actions.shape[0]
-
-        repeated_last = np.tile(actions[-1], (repeats_needed, 1))
-        actions = np.vstack([actions, repeated_last])
-
-        repeated_last = np.tile(robot0_eef_pos[-1], (repeats_needed, 1))
-        robot0_eef_pos = np.vstack([robot0_eef_pos, repeated_last])
-        state = robot0_eef_pos
-
-        repeated_last = np.tile(robot0_eef_quat[-1], (repeats_needed, 1))
-        robot0_eef_quat = np.vstack([robot0_eef_quat, repeated_last])
-        robot0_eef_rotvec = R.from_quat(robot0_eef_quat).as_rotvec()
-        state = np.hstack([state, robot0_eef_rotvec])
-
-
-        repeated_last = np.tile(robot0_gripper_pos[-1], (repeats_needed, 1))
-        robot0_gripper_pos = robot0_gripper_pos.reshape(-1, 1)
-        robot0_gripper_pos = np.vstack([robot0_gripper_pos, repeated_last])
-        state = np.hstack([state, robot0_gripper_pos])
-
-        repeated_last = np.tile(robot1_eef_pos[-1], (repeats_needed, 1))
-        robot1_eef_pos = np.vstack([robot1_eef_pos, repeated_last])
-        state = np.hstack([state, robot1_eef_pos])
-
-        repeated_last = np.tile(robot1_eef_quat[-1], (repeats_needed, 1))
-        robot1_eef_quat = np.vstack([robot1_eef_quat, repeated_last])
-        robot1_eef_rotvec = R.from_quat(robot1_eef_quat).as_rotvec()
-        state = np.hstack([state, robot1_eef_rotvec])
-
-        repeated_last = np.tile(robot1_gripper_pos[-1], (repeats_needed, 1))
-        robot1_gripper_pos = robot1_gripper_pos.reshape(-1, 1)
-        robot1_gripper_pos = np.vstack([robot1_gripper_pos, repeated_last])
-        state = np.hstack([state, robot1_gripper_pos])
-
-        return state, actions
 
     
     def get_demo(self, seed, mode, file_name = "rollouts_pot/rollout_seed0_mode2.pkl"):
@@ -375,9 +156,8 @@ class PolicyPlayer:
         Main file to get the demonstration data
         """
         obs = self.reset(seed, mode)
-        obs = self.process_obs(obs)
 
-        expert_data = np.load("data/expert_actions_rotvec_400.npy")
+        expert_data = np.load("data/expert_actions_rotvec_100.npy")
         expert_data1 = expert_data[:, :, :7]
         expert_data2 = expert_data[:, :, 7:14]
         combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
@@ -386,7 +166,7 @@ class PolicyPlayer:
 
         model = self.load_model(type = "rotvec", state_dim = 7, action_dim = 7)
 
-        with open("data/pot_states_rot6d_400.npy", "rb") as f:
+        with open("data/pot_states_rot6d_100.npy", "rb") as f:
             obs = np.load(f)
         obs1 = torch.FloatTensor(obs[0]).to(device).unsqueeze(0)
         obs2 = torch.FloatTensor(obs[0]).to(device).unsqueeze(0)
@@ -408,24 +188,6 @@ class PolicyPlayer:
 
             if self.render:
                 self.env.render()
-
-
-    def process_obs(self, obs):
-
-        processed_obs = copy.deepcopy(obs)
-        robot0_pos, robot0_rotm, robot1_pos, robot1_rotm = self.get_poses(obs)
-
-        processed_obs['robot0_eef_pos'] = robot0_pos
-        processed_obs['robot0_eef_quat_site'] = R.from_matrix(robot0_rotm).as_quat()
-
-        processed_obs['robot1_eef_pos'] = robot1_pos
-        processed_obs['robot1_eef_quat_site'] = R.from_matrix(robot1_rotm).as_quat()
-
-        processed_obs['robot0_gripper_pos'] = self.env.sim.data.qpos[self.qpos_index_0]
-        processed_obs['robot1_gripper_pos'] = self.env.sim.data.qpos[self.qpos_index_1]
-
-        return processed_obs
-            
 
     
         
