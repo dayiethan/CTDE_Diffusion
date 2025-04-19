@@ -13,6 +13,17 @@ def quat_to_rot6d(quat):
 
     return r[:3, :2].T.flatten()
 
+def quat_to_rotm(quat):
+    """Convert quaternion to 6D rotation representation.
+    Args:
+        quat (np.array): quaternion in wxyz format
+    Returns:
+        np.array: 6D rotation representation
+    """
+    r = R.from_quat(quat).as_matrix()
+
+    return r[:3, :3].T
+
 def rotvec_to_rot6d(rotvec):
     r = R.from_rotvec(rotvec).as_matrix()
 

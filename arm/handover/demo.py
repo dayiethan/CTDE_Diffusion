@@ -2,9 +2,13 @@ import time
 
 import numpy as np
 import matplotlib.pyplot as plt
+import pickle as pkl
+import copy
 
 import robosuite as suite
 from robosuite.controllers import load_composite_controller_config
+from transform_utils import *
+import pdb
 
 from env import TwoArmHandover
 from scipy.spatial.transform import Rotation as R
@@ -43,102 +47,242 @@ class PolicyPlayer:
         obs = self.reset()
         self.n_action = self.env.action_spec[0].shape[0]
 
-    def reset(self, seed = 0):
+    def reset(self, seed = 0, mode = 1):
         """
         Resetting environment. Re-initializing the waypoints too.
         """
         np.random.seed(seed)
         obs = self.env.reset()
-
         self.handle_length = self.env.hammer.handle_length
         self.hammer_headsize = 2*self.env.hammer.head_halfsize
 
-        self.rollout = []
-        self.setup_waypoints()
+        self.hammer_pos0 = self.robot0_base_ori_rotm.T @ (self.env._hammer_pos - self.robot0_base_pos)
+        self.hammer_pos1 = self.robot1_base_ori_rotm.T @ (self.env._hammer_pos - self.robot1_base_pos)
+        self.hammer_rotm = quat_to_rotm(self.env._hammer_quat)
+        jnt_id_0 = self.env.sim.model.joint_name2id("gripper0_right_finger_joint") #gripper0_right_finger_joint, gripper0_right_right_outer_knuckle_joint
+        self.qpos_index_0 = self.env.sim.model.jnt_qposadr[jnt_id_0]
+        jnt_id_1 = self.env.sim.model.joint_name2id("gripper1_right_finger_joint") #gripper0_right_finger_joint, gripper0_right_right_outer_knuckle_joint
+        self.qpos_index_1 = self.env.sim.model.jnt_qposadr[jnt_id_1]
+
+        self.rollout = {}
+        self.rollout["observations"] = []
+        self.rollout["actions"] = []
+        self.setup_waypoints(mode = mode)
 
         return obs
 
-    def setup_waypoints(self):
+    def setup_waypoints(self, mode = 1):
         self.waypoints_robot0 = []
         self.waypoints_robot1 = []
 
-        """
-        Robot 0 Waypoints
-        """
+        pass_x = 0.55
+        pass_y = 0
+        pass_z = 0.1
+        giver_x_offset = 0.05
+        receiver_x_offset = 0.24
 
-        if self.handle_length < 0.12:
-            robot0_pos_xd = 0.5 + 0.5 * self.handle_length
-        else:
-            robot0_pos_xd = 0.5 + 0.5 * self.handle_length + np.random.uniform(-0.02, 0.02)
-        pos_yd = np.random.uniform(-0.2, 0.2)
-        pos_zd = np.random.uniform(0.15, 0.35)
+        if mode == 1:
+            """
+            Robot 0 Waypoints
+            """
+            #wp0
+            waypoint = {"goal_pos": self.hammer_pos0 + np.array([0, -self.handle_length/2 + 0.03, 0.02]),
+                        "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
+                        "gripper": -1}
+            self.waypoints_robot0.append(waypoint)
 
-        #wp0
-        waypoint = {"goal_pos": np.array([0.4, 0, 0.2]),
-                     "goal_rotm": self.R_be_home,
-                     "gripper": 1}
-        self.waypoints_robot0.append(waypoint)
+            #wp1
+            waypoint = {"goal_pos": self.hammer_pos0 + np.array([0, -self.handle_length/2 + 0.03, -0.02]),
+                        "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
+                        "gripper": 1}
+            self.waypoints_robot0.append(waypoint)
 
-        #wp1
-        waypoint = {"goal_pos": np.array([robot0_pos_xd, pos_yd, pos_zd]),
-                     "goal_rotm": self.R_be_home,
-                     "gripper": 1}
-        self.waypoints_robot0.append(waypoint)
-        
-        #wp2
-        waypoint = {"goal_pos": np.array([robot0_pos_xd, pos_yd, pos_zd]),
+            #wp2
+            waypoint = {"goal_pos": np.array([pass_x, pass_y, pass_z]),
+                        "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
+                        "gripper": 1}
+            self.waypoints_robot0.append(waypoint)
+
+            #wp3
+            waypoint = {"goal_pos": np.array([pass_x + giver_x_offset, pass_y, pass_z]),
+                        "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi).as_matrix(),
+                        "gripper": 1}
+            self.waypoints_robot0.append(waypoint)
+
+            #wp4
+            waypoint = {"goal_pos": np.array([pass_x + giver_x_offset, pass_y, pass_z]),
+                        "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi).as_matrix(),
+                        "gripper": 1}
+            self.waypoints_robot0.append(waypoint)
+
+            #wp5
+            waypoint = {"goal_pos": np.array([pass_x + giver_x_offset, pass_y, pass_z]),
+                        "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi).as_matrix(),
+                        "gripper": -1}
+            self.waypoints_robot0.append(waypoint)
+
+            #wp6
+            waypoint = {"goal_pos": np.array([pass_x, pass_y, pass_z]),
+                        "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi).as_matrix(),
+                        "gripper": -1}
+            self.waypoints_robot0.append(waypoint)
+
+
+            """
+            Robot 1 Waypoints
+            """
+            #wp0
+            waypoint = {"goal_pos": np.array([pass_x, pass_y, pass_z]),
                     "goal_rotm": self.R_be_home,
                     "gripper": -1}
-        self.waypoints_robot0.append(waypoint)
+            self.waypoints_robot1.append(waypoint)
 
-        #wp3
-        waypoint = {"goal_pos": np.array([0.4, 0, pos_zd]),
-                    "goal_rotm": self.R_be_home,
-                    "gripper": -1}
-        self.waypoints_robot0.append(waypoint)
-
-        """
-        Robot 1 Waypoints
-        """
-        if self.handle_length < 0.12:
-            robot1_pos_xd = 1.45 - robot0_pos_xd - self.handle_length * 0.5
-        else:
-            robot1_pos_xd = 1.45 - robot0_pos_xd - self.handle_length * 0.5 + np.random.uniform(-0.02, 0.00)
-        #wp0
-        waypoint = {"goal_pos": np.array([0.5, 0, 0.4]),
+            #wp1
+            waypoint = {"goal_pos": np.array([pass_x, pass_y, pass_z]),
                     "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix(),
                     "gripper": -1}
-        self.waypoints_robot1.append(waypoint)
+            self.waypoints_robot1.append(waypoint)
 
-        #wp1
-        waypoint = {"goal_pos": np.array([0.6, -pos_yd, pos_zd]),
+            #wp2
+            waypoint = {"goal_pos": np.array([pass_x, pass_y, pass_z]),
                     "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix(),
                     "gripper": -1}
-        self.waypoints_robot1.append(waypoint)
+            self.waypoints_robot1.append(waypoint)
 
-        #wp2
-        waypoint = {"goal_pos": np.array([robot1_pos_xd, -pos_yd, pos_zd]),
-                    "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
+            #wp3
+            waypoint = {"goal_pos": np.array([pass_x + receiver_x_offset, pass_y, pass_z]),
+                    "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
                     "gripper": -1}
-        self.waypoints_robot1.append(waypoint)
+            self.waypoints_robot1.append(waypoint)
 
-        #wp3
-        waypoint = {"goal_pos": np.array([robot1_pos_xd, -pos_yd, pos_zd]),
-                    "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix(),
+            #wp4
+            waypoint = {"goal_pos": np.array([pass_x + receiver_x_offset, pass_y, pass_z]),
+                    "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
                     "gripper": 1}
-        self.waypoints_robot1.append(waypoint)
+            self.waypoints_robot1.append(waypoint)
 
-        #wp4
-        waypoint = {"goal_pos": np.array([0.4, 0, 0.2]),
-                    "goal_rotm": self.R_be_home,
+            #wp5
+            waypoint = {"goal_pos": np.array([pass_x + receiver_x_offset, pass_y, pass_z]),
+                    "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
                     "gripper": 1}
-        self.waypoints_robot1.append(waypoint)
+            self.waypoints_robot1.append(waypoint)
+
+            #wp6
+            waypoint = {"goal_pos": np.array([pass_x, pass_y, pass_z]),
+                    "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
+                    "gripper": 1}
+            self.waypoints_robot1.append(waypoint)
+
+        elif mode == 2:
+            """
+            Robot 0 Waypoints
+            """
+            #wp0
+            waypoint = {"goal_pos": np.array([pass_x, 0, pass_z]),
+                    "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix(),
+                    "gripper": -1}
+            self.waypoints_robot0.append(waypoint)
+
+            #wp1
+            waypoint = {"goal_pos": np.array([pass_x, pass_y, pass_z]),
+                    "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix(),
+                    "gripper": -1}
+            self.waypoints_robot0.append(waypoint)
+
+            #wp2
+            waypoint = {"goal_pos": np.array([pass_x, pass_y, pass_z]),
+                    "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix(),
+                    "gripper": -1}
+            self.waypoints_robot0.append(waypoint)
+
+            #wp3
+            waypoint = {"goal_pos": np.array([pass_x + receiver_x_offset, pass_y, pass_z]),
+                    "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
+                    "gripper": -1}
+            self.waypoints_robot0.append(waypoint)
+
+            #wp4
+            waypoint = {"goal_pos": np.array([pass_x + receiver_x_offset, pass_y, pass_z]),
+                    "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
+                    "gripper": 1}
+            self.waypoints_robot0.append(waypoint)
+
+            #wp5
+            waypoint = {"goal_pos": np.array([pass_x + receiver_x_offset, pass_y, pass_z]),
+                    "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
+                    "gripper": 1}
+            self.waypoints_robot0.append(waypoint)
+
+            #wp6
+            waypoint = {"goal_pos": np.array([pass_x, pass_y, pass_z]),
+                    "goal_rotm": self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
+                    "gripper": 1}
+            self.waypoints_robot0.append(waypoint)
+
+            """
+            Robot 1 Waypoints
+            """
+            #wp0
+            waypoint = {"goal_pos": self.hammer_pos1 + np.array([0, self.handle_length/2 - 0.02, 0.02]),
+                        "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
+                        "gripper": -1}
+            self.waypoints_robot1.append(waypoint)
+
+            #wp1
+            waypoint = {"goal_pos": self.hammer_pos1 + np.array([0, self.handle_length/2 - 0.02, -0.02]),
+                        "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
+                        "gripper": 1}
+            self.waypoints_robot1.append(waypoint)
+
+            #wp2
+            waypoint = {"goal_pos": np.array([pass_x, pass_y, pass_z]),
+                        "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
+                        "gripper": 1}
+            self.waypoints_robot1.append(waypoint)
+
+            #wp3
+            waypoint = {"goal_pos": np.array([pass_x + giver_x_offset, pass_y, pass_z]),
+                        "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix(),
+                        "gripper": 1}
+            self.waypoints_robot1.append(waypoint)
+
+            #wp4
+            waypoint = {"goal_pos": np.array([pass_x + giver_x_offset, pass_y, pass_z]),
+                        "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix(),
+                        "gripper": 1}
+            self.waypoints_robot1.append(waypoint)
+
+            #wp5
+            waypoint = {"goal_pos": np.array([pass_x + giver_x_offset, pass_y, pass_z]),
+                        "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix(),
+                        "gripper": -1}
+            self.waypoints_robot1.append(waypoint)
+
+            #wp6
+            waypoint = {"goal_pos": np.array([pass_x, pass_y, pass_z]),
+                        "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix(),
+                        "gripper": -1}
+            self.waypoints_robot1.append(waypoint)
+
         
 
-    def convert_action_robot(self, robot_goal_pos, robot_goal_rotm, robot_gripper):
+    def convert_action_robot(self, robot_pos, robot_rotm, robot_goal_pos, robot_goal_rotm, robot_gripper, alpha = 0.5):
         action = np.zeros(int(self.n_action/2))
-        action[0:3] = robot_goal_pos
-        action[3:6] = R.from_matrix(robot_goal_rotm).as_rotvec()
+
+        g = np.eye(4)
+        g[0:3, 0:3] = robot_rotm
+        g[0:3, 3] = robot_pos
+
+        gd = np.eye(4)
+        gd[0:3, 0:3] = robot_goal_rotm
+        gd[0:3, 3] = robot_goal_pos
+
+        xi = SE3_log_map(np.linalg.inv(g) @ gd)
+
+        gd_modified = g @ SE3_exp_map(alpha * xi)
+
+        action[0:3] = gd_modified[:3,3]
+        action[3:6] = R.from_matrix(gd_modified[:3,:3]).as_rotvec()
         action[6] = robot_gripper
 
         return action
@@ -172,118 +316,103 @@ class PolicyPlayer:
             return False
 
     
-    def get_demo(self, seed):
+    def get_demo(self, seed, mode = 1):
         """
         Main file to get the demonstration data
         """
-        obs = self.reset(seed)
-        print("hammer length:", self.env.hammer.handle_length)
-        print("distance between tables:", self.robot0_base_pos - self.robot1_base_pos)
+        obs = self.reset(seed, mode)
 
-        max_step_move = int(15 * self.control_freq) # 15 seconds
-        max_step_grip = int(0.5 * self.control_freq)
+        max_step_move = int(3 * self.control_freq) # 15 seconds
+        max_step_grip = int(1. * self.control_freq) # 0.5 seconds
 
+        # stage 0: robot0 move to wp0 robot1 moves to wp0
         robot0_arrived = False
-        robot1_arrived_0 = False
-        robot1_arrived_1 = False
-
-        # stage 1: robot0 move to wp0 robot1 moves to wp0 and wp1
+        robot1_arrived = False
         for i in range(max_step_move):
             robot0_pos, robot0_rotm, robot1_pos, robot1_rotm = self.get_poses(obs)
 
             if not robot0_arrived:
                 goal_pos0 = self.waypoints_robot0[0]["goal_pos"]
                 goal_rotm0 = self.waypoints_robot0[0]["goal_rotm"]
-                action0 = self.convert_action_robot(goal_pos0, goal_rotm0, self.waypoints_robot0[0]["gripper"])
-                robot0_arrived = self.check_arrived(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, threshold = 0.1)
+                action0 = self.convert_action_robot(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, self.waypoints_robot0[0]["gripper"])
+                robot0_arrived = self.check_arrived(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, threshold = 0.05)
 
-            if not robot1_arrived_0:
+            if not robot1_arrived:
                 goal_pos1 = self.waypoints_robot1[0]["goal_pos"]
                 goal_rotm1 = self.waypoints_robot1[0]["goal_rotm"]
-                action1 = self.convert_action_robot(goal_pos1, goal_rotm1, self.waypoints_robot1[0]["gripper"])
-                robot1_arrived_0 = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.2)
-
-            elif robot1_arrived_0 and not robot1_arrived_1:
-                # print(" I am here")
-                goal_pos1 = self.waypoints_robot1[1]["goal_pos"]
-                goal_rotm1 = self.waypoints_robot1[1]["goal_rotm"]
-                action1 = self.convert_action_robot(goal_pos1, goal_rotm1, self.waypoints_robot1[1]["gripper"])
-                robot1_arrived_1 = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.05)
+                action1 = self.convert_action_robot(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, self.waypoints_robot1[0]["gripper"])
+                robot1_arrived = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.05)
 
             action = np.hstack([action0, action1])
             obs, reward, done, info = self.env.step(action)
-            self.rollout.append(obs)
+            self.rollout["observations"].append(self.process_obs(obs))
+            self.rollout["actions"].append(action)
+
             if self.render:
                 self.env.render()
 
-            if robot0_arrived and robot1_arrived_1:
-                break
-
-        # stage 2: robot0 move to wp1 robot1 moves to wp2
+            # if robot0_arrived and robot1_arrived:
+            #     break
+        
+        # stage 1: robot0 move to wp1 robot1 moves to wp1
         robot0_arrived = False
         robot1_arrived = False
-        
         for i in range(max_step_move):
             robot0_pos, robot0_rotm, robot1_pos, robot1_rotm = self.get_poses(obs)
 
             if not robot0_arrived:
                 goal_pos0 = self.waypoints_robot0[1]["goal_pos"]
                 goal_rotm0 = self.waypoints_robot0[1]["goal_rotm"]
-                action0 = self.convert_action_robot(goal_pos0, goal_rotm0, self.waypoints_robot0[1]["gripper"])
+                action0 = self.convert_action_robot(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, self.waypoints_robot0[1]["gripper"])
+                robot0_arrived = self.check_arrived(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, threshold = 0.05)
+
+            if not robot1_arrived:
+                goal_pos1 = self.waypoints_robot1[1]["goal_pos"]
+                goal_rotm1 = self.waypoints_robot1[1]["goal_rotm"]
+                action1 = self.convert_action_robot(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, self.waypoints_robot1[1]["gripper"])
+                robot1_arrived = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.05)
+
+            action = np.hstack([action0, action1])
+            obs, reward, done, info = self.env.step(action)
+            self.rollout["observations"].append(self.process_obs(obs))
+            self.rollout["actions"].append(action)
+
+            if self.render:
+                self.env.render()
+
+            # if robot0_arrived and robot1_arrived:
+            #     break
+        
+        # stage 2: robot0 move to wp2 robot1 moves to wp2
+        robot0_arrived = False
+        robot1_arrived = False
+        for i in range(max_step_move):
+            robot0_pos, robot0_rotm, robot1_pos, robot1_rotm = self.get_poses(obs)
+
+            if not robot0_arrived:
+                goal_pos0 = self.waypoints_robot0[2]["goal_pos"]
+                goal_rotm0 = self.waypoints_robot0[2]["goal_rotm"]
+                action0 = self.convert_action_robot(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, self.waypoints_robot0[2]["gripper"])
                 robot0_arrived = self.check_arrived(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, threshold = 0.05)
 
             if not robot1_arrived:
                 goal_pos1 = self.waypoints_robot1[2]["goal_pos"]
                 goal_rotm1 = self.waypoints_robot1[2]["goal_rotm"]
-                action1 = self.convert_action_robot(goal_pos1, goal_rotm1, self.waypoints_robot1[2]["gripper"])
+                action1 = self.convert_action_robot(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, self.waypoints_robot1[2]["gripper"])
                 robot1_arrived = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.05)
 
             action = np.hstack([action0, action1])
             obs, reward, done, info = self.env.step(action)
-            self.rollout.append(obs)
+            self.rollout["observations"].append(self.process_obs(obs))
+            self.rollout["actions"].append(action)
 
             if self.render:
                 self.env.render()
 
-            if robot0_arrived and robot1_arrived:
-                break
+            # if robot0_arrived and robot1_arrived:
+            #     break
 
-        # stage 3: robot0 stay in wp1 (close gripper) robot1 moves to wp3 (close gripper)
-        for i in range(max_step_grip):
-            robot0_pos, robot0_rotm, robot1_pos, robot1_rotm = self.get_poses(obs)
-
-            goal_pos0 = self.waypoints_robot0[1]["goal_pos"]
-            goal_rotm0 = self.waypoints_robot0[1]["goal_rotm"]
-            action0 = self.convert_action_robot(goal_pos0, goal_rotm0, self.waypoints_robot0[1]["gripper"])
-
-            goal_pos1 = self.waypoints_robot1[3]["goal_pos"]
-            goal_rotm1 = self.waypoints_robot1[3]["goal_rotm"]
-            action1 = self.convert_action_robot(goal_pos1, goal_rotm1, self.waypoints_robot1[3]["gripper"])
-
-            action = np.hstack([action0, action1])
-            obs, reward, done, info = self.env.step(action)
-            self.env.render()
-
-        # stage 4: robot0 move to wp2 (open gripper) robot1 stay in wp3 (close gripper)
-        for i in range(max_step_grip):
-            robot0_pos, robot0_rotm, robot1_pos, robot1_rotm = self.get_poses(obs)
-
-            goal_pos0 = self.waypoints_robot0[2]["goal_pos"]
-            goal_rotm0 = self.waypoints_robot0[2]["goal_rotm"]
-            action0 = self.convert_action_robot(goal_pos0, goal_rotm0, self.waypoints_robot0[2]["gripper"])
-
-            goal_pos1 = self.waypoints_robot1[3]["goal_pos"]
-            goal_rotm1 = self.waypoints_robot1[3]["goal_rotm"]
-            action1 = self.convert_action_robot(goal_pos1, goal_rotm1, self.waypoints_robot1[3]["gripper"])
-
-            action = np.hstack([action0, action1])
-            obs, reward, done, info = self.env.step(action)
-            self.rollout.append(obs)
-            
-            if self.render:
-                self.env.render()
-
-        # stage 5: robot0 move to wp3 robot1 move to wp4
+        # stage 3: robot0 move to wp3 robot1 moves to wp3
         robot0_arrived = False
         robot1_arrived = False
         for i in range(max_step_move):
@@ -292,51 +421,125 @@ class PolicyPlayer:
             if not robot0_arrived:
                 goal_pos0 = self.waypoints_robot0[3]["goal_pos"]
                 goal_rotm0 = self.waypoints_robot0[3]["goal_rotm"]
-                action0 = self.convert_action_robot(goal_pos0, goal_rotm0, self.waypoints_robot0[3]["gripper"])
-                robot0_arrived = self.check_arrived(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, threshold = 0.1)
+                action0 = self.convert_action_robot(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, self.waypoints_robot0[3]["gripper"])
+                robot0_arrived = self.check_arrived(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, threshold = 0.05)
 
             if not robot1_arrived:
-                goal_pos1 = self.waypoints_robot1[4]["goal_pos"]
-                goal_rotm1 = self.waypoints_robot1[4]["goal_rotm"]
-                action1 = self.convert_action_robot(goal_pos1, goal_rotm1, self.waypoints_robot1[4]["gripper"])
-                robot1_arrived = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.1)
+                goal_pos1 = self.waypoints_robot1[3]["goal_pos"]
+                goal_rotm1 = self.waypoints_robot1[3]["goal_rotm"]
+                action1 = self.convert_action_robot(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, self.waypoints_robot1[3]["gripper"])
+                robot1_arrived = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.05)
 
             action = np.hstack([action0, action1])
             obs, reward, done, info = self.env.step(action)
-            self.rollout.append(obs)
+            self.rollout["observations"].append(self.process_obs(obs))
+            self.rollout["actions"].append(action)
 
             if self.render:
                 self.env.render()
 
-            if robot0_arrived and robot1_arrived:
-                break
-        
-        return self.rollout
+            # if robot0_arrived and robot1_arrived:
+            #     break
 
+        # stage 4: robot0 move to wp4 robot1 moves to wp4
+        robot0_arrived = False
+        robot1_arrived = False
+        for i in range(max_step_grip):
+            robot0_pos, robot0_rotm, robot1_pos, robot1_rotm = self.get_poses(obs)
 
-    def test(self):
-        """
-        TTesting the environment during the development of the scripted policy
-        """
-        goal_pos0 = np.array([0.6, 0, 0.2])
-        goal_pos1 = np.array([0.6, 0, 0.2])
-        goal_rotm0 = self.R_be_home
-        goal_rotm1 = self.R_be_home @ R.from_euler('x', -np.pi/2).as_matrix() @ R.from_euler('z', np.pi/2).as_matrix()
+            if not robot0_arrived:
+                goal_pos0 = self.waypoints_robot0[4]["goal_pos"]
+                goal_rotm0 = self.waypoints_robot0[4]["goal_rotm"]
+                action0 = self.convert_action_robot(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, self.waypoints_robot0[4]["gripper"])
+                robot0_arrived = self.check_arrived(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, threshold = 0.05)
 
-        print("hammer length:", self.env.hammer.handle_length)
-        print("hammer headsize:", 2*self.env.hammer.head_halfsize)
+            if not robot1_arrived:
+                goal_pos1 = self.waypoints_robot1[4]["goal_pos"]
+                goal_rotm1 = self.waypoints_robot1[4]["goal_rotm"]
+                action1 = self.convert_action_robot(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, self.waypoints_robot1[4]["gripper"])
+                robot1_arrived = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.05)
 
-
-        for i in range(self.max_steps):
-            action0 = self.convert_action_robot0(goal_pos0, goal_rotm0, 1) #(7,)
-            action1 = self.convert_action_robot1(goal_pos1, goal_rotm1, 1) #(7,)
-            action = np.hstack([action0, action1]) #(14,)
-
+            action = np.hstack([action0, action1])
             obs, reward, done, info = self.env.step(action)
-            self.env.render()
+            self.rollout["observations"].append(self.process_obs(obs))
+            self.rollout["actions"].append(action)
 
-            print(obs['robot1_gripper_qpos'])
-            
+            if self.render:
+                self.env.render()
+
+        # stage 5: robot0 move to wp5 robot1 moves to wp5
+        robot0_arrived = False
+        robot1_arrived = False
+        for i in range(max_step_grip):
+            robot0_pos, robot0_rotm, robot1_pos, robot1_rotm = self.get_poses(obs)
+
+            if not robot0_arrived:
+                goal_pos0 = self.waypoints_robot0[5]["goal_pos"]
+                goal_rotm0 = self.waypoints_robot0[5]["goal_rotm"]
+                action0 = self.convert_action_robot(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, self.waypoints_robot0[5]["gripper"])
+                robot0_arrived = self.check_arrived(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, threshold = 0.05)
+
+            if not robot1_arrived:
+                goal_pos1 = self.waypoints_robot1[5]["goal_pos"]
+                goal_rotm1 = self.waypoints_robot1[5]["goal_rotm"]
+                action1 = self.convert_action_robot(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, self.waypoints_robot1[5]["gripper"])
+                robot1_arrived = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.05)
+
+            action = np.hstack([action0, action1])
+            obs, reward, done, info = self.env.step(action)
+            self.rollout["observations"].append(self.process_obs(obs))
+            self.rollout["actions"].append(action)
+
+            if self.render:
+                self.env.render()
+
+        # stage 6: robot0 move to wp3 robot1 moves to wp3
+        robot0_arrived = False
+        robot1_arrived = False
+        for i in range(max_step_move):
+            robot0_pos, robot0_rotm, robot1_pos, robot1_rotm = self.get_poses(obs)
+
+            if not robot0_arrived:
+                goal_pos0 = self.waypoints_robot0[6]["goal_pos"]
+                goal_rotm0 = self.waypoints_robot0[6]["goal_rotm"]
+                action0 = self.convert_action_robot(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, self.waypoints_robot0[6]["gripper"])
+                robot0_arrived = self.check_arrived(robot0_pos, robot0_rotm, goal_pos0, goal_rotm0, threshold = 0.05)
+
+            if not robot1_arrived:
+                goal_pos1 = self.waypoints_robot1[6]["goal_pos"]
+                goal_rotm1 = self.waypoints_robot1[6]["goal_rotm"]
+                action1 = self.convert_action_robot(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, self.waypoints_robot1[6]["gripper"])
+                robot1_arrived = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.05)
+
+            action = np.hstack([action0, action1])
+            obs, reward, done, info = self.env.step(action)
+            self.rollout["observations"].append(self.process_obs(obs))
+            self.rollout["actions"].append(action)
+
+            if self.render:
+                self.env.render()
+
+            # if robot0_arrived and robot1_arrived:
+            #     break
+
+        return self.rollout
+    
+    def process_obs(self, obs):
+
+        processed_obs = copy.deepcopy(obs)
+        robot0_pos, robot0_rotm, robot1_pos, robot1_rotm = self.get_poses(obs)
+
+        processed_obs['robot0_eef_pos'] = robot0_pos
+        processed_obs['robot0_eef_quat_site'] = R.from_matrix(robot0_rotm).as_quat()
+
+        processed_obs['robot1_eef_pos'] = robot1_pos
+        processed_obs['robot1_eef_quat_site'] = R.from_matrix(robot1_rotm).as_quat()
+
+        processed_obs['robot0_gripper_pos'] = self.env.sim.data.qpos[self.qpos_index_0]
+        processed_obs['robot1_gripper_pos'] = self.env.sim.data.qpos[self.qpos_index_1]
+
+        return processed_obs
+
 
     
         
@@ -344,16 +547,24 @@ if __name__ == "__main__":
     controller_config = load_composite_controller_config(robot="Kinova3", controller="kinova.json")
 
     env = TwoArmHandover(
-    robots=["Kinova3", "Kinova3"],  #["Baxter"]
+    robots=["Kinova3", "Kinova3"],
     gripper_types="default",
     controller_configs=controller_config,
-    has_renderer=True,
-    has_offscreen_renderer=True,
-    prehensile=False,
+    has_renderer=False,
+    has_offscreen_renderer=False,
+    use_camera_obs=False,
+    prehensile=True,
     render_camera=None,
     )
 
-    player = PolicyPlayer(env)
-    # player.test()
-    rollout = player.get_demo(seed = 100)
-    print(len(rollout))
+    player = PolicyPlayer(env, render = False)
+    # rollout = player.get_demo(seed = 0, mode = 1)
+    for i in range(200):   
+        rollout = player.get_demo(seed = i*10, mode = 1)
+        rollout['hammer_pos'] = env._hammer_pos
+        with open("rollouts/rollout_seed%s_mode1.pkl" % (i*10), "wb") as f:
+            pkl.dump(rollout, f)
+        rollout = player.get_demo(seed = i*10, mode = 2)
+        rollout['hammer_pos'] = env._hammer_pos
+        with open("rollouts/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
+            pkl.dump(rollout, f)

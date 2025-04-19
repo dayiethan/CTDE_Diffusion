@@ -14,5 +14,7 @@ ctde_conditional/trained_models/
 arm/lift/rollouts/
 arm/lift/rollouts_pot/
 arm/lift/trained_models/
+arm/handover/rollouts/
+arm/handover/trained_models
 gnn_ctde/rollouts/
 gnn_ctde/trained_models/

@@ -393,12 +393,12 @@ class TwoArmHandover(TwoArmEnv):
                 name="ObjectSampler",
                 mujoco_objects=self.hammer,
                 x_range=[-0.1, 0.1],
-                y_range=[-0.05, 0.05],
-                rotation=np.pi/2,
+                y_range=[0., 0.],
+                rotation=0.,
                 rotation_axis=rotation_axis,
                 ensure_object_boundary_in_range=False,
                 ensure_valid_placement=True,
-                reference_pos=self.table_offset,
+                reference_pos=np.array([0., 0., .8]),
             )
 
         # task includes arena, robot, and objects of interest

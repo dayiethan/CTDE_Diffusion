@@ -291,7 +291,7 @@ class PolicyPlayer:
             if not robot1_arrived:
                 goal_pos1 = self.waypoints_robot1[0]["goal_pos"]
                 goal_rotm1 = self.waypoints_robot1[0]["goal_rotm"]
-                action1 = self.convert_action_robot(robot1_pos, robot1_rotm,goal_pos1, goal_rotm1, self.waypoints_robot1[0]["gripper"])
+                action1 = self.convert_action_robot(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, self.waypoints_robot1[0]["gripper"])
                 robot1_arrived = self.check_arrived(robot1_pos, robot1_rotm, goal_pos1, goal_rotm1, threshold = 0.05)
 
 
