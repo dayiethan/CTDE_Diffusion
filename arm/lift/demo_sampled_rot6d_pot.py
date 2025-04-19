@@ -95,11 +95,11 @@ class PolicyPlayer:
         model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
         H = 250 # horizon, length of each trajectory
 
-        expert_data = np.load("data/expert_actions_"+type+"_100.npy")
+        expert_data = np.load("data/expert_actions_"+type+"_20.npy")
         expert_data1 = expert_data[:, :, :action_dim]
         expert_data2 = expert_data[:, :, action_dim:action_dim*2]
 
-        pot_states = np.load("data/pot_states_"+type+"_100.npy")
+        pot_states = np.load("data/pot_states_"+type+"_20.npy")
 
         # Compute mean and standard deviation
         combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
@@ -148,17 +148,17 @@ class PolicyPlayer:
         sigma_data2 = actions2.std().item()
 
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_T250_"+type+"_pot_100")
+        action_cond_ode.load(extra="_T250_"+type+"_pot_20")
 
         return action_cond_ode
     
-    def get_demo(self, seed, mode, file_name = "rollouts_pot/rollout_seed0_mode2.pkl"):
+    def get_demo(self, seed, mode):
         """
         Main file to get the demonstration data
         """
         obs = self.reset(seed, mode)
 
-        expert_data = np.load("data/expert_actions_rot6d_100.npy")
+        expert_data = np.load("data/expert_actions_rot6d_20.npy")
         expert_data1 = expert_data[:, :, :10]
         expert_data2 = expert_data[:, :, 10:20]
         combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
@@ -167,10 +167,11 @@ class PolicyPlayer:
 
         model = self.load_model(type = "rot6d", state_dim = 10, action_dim = 10)
 
-        with open("data/pot_states_rot6d_100.npy", "rb") as f:
+        with open("data/pot_states_rot6d_20.npy", "rb") as f:
             obs = np.load(f)
-        obs1 = torch.FloatTensor(obs[0]).to(device).unsqueeze(0)
-        obs2 = torch.FloatTensor(obs[0]).to(device).unsqueeze(0)
+        cond_idx = -1    # The index of the condition you want from pot_states, this should correlate to the seed and mode that are being sampled
+        obs1 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0)
+        obs2 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0)
 
         traj_len = 250
         n_samples = 1
@@ -236,7 +237,7 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = False)
-    player.get_demo(seed = 0, mode = 2)
+    player.get_demo(seed = 1990, mode = 2)
     # for i in range(100):   
     #     rollout = player.get_demo(seed = i*10, mode = 2)
     #     with open("rollouts/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
