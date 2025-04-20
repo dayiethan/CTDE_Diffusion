@@ -152,7 +152,7 @@ class PolicyPlayer:
 
         return action_cond_ode
     
-    def get_demo(self, seed, mode, file_name = "rollouts_pot/rollout_seed0_mode2.pkl"):
+    def get_demo(self, seed, mode, file_name = "rollouts_pot/rollout_seed1990_mode2.pkl"):
         """
         Main file to get the demonstration data
         """
@@ -167,10 +167,10 @@ class PolicyPlayer:
 
         model = self.load_model(type = "rot6d", state_dim = 10, action_dim = 10)
 
-        with open("data/pot_states_rot6d_100.npy", "rb") as f:
+        with open("data/pot_states_rot6d_400.npy", "rb") as f:
             obs = np.load(f)
-        obs1 = torch.FloatTensor(obs[0]).to(device).unsqueeze(0)
-        obs2 = torch.FloatTensor(obs[0]).to(device).unsqueeze(0)
+        obs1 = torch.FloatTensor(obs[-2]).to(device).unsqueeze(0)
+        obs2 = torch.FloatTensor(obs[-2]).to(device).unsqueeze(0)
 
         traj_len = 250
         n_samples = 1
@@ -236,7 +236,7 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = False)
-    player.get_demo(seed = 0, mode = 2)
+    player.get_demo(seed = 1980, mode = 2)
     # for i in range(100):   
     #     rollout = player.get_demo(seed = i*10, mode = 2)
     #     with open("rollouts/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
