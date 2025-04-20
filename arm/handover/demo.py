@@ -10,7 +10,7 @@ from robosuite.controllers import load_composite_controller_config
 from transform_utils import *
 import pdb
 
-from env import TwoArmHandover
+from env import TwoArmHandoverRole
 from scipy.spatial.transform import Rotation as R
 
 
@@ -546,25 +546,25 @@ class PolicyPlayer:
 if __name__ == "__main__":
     controller_config = load_composite_controller_config(robot="Kinova3", controller="kinova.json")
 
-    env = TwoArmHandover(
+    env = TwoArmHandoverRole(
     robots=["Kinova3", "Kinova3"],
     gripper_types="default",
     controller_configs=controller_config,
-    has_renderer=False,
-    has_offscreen_renderer=False,
+    has_renderer=True,
+    has_offscreen_renderer=True,
     use_camera_obs=False,
     prehensile=True,
     render_camera=None,
     )
 
-    player = PolicyPlayer(env, render = False)
-    # rollout = player.get_demo(seed = 0, mode = 1)
-    for i in range(200):   
-        rollout = player.get_demo(seed = i*10, mode = 1)
-        rollout['hammer_pos'] = env._hammer_pos
-        with open("rollouts/rollout_seed%s_mode1.pkl" % (i*10), "wb") as f:
-            pkl.dump(rollout, f)
-        rollout = player.get_demo(seed = i*10, mode = 2)
-        rollout['hammer_pos'] = env._hammer_pos
-        with open("rollouts/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
-            pkl.dump(rollout, f)
+    player = PolicyPlayer(env, render = True)
+    rollout = player.get_demo(seed = 0, mode = 1)
+    # for i in range(200):   
+    #     rollout = player.get_demo(seed = i*10, mode = 1)
+    #     rollout['hammer_pos'] = env._hammer_pos
+    #     with open("rollouts/rollout_seed%s_mode1.pkl" % (i*10), "wb") as f:
+    #         pkl.dump(rollout, f)
+    #     rollout = player.get_demo(seed = i*10, mode = 2)
+    #     rollout['hammer_pos'] = env._hammer_pos
+    #     with open("rollouts/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
+    #         pkl.dump(rollout, f)

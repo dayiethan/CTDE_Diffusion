@@ -11,22 +11,24 @@ import robosuite as suite
 from robosuite.controllers import load_composite_controller_config
 from conditional_Action_DiT import Conditional_ODE
 
-from env import TwoArmLiftRole
+from env import TwoArmHandoverRole
 
 from scipy.spatial.transform import Rotation as R
-from transform_utils import SE3_log_map, SE3_exp_map, quat_to_rot6d, rotvec_to_rot6d, rot6d_to_quat, rot6d_to_rotvec
+from transform_utils import SE3_log_map, SE3_exp_map, quat_to_rot6d, rotvec_to_rot6d, rot6d_to_quat, rot6d_to_rotvec, quat_to_rotm
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-class TwoArmLift():
-    def __init__(self, state_size=7, action_size=7):
+class TwoArmHandover():
+    def __init__(self, state_size=10, action_size=10):
         self.state_size = state_size
         self.action_size = action_size
-        self.name = "TwoArmLift"
+        self.name = "TwoArmHandover"
 
 class PolicyPlayer:
-    def __init__ (self, env, render = False):
+    def __init__ (self, env, render= True):
+        
+        
         self.env = env
 
         self.control_freq = env.control_freq
@@ -53,17 +55,8 @@ class PolicyPlayer:
                                   [1, 0, 0],
                                   [0, 0, -1]])
 
-        # robot0_init_rotm_world = R.from_quat(obs['robot0_eef_quat_site'], scalar_first = False).as_matrix()
-        # robot1_init_rotm_world = R.from_quat(obs['robot1_eef_quat_site'], scalar_first = False).as_matrix()
-
+        obs = self.reset()
         self.n_action = self.env.action_spec[0].shape[0]
-
-        # Setting up constants
-        self.pot_handle_offset_z = 0.012
-        self.pot_handle_offset_x = 0.015
-        self.pot_handle_offset = np.array([self.pot_handle_offset_x, 0, self.pot_handle_offset_z])
-        self.pot_handle0_pos = self.robot0_base_ori_rotm.T @ (self.env._handle0_xpos - self.robot0_base_pos) + self.pot_handle_offset
-        self.pot_handle1_pos = self.robot1_base_ori_rotm.T @ (self.env._handle1_xpos - self.robot1_base_pos) + self.pot_handle_offset
 
     def reset(self, seed = 0, mode = 1):
         """
@@ -71,13 +64,12 @@ class PolicyPlayer:
         """
         np.random.seed(seed)
         obs = self.env.reset()
+        self.handle_length = self.env.hammer.handle_length
+        self.hammer_headsize = 2*self.env.hammer.head_halfsize
 
-        # Setting up constants
-        self.pot_handle_offset_z = 0.012
-        self.pot_handle_offset_x = 0.015
-        self.pot_handle_offset = np.array([self.pot_handle_offset_x, 0, self.pot_handle_offset_z])
-        self.pot_handle0_pos = self.robot0_base_ori_rotm.T @ (self.env._handle0_xpos - self.robot0_base_pos) + self.pot_handle_offset
-        self.pot_handle1_pos = self.robot1_base_ori_rotm.T @ (self.env._handle1_xpos - self.robot1_base_pos) + self.pot_handle_offset
+        self.hammer_pos0 = self.robot0_base_ori_rotm.T @ (self.env._hammer_pos - self.robot0_base_pos)
+        self.hammer_pos1 = self.robot1_base_ori_rotm.T @ (self.env._hammer_pos - self.robot1_base_pos)
+        self.hammer_rotm = quat_to_rotm(self.env._hammer_quat)
         jnt_id_0 = self.env.sim.model.joint_name2id("gripper0_right_finger_joint") #gripper0_right_finger_joint, gripper0_right_right_outer_knuckle_joint
         self.qpos_index_0 = self.env.sim.model.jnt_qposadr[jnt_id_0]
         jnt_id_1 = self.env.sim.model.joint_name2id("gripper1_right_finger_joint") #gripper0_right_finger_joint, gripper0_right_right_outer_knuckle_joint
@@ -89,17 +81,17 @@ class PolicyPlayer:
 
         return obs
 
-    def load_model(self, type = "rot6d", state_dim = 7, action_dim = 7):
+    def load_model(self, type = "rot6d", state_dim = 10, action_dim = 10):
         n_gradient_steps = 100_000
         batch_size = 64
         model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
-        H = 250 # horizon, length of each trajectory
+        H = 340 # horizon, length of each trajectory
 
         expert_data = np.load("data/expert_actions_"+type+"_100.npy")
         expert_data1 = expert_data[:, :, :action_dim]
         expert_data2 = expert_data[:, :, action_dim:action_dim*2]
 
-        pot_states = np.load("data/pot_states_"+type+"_100.npy")
+        hammer_states = np.load("data/hammer_states_"+type+"_100.npy")
 
         # Compute mean and standard deviation
         combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
@@ -117,8 +109,8 @@ class PolicyPlayer:
             for i in range(len(traj) - 1):
                 X_train1.append(traj[i])  # Current state + goal
                 Y_train1.append(traj[i + 1])  # Next state
-        X_train1 = torch.tensor(np.array(X_train1), dtype=torch.float32) # Shape: (N, 7)
-        Y_train1 = torch.tensor(np.array(Y_train1), dtype=torch.float32) # Shape: (N, 7)
+        X_train1 = torch.tensor(np.array(X_train1), dtype=torch.float32) # Shape: (N, 10)
+        Y_train1 = torch.tensor(np.array(Y_train1), dtype=torch.float32) # Shape: (N, 10)
 
         X_train2 = []
         Y_train2 = []
@@ -126,13 +118,13 @@ class PolicyPlayer:
             for i in range(len(traj) - 1):
                 X_train2.append(traj[i])  # Current state + goal
                 Y_train2.append(traj[i + 1])  # Next state
-        X_train2 = torch.tensor(np.array(X_train2), dtype=torch.float32)  # Shape: (N, 7)
-        Y_train2 = torch.tensor(np.array(Y_train2), dtype=torch.float32)  # Shape: (N, 7)
+        X_train2 = torch.tensor(np.array(X_train2), dtype=torch.float32)  # Shape: (N, 10)
+        Y_train2 = torch.tensor(np.array(Y_train2), dtype=torch.float32)  # Shape: (N, 10)
 
-        env = TwoArmLift(state_size=state_dim, action_size=action_dim)
+        env = TwoArmHandover(state_size=state_dim, action_size=action_dim)
 
-        obs1 = torch.FloatTensor(pot_states).to(device)
-        obs2 = torch.FloatTensor(pot_states).to(device)
+        obs1 = torch.FloatTensor(hammer_states).to(device)
+        obs2 = torch.FloatTensor(hammer_states).to(device)
         attr1 = obs1
         attr2 = obs2
         attr_dim1 = attr1.shape[1]
@@ -148,11 +140,11 @@ class PolicyPlayer:
         sigma_data2 = actions2.std().item()
 
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_T250_"+type+"_pot_100")
+        action_cond_ode.load(extra="_T340_"+type+"_hammer_100")
 
         return action_cond_ode
     
-    def get_demo(self, seed, mode, file_name = "rollouts_pot/rollout_seed1990_mode2.pkl"):
+    def get_demo(self, seed, mode):
         """
         Main file to get the demonstration data
         """
@@ -167,12 +159,13 @@ class PolicyPlayer:
 
         model = self.load_model(type = "rot6d", state_dim = 10, action_dim = 10)
 
-        with open("data/pot_states_rot6d_400.npy", "rb") as f:
+        with open("data/hammer_states_rot6d_100.npy", "rb") as f:
             obs = np.load(f)
-        obs1 = torch.FloatTensor(obs[-2]).to(device).unsqueeze(0)
-        obs2 = torch.FloatTensor(obs[-2]).to(device).unsqueeze(0)
+        cond_idx = 1
+        obs1 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0)
+        obs2 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0)
 
-        traj_len = 250
+        traj_len = 340
         n_samples = 1
 
         sampled1 = model.sample(obs1, traj_len, n_samples, w=1., model_index=0)
@@ -182,12 +175,12 @@ class PolicyPlayer:
         sampled1 = sampled1 * std + mean
         sampled2 = sampled2 * std + mean
 
-        pos1 = sampled1[:, :3]   # shape: (250, 3)
-        rot6d1 = sampled1[:, 3:9]   # shape: (250, 6)
-        grip1 = sampled1[:, 9]       # shape: (250,)
-        pos2 = sampled2[:, :3]   # shape: (250, 3)
-        rot6d2 = sampled2[:, 3:9]   # shape: (250, 6)
-        grip2 = sampled2[:, 9]       # shape: (250,)
+        pos1 = sampled1[:, :3]   # shape: (340, 3)
+        rot6d1 = sampled1[:, 3:9]   # shape: (340, 6)
+        grip1 = sampled1[:, 9]       # shape: (340,)
+        pos2 = sampled2[:, :3]   # shape: (340, 3)
+        rot6d2 = sampled2[:, 3:9]   # shape: (340, 6)
+        grip2 = sampled2[:, 9]       # shape: (340,)
 
         rotvecs1 = np.array([rot6d_to_rotvec(row) for row in rot6d1])
         rotvecs2 = np.array([rot6d_to_rotvec(row) for row in rot6d2])
@@ -220,23 +213,22 @@ class PolicyPlayer:
         return processed_obs
             
 
-    
-        
 if __name__ == "__main__":
     controller_config = load_composite_controller_config(robot="Kinova3", controller="kinova.json")
 
-    env = TwoArmLiftRole(
+    env = TwoArmHandoverRole(
     robots=["Kinova3", "Kinova3"],
     gripper_types="default",
     controller_configs=controller_config,
     has_renderer=True,
     has_offscreen_renderer=True,
     use_camera_obs=False,
+    prehensile=True,
     render_camera=None,
     )
 
-    player = PolicyPlayer(env, render = False)
-    player.get_demo(seed = 1980, mode = 2)
+    player = PolicyPlayer(env, render = True)
+    rollout = player.get_demo(seed = 10, mode = 1)
     # for i in range(100):   
     #     rollout = player.get_demo(seed = i*10, mode = 2)
     #     with open("rollouts/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:

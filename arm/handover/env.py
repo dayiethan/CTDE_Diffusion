@@ -13,7 +13,7 @@ from robosuite.utils.observables import Observable, sensor
 from robosuite.utils.placement_samplers import UniformRandomSampler
 
 
-class TwoArmHandover(TwoArmEnv):
+class TwoArmHandoverRole(TwoArmEnv):
     """
     This class corresponds to the handover task for two robot arms.
 
