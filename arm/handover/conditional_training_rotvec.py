@@ -49,13 +49,13 @@ X_train2 = torch.tensor(np.array(X_train2), dtype=torch.float32)  # Shape: (N, 7
 Y_train2 = torch.tensor(np.array(Y_train2), dtype=torch.float32)  # Shape: (N, 7)
 
 # define an enviornment objcet which has attrubutess like name, state_size, action_size etc
-class TwoArmLift():
+class TwoArmHandover():
     def __init__(self, state_size=7, action_size=7):
         self.state_size = state_size
         self.action_size = action_size
-        self.name = "TwoArmLift"
+        self.name = "TwoArmHandover"
 
-env = TwoArmLift()
+env = TwoArmHandover()
 
 # obs_init1 = states1[:, 0, :]
 # obs_init2 = states2[:, 0, :]
