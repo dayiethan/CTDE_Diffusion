@@ -558,7 +558,7 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = True)
-    rollout = player.get_demo(seed = 0, mode = 1)
+    rollout = player.get_demo(seed = 100, mode = 1)
     # for i in range(200):   
     #     rollout = player.get_demo(seed = i*10, mode = 1)
     #     rollout['hammer_pos'] = env._hammer_pos

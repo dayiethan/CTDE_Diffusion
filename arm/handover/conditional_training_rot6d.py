@@ -11,11 +11,11 @@ batch_size = 64
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 340 # horizon, length of each trajectory
 
-expert_data = np.load("data/expert_actions_rot6d_100.npy")
+expert_data = np.load("data/expert_actions_rot6d_200.npy")
 expert_data1 = expert_data[:, :, :10]
 expert_data2 = expert_data[:, :, 10:20]
 
-states = np.load("data/expert_states_rot6d_100.npy")
+states = np.load("data/expert_states_rot6d_200.npy")
 states1 = states[:, :, :10]
 states2 = states[:, :, 10:20]
 
@@ -59,7 +59,7 @@ env = TwoArmHandover()
 
 actions1 = expert_data1[:, :H-1, :]
 actions2 = expert_data2[:, :H-1, :]
-with open("data/hammer_states_rot6d_100.npy", "rb") as f:
+with open("data/hammer_states_rot6d_200.npy", "rb") as f:
     obs = np.load(f)
 obs1 = torch.FloatTensor(obs).to(device)
 obs2 = torch.FloatTensor(obs).to(device)
@@ -79,6 +79,6 @@ sigma_data2 = actions2.std().item()
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T340_rot6d_hammer_100", endpoint_loss=False)
-action_cond_ode.save(extra="_T340_rot6d_hammer_100")
-action_cond_ode.load(extra="_T340_rot6d_hammer_100")
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T340_rot6d_hammer_200", endpoint_loss=False)
+action_cond_ode.save(extra="_T340_rot6d_hammer_200")
+action_cond_ode.load(extra="_T340_rot6d_hammer_200")

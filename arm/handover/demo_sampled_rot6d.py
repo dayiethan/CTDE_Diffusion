@@ -161,7 +161,7 @@ class PolicyPlayer:
 
         with open("data/hammer_states_rot6d_100.npy", "rb") as f:
             obs = np.load(f)
-        cond_idx = 1
+        cond_idx = -2
         obs1 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0)
         obs2 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0)
 
@@ -228,7 +228,7 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = True)
-    rollout = player.get_demo(seed = 10, mode = 1)
+    rollout = player.get_demo(seed = 1980, mode = 1)
     # for i in range(100):   
     #     rollout = player.get_demo(seed = i*10, mode = 2)
     #     with open("rollouts/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
