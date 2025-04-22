@@ -182,10 +182,11 @@ class PolicyPlayer:
         sampled1 = sampled1 * std + mean
         sampled2 = sampled2 * std + mean
 
-
+        # breakpoint()
         for i in range(len(sampled1)):
             action = np.hstack([sampled1[i], sampled2[i]])
             obs, reward, done, info = self.env.step(action)
+            # breakpoint()
 
             if self.render:
                 self.env.render()

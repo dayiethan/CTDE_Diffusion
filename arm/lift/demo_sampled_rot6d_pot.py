@@ -195,7 +195,7 @@ class PolicyPlayer:
 
         combined1 = np.hstack([pos1, rotvecs1, grip1.reshape(-1,1)])
         combined2 = np.hstack([pos2, rotvecs2, grip2.reshape(-1,1)])
-
+        # breakpoint()
         for i in range(len(combined1)):
             action = np.hstack([combined1[i], combined2[i]])
             obs, reward, done, info = self.env.step(action)
