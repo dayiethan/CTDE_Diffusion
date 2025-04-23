@@ -87,11 +87,11 @@ class PolicyPlayer:
         model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
         H = 340 # horizon, length of each trajectory
 
-        expert_data = np.load("data/expert_actions_"+type+"_200.npy")
+        expert_data = np.load("data_pickup_pos/expert_actions_"+type+"_200.npy")
         expert_data1 = expert_data[:, :, :action_dim]
         expert_data2 = expert_data[:, :, action_dim:action_dim*2]
 
-        hammer_states = np.load("data/hammer_states_"+type+"_200.npy")
+        hammer_states = np.load("data_pickup_pos/hammer_states_"+type+"_200.npy")
 
         # Compute mean and standard deviation
         combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
@@ -138,18 +138,18 @@ class PolicyPlayer:
         sigma_data2 = actions2.std().item()
 
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_T340_"+type+"_hammer_200")
+        action_cond_ode.load(extra="_T340_"+type+"_hammer_pickup_pos_200")
 
         return action_cond_ode
 
     
-    def get_demo(self, seed, mode):
+    def get_demo(self, seed, mode, idx):
         """
         Main file to get the demonstration data
         """
         obs = self.reset(seed, mode)
 
-        expert_data = np.load("data/expert_actions_rotvec_200.npy")
+        expert_data = np.load("data_pickup_pos/expert_actions_rotvec_200.npy")
         expert_data1 = expert_data[:, :, :7]
         expert_data2 = expert_data[:, :, 7:14]
         combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
@@ -158,11 +158,10 @@ class PolicyPlayer:
 
         model = self.load_model(type = "rotvec", state_dim = 7, action_dim = 7)
 
-        with open("data/hammer_states_rot6d_200.npy", "rb") as f:
+        with open("data_pickup_pos/hammer_states_rotvec_200.npy", "rb") as f:
             obs = np.load(f)
-        cond_idx = -1
-        obs1 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0)
-        obs2 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0)
+        obs1 = torch.FloatTensor(obs[idx]).to(device).unsqueeze(0)
+        obs2 = torch.FloatTensor(obs[idx]).to(device).unsqueeze(0)
 
         traj_len = 340
         n_samples = 1
@@ -198,7 +197,8 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = True)
-    rollout = player.get_demo(seed = 1990, mode = 1)
+    i = 9
+    rollout = player.get_demo(seed = i*10, mode = 1, idx = i)
     # for i in range(100):   
     #     rollout = player.get_demo(seed = i*10, mode = 2)
     #     with open("rollouts/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
