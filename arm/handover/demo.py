@@ -85,6 +85,7 @@ class PolicyPlayer:
             """
             Robot 0 Waypoints
             """
+            self.pickup_pos = self.hammer_pos0 + np.array([0, -self.handle_length/2 + 0.03, 0.02])
             #wp0
             waypoint = {"goal_pos": self.hammer_pos0 + np.array([0, -self.handle_length/2 + 0.03, 0.02]),
                         "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
@@ -222,6 +223,7 @@ class PolicyPlayer:
             """
             Robot 1 Waypoints
             """
+            self.pickup_pos = self.hammer_pos1 + np.array([0, self.handle_length/2 - 0.02, 0.02])
             #wp0
             waypoint = {"goal_pos": self.hammer_pos1 + np.array([0, self.handle_length/2 - 0.02, 0.02]),
                         "goal_rotm": self.hammer_rotm @ R.from_euler('y', -np.pi/2).as_matrix() @ R.from_euler('z', -np.pi/2).as_matrix(),
@@ -550,21 +552,21 @@ if __name__ == "__main__":
     robots=["Kinova3", "Kinova3"],
     gripper_types="default",
     controller_configs=controller_config,
-    has_renderer=True,
-    has_offscreen_renderer=True,
+    has_renderer=False,
+    has_offscreen_renderer=False,
     use_camera_obs=False,
     prehensile=True,
     render_camera=None,
     )
 
-    player = PolicyPlayer(env, render = True)
-    rollout = player.get_demo(seed = 100, mode = 1)
-    # for i in range(200):   
-    #     rollout = player.get_demo(seed = i*10, mode = 1)
-    #     rollout['hammer_pos'] = env._hammer_pos
-    #     with open("rollouts/rollout_seed%s_mode1.pkl" % (i*10), "wb") as f:
-    #         pkl.dump(rollout, f)
-    #     rollout = player.get_demo(seed = i*10, mode = 2)
-    #     rollout['hammer_pos'] = env._hammer_pos
-    #     with open("rollouts/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
-    #         pkl.dump(rollout, f)
+    player = PolicyPlayer(env, render = False)
+    # rollout = player.get_demo(seed = 11111, mode = 2)
+    for i in range(200):   
+        rollout = player.get_demo(seed = i*10, mode = 1)
+        rollout['hammer_pos'] = player.pickup_pos
+        with open("rollouts_pickup_pos/rollout_seed%s_mode1.pkl" % (i*10), "wb") as f:
+            pkl.dump(rollout, f)
+        rollout = player.get_demo(seed = i*10, mode = 2)
+        rollout['hammer_pos'] = player.pickup_pos
+        with open("rollouts_pickup_pos/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
+            pkl.dump(rollout, f)

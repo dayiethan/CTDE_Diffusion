@@ -78,9 +78,9 @@ class PolicyPlayer:
         self.pot_handle_offset = np.array([self.pot_handle_offset_x, 0, self.pot_handle_offset_z])
         self.pot_handle0_pos = self.robot0_base_ori_rotm.T @ (self.env._handle0_xpos - self.robot0_base_pos) + self.pot_handle_offset
         self.pot_handle1_pos = self.robot1_base_ori_rotm.T @ (self.env._handle1_xpos - self.robot1_base_pos) + self.pot_handle_offset
-        jnt_id_0 = self.env.sim.model.joint_name2id("gripper0_right_finger_joint") #gripper0_right_finger_joint, gripper0_right_right_outer_knuckle_joint
+        jnt_id_0 = self.env.sim.model.joint_name2id("gripper0_right_left_driver_joint") #gripper0_right_finger_joint, gripper0_right_right_outer_knuckle_joint
         self.qpos_index_0 = self.env.sim.model.jnt_qposadr[jnt_id_0]
-        jnt_id_1 = self.env.sim.model.joint_name2id("gripper1_right_finger_joint") #gripper0_right_finger_joint, gripper0_right_right_outer_knuckle_joint
+        jnt_id_1 = self.env.sim.model.joint_name2id("gripper1_right_left_driver_joint") #gripper0_right_finger_joint, gripper0_right_right_outer_knuckle_joint
         self.qpos_index_1 = self.env.sim.model.jnt_qposadr[jnt_id_1]
 
         self.rollout = {}
@@ -224,10 +224,10 @@ class PolicyPlayer:
     
         
 if __name__ == "__main__":
-    controller_config = load_composite_controller_config(robot="Kinova3", controller="kinova.json")
+    controller_config = load_composite_controller_config(robot="XArm7", controller="xarm7.json")
 
     env = TwoArmLiftRole(
-    robots=["Kinova3", "Kinova3"],
+    robots=["XArm7", "XArm7"],
     gripper_types="default",
     controller_configs=controller_config,
     has_renderer=True,

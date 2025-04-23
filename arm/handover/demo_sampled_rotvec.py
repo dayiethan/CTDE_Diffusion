@@ -87,11 +87,11 @@ class PolicyPlayer:
         model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
         H = 340 # horizon, length of each trajectory
 
-        expert_data = np.load("data/expert_actions_"+type+"_100.npy")
+        expert_data = np.load("data/expert_actions_"+type+"_200.npy")
         expert_data1 = expert_data[:, :, :action_dim]
         expert_data2 = expert_data[:, :, action_dim:action_dim*2]
 
-        hammer_states = np.load("data/hammer_states_"+type+"_100.npy")
+        hammer_states = np.load("data/hammer_states_"+type+"_200.npy")
 
         # Compute mean and standard deviation
         combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
@@ -138,7 +138,7 @@ class PolicyPlayer:
         sigma_data2 = actions2.std().item()
 
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_T340_"+type+"_hammer_100")
+        action_cond_ode.load(extra="_T340_"+type+"_hammer_200")
 
         return action_cond_ode
 
@@ -149,7 +149,7 @@ class PolicyPlayer:
         """
         obs = self.reset(seed, mode)
 
-        expert_data = np.load("data/expert_actions_rotvec_100.npy")
+        expert_data = np.load("data/expert_actions_rotvec_200.npy")
         expert_data1 = expert_data[:, :, :7]
         expert_data2 = expert_data[:, :, 7:14]
         combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
@@ -158,7 +158,7 @@ class PolicyPlayer:
 
         model = self.load_model(type = "rotvec", state_dim = 7, action_dim = 7)
 
-        with open("data/hammer_states_rot6d_100.npy", "rb") as f:
+        with open("data/hammer_states_rot6d_200.npy", "rb") as f:
             obs = np.load(f)
         cond_idx = -1
         obs1 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0)

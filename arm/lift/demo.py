@@ -486,12 +486,12 @@ if __name__ == "__main__":
 
     player = PolicyPlayer(env, render = False)
     rollout = player.get_demo(seed = 100, mode = 2)
-    for i in range(200):   
+    # for i in range(200):   
         # rollout = player.get_demo(seed = i*10, mode = 2)
         # rollout['pot_pos'] = [player.pot_handle0_pos, player.pot_handle1_pos]
         # with open("rollouts_pot/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
         #     pkl.dump(rollout, f)
-        rollout = player.get_demo(seed = i*10, mode = 3)
-        rollout['pot_pos'] = [player.pot_handle0_pos, player.pot_handle1_pos]
-        with open("rollouts_pot/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
-            pkl.dump(rollout, f)
+        # rollout = player.get_demo(seed = i*10, mode = 3)
+        # rollout['pot_pos'] = [player.pot_handle0_pos, player.pot_handle1_pos]
+        # with open("rollouts_pot/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
+        #     pkl.dump(rollout, f)
