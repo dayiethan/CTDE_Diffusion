@@ -28,9 +28,27 @@ The `decentralized` folder contains the 2-agent diffusion model path planning co
 - **vary_init/**: Varying the initial and final conditions of the expert demonstrations by adding more noise to the training data effectively having demonstrations start and end at different positions.
 
 ### random
-The `random` folder contains ongoing work that utilizes expert demonstration data that includes a random array of initial and final positions for the agents. The goal of this work is to find optimal trajectories for two agents starting at given initial and final conditions. The key components of this folder include:
+The `random` folder contains work that utilizes expert demonstration data that includes a random array of initial and final positions for the agents. The goal of this work is to find optimal trajectories for two agents starting at given initial and final conditions. The key components of this folder include:
 
 - **data/**: Includes the expert demonstration data.
 - **figs/**: Includes the results of the generated trajectory and trained model.
 - **traj_from_diffusion_transformer_cond.py**: Generates a trajectory from a trained diffusion model with random initial and final positions.
 - **diffusion_transformer_cond.py**: Uses expert demonstrations to train the diffusion model with random initial and final positions.
+
+### conditional
+The `conditional` folder is for performing the 2-agent swap task with a conditional diffusion model.
+
+### ctde_conditional
+The `ctde_conditional` folder extends the 'conditional' folder's work in the 2-agent swap envionrment by training a separate model for each agent with a shared loss and then executing the models separately during trajectory generation.
+
+### arm
+The `arm` folder is for the robosuite environment tasks.
+
+### madiff
+The `madiff` folder is for running the MaDiff code for our 2-agent swap environment.
+
+### conditional
+The `conditional` folder is for performing the 2-agent swap task with a conditional diffusion model.
+
+### herding
+The `herding` folder is the beginning of creating our own herding environment.
