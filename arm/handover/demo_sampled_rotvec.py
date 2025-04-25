@@ -158,7 +158,7 @@ class PolicyPlayer:
 
         model = self.load_model(type = "rotvec", state_dim = 7, action_dim = 7)
 
-        with open("data_pickup_pos/hammer_states_rotvec_20.npy", "rb") as f:
+        with open("data_pickup_pos/hammer_states_rotvec_200.npy", "rb") as f:
             obs = np.load(f)
         obs1 = torch.FloatTensor(obs[idx]).to(device).unsqueeze(0)
         obs2 = torch.FloatTensor(obs[idx]).to(device).unsqueeze(0)
@@ -197,7 +197,7 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = True)
-    i = 1
+    i = 0
     rollout = player.get_demo(seed = i*10, mode = 1, idx = i)
     # for i in range(100):   
     #     rollout = player.get_demo(seed = i*10, mode = 2)
