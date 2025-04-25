@@ -52,3 +52,6 @@ The `conditional` folder is for performing the 2-agent swap task with a conditio
 
 ### herding
 The `herding` folder is the beginning of creating our own herding environment.
+
+### dependencies
+The `dependencies` folder contains the yaml and requirements files for the environment.
