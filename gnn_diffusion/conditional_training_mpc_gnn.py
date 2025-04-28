@@ -39,7 +39,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
 # Parameters
-n_gradient_steps = 10_000
+n_gradient_steps = 100_000
 batch_size = 64
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 10 # horizon, length of each trajectory
@@ -143,7 +143,7 @@ action_cond_ode.save(extra="_T10_mpc")
 
 
 # Sampling preparation
-noise_std = 0.
+noise_std = 0.2
 noise = np.ones(np.shape(obs_temp1))
 obs_temp1 = obs_temp1 + noise_std * noise
 obs_temp2 = obs_temp2 + noise_std * noise

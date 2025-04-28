@@ -41,7 +41,7 @@ with open("data/sigma_data.npy", "rb") as f:
 
 # Training
 action_cond_ode = Conditional_ODE(env, [4, 4], sig.tolist(), device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.load(extra="_T10_2")
+action_cond_ode.load(extra="_T10_mpc")
 
 
 def mpc_plan(ode_model, env, initial_states, fixed_goals, model_i, segment_length=H, total_steps=T):
@@ -139,11 +139,57 @@ def mpc_plan_multi(ode_model, env, initial_states, fixed_goals, segment_length=1
     # full_traj = np.transpose(full_traj, (1, 0, 2))
     return full_traj
 
+def mpc_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100):
+    """
+    True MPC: At each step, plan a full segment but only execute the first step.
+    
+    Parameters:
+      - ode_model: the diffusion model (must support sample() that accepts a single condition tensor).
+      - env: the environment (to get state dimensions, etc.)
+      - initial_states: numpy array of shape (n_agents, state_size).
+      - fixed_goals: numpy array of shape (n_agents, state_size).
+      - segment_length: how many steps we plan ahead (default 10).
+      - total_steps: how many total steps to run.
+      
+    Returns:
+      - full_traj: numpy array of shape (total_steps, n_agents, state_size)
+    """
+    n_agents = len(initial_states)
+    current_states = initial_states.copy()  # will be updated at every step
+    full_traj = []
+
+    for step in range(total_steps):
+        next_states = []
+        # For each agent, plan a 10-step trajectory, but we'll only take the first action.
+        for i in range(n_agents):
+            # Build the condition for agent i
+            cond1 = np.hstack([current_states[0], fixed_goals[0]])
+            cond2 = np.hstack([current_states[1], fixed_goals[1]])
+            cond1_tensor = torch.tensor(cond1, dtype=torch.float32, device=device).unsqueeze(0)
+            cond2_tensor = torch.tensor(cond2, dtype=torch.float32, device=device).unsqueeze(0)
+            
+            # Sample a full segment
+            sampled = ode_model.sample(attr=[cond1_tensor, cond2_tensor], traj_len=segment_length, n_samples=1, w=1., model_index=i)
+            seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, state_size)
+
+            # Take only the first step
+            next_state_i = seg_i[1]
+            next_states.append(next_state_i)
+
+        # Update current states
+        current_states = np.array(next_states)
+        # Save the executed states
+        full_traj.append(current_states)
+
+    full_traj = np.stack(full_traj, axis=1)  # Shape: (total_steps, n_agents, state_size)
+    return full_traj
+
+
 
 # --- 2. MPC Planning and Video Generation ---
 
 for i in range(10):
-    noise_std = 0.0
+    noise_std = 0.2
     initial1 = initial_point_up + noise_std * np.random.randn(*np.shape(initial_point_up))
     initial1 = (initial1 - mean) / std
     final1 = final_point_up + noise_std * np.random.randn(*np.shape(final_point_up))
@@ -159,7 +205,7 @@ for i in range(10):
     # planned_traj2 = mpc_plan(action_cond_ode, env, [initial1, initial2], [final1, final2], 1, segment_length=H, total_steps=T)
     # planned_traj2 = planned_traj2 * std + mean
 
-    planned_trajs = mpc_plan_multi(action_cond_ode, env, [initial2, initial1], [final2, final1], segment_length=H, total_steps=T)
+    planned_trajs = mpc_plan_multi_true(action_cond_ode, env, [initial2, initial1], [final2, final1], segment_length=H, total_steps=T)
 
     planned_traj1 = planned_trajs[0] * std + mean
     planned_traj2 = planned_trajs[1] * std + mean
@@ -179,23 +225,23 @@ for i in range(10):
     planned_traj1 = np.array(planned_traj1)
     planned_traj2 = np.array(planned_traj2)
 
-    np.savetxt(os.path.join(save_folder, f"diffusion_gnn_planned_traj1_{i}.csv"), planned_traj1, delimiter=",")
-    np.savetxt(os.path.join(save_folder, f"diffusion_gnn_planned_traj2_{i}.csv"), planned_traj2, delimiter=",")
+    np.savetxt(os.path.join(save_folder, f"diffusion_gnn_noise_0_2_planned_traj1_{i}.csv"), planned_traj1, delimiter=",")
+    np.savetxt(os.path.join(save_folder, f"diffusion_gnn_noise_0_2_planned_traj2_{i}.csv"), planned_traj2, delimiter=",")
 
-    # # Plot the planned trajectory:
-    # plt.figure(figsize=(22, 14))
-    # plt.ylim(-7, 7)
-    # plt.xlim(-1,21)
-    # plt.plot(planned_traj1[:, 0], planned_traj1[:, 1], 'b.-')
-    # plt.plot(planned_traj2[:, 0], planned_traj2[:, 1], 'o-', color='orange')
-    # ox, oy, r = obstacle
-    # circle1 = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
-    # plt.gca().add_patch(circle1)
-    # plt.xlabel("x")
-    # plt.ylabel("y")
-    # plt.title("MPC Planned Trajectory")
-    # plt.savefig("figs/mpc/mpc_traj_%s.png" % i)
-    # # plt.show()
+    # Plot the planned trajectory:
+    plt.figure(figsize=(22, 14))
+    plt.ylim(-7, 7)
+    plt.xlim(-1,21)
+    plt.plot(planned_traj1[:, 0], planned_traj1[:, 1], 'b.-')
+    plt.plot(planned_traj2[:, 0], planned_traj2[:, 1], 'o-', color='orange')
+    ox, oy, r = obstacle
+    circle1 = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
+    plt.gca().add_patch(circle1)
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.title("MPC Planned Trajectory")
+    plt.savefig("figs/mpc/mpc_traj_%s.png" % str(i+10))
+    # plt.show()
 
     # # Generate a video of the planning process:
     # fig, ax = plt.subplots(figsize=(22, 14))
