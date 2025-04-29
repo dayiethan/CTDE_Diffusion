@@ -125,9 +125,9 @@ sigma_data2 = actions2.std().item()
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T10_2")
-action_cond_ode.save(extra="_T10_2")
-action_cond_ode.load(extra="_T10_2")
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T100")
+# action_cond_ode.save(extra="_T100")
+action_cond_ode.load(extra="_T100")
 
 # import pdb
 # breakpoint()
@@ -146,58 +146,86 @@ ref2 = np.mean(expert_data2, axis=0)
 ref_agent1 = ref1[:, :]
 ref_agent2 = ref2[:, :]
 
-for i in range(10):
-    attr_t1 = attr_test1[i*10].unsqueeze(0)
-    attr_t2 = attr_test2[i*10].unsqueeze(0)
-    attr_n1 = attr_t1.cpu().detach().numpy()[0]
-    attr_n2 = attr_t2.cpu().detach().numpy()[0]
+# Sampling
+for i in range(100):
+    noise_std = 0.4
+    initial1 = initial_point_up + noise_std * np.random.randn(*np.shape(initial_point_up))
+    initial1 = (initial1 - mean) / std
+    final1 = final_point_up + noise_std * np.random.randn(*np.shape(final_point_up))
+    final1 = (final1 - mean) / std
+    initial2 = initial_point_down + noise_std * np.random.randn(*np.shape(initial_point_down))
+    initial2 = (initial2 - mean) / std
+    final2 = final_point_down + noise_std * np.random.randn(*np.shape(final_point_down))
+    final2 = (final2 - mean) / std
+
+    cond1 = np.hstack([initial1, final1])
+    cond2 = np.hstack([initial2, final2])
+    cond_tensor1 = torch.tensor(cond1, dtype=torch.float32, device=device).unsqueeze(0)
+    cond_tensor2 = torch.tensor(cond2, dtype=torch.float32, device=device).unsqueeze(0)
 
     traj_len = 100
     n_samples = 1
 
-    sampled1 = action_cond_ode.sample(attr_t1, traj_len, n_samples, w=1., model_index = 0)
-    sampled2 = action_cond_ode.sample(attr_t2, traj_len, n_samples, w=1., model_index = 1)
-
-    sampled1 = sampled1.cpu().detach().numpy()
-    sampled2 = sampled2.cpu().detach().numpy()
+    sampled1 = action_cond_ode.sample(cond_tensor1, traj_len, n_samples, w=1., model_index = 0).cpu().detach().numpy()[0]
+    sampled2 = action_cond_ode.sample(cond_tensor2, traj_len, n_samples, w=1., model_index = 1).cpu().detach().numpy()[0]
     sampled1 = sampled1 * std + mean
     sampled2 = sampled2 * std + mean
-    test1 = np.mean(sampled1, axis=0)
-    test2 = np.mean(sampled2, axis=0)
-    test_agent1 = test1[:, :]
-    test_agent2 = test2[:, :]
 
-    sys.setrecursionlimit(10000)
-    fast_frechet = FastDiscreteFrechetMatrix(euclidean)
-    frechet1 = fast_frechet.distance(ref_agent1,test_agent1)
-    frechet2 = fast_frechet.distance(ref_agent2,test_agent2)
-    print(frechet1, frechet2)
+    np.save("data/T100/traj1_%s.npy" % i, sampled1)
+    np.save("data/T100/traj2_%s.npy" % i, sampled2)
 
-    init_state1 = attr_n1[:2]
-    final_state1 = attr_n1[2:]
-    init_state2 = attr_n2[:2]
-    final_state2 = attr_n2[2:]
+# for i in range(10):
+#     attr_t1 = attr_test1[i*10].unsqueeze(0)
+#     attr_t2 = attr_test2[i*10].unsqueeze(0)
+#     attr_n1 = attr_t1.cpu().detach().numpy()[0]
+#     attr_n2 = attr_t2.cpu().detach().numpy()[0]
 
-    init_state1 = init_state1 * std + mean
-    final_state1 = final_state1 * std + mean
-    init_state2 = init_state2 * std + mean
-    final_state2 = final_state2 * std + mean
+#     traj_len = 100
+#     n_samples = 1
 
-    attr_n1 = np.concatenate([init_state1, final_state1])
-    attr_n2 = np.concatenate([init_state2, final_state2])
+#     sampled1 = action_cond_ode.sample(attr_t1, traj_len, n_samples, w=1., model_index = 0)
+#     sampled2 = action_cond_ode.sample(attr_t2, traj_len, n_samples, w=1., model_index = 1)
 
-    plt.figure(figsize=(20, 8))
-    plt.scatter(expert_data1[:, 0, 0], expert_data1[:, 0, 1], color='green')
-    plt.scatter(expert_data2[:, 0, 0], expert_data2[:, 0, 1], color='green')
-    plt.scatter(expert_data1[:, -1, 0], expert_data1[:, -1, 1], color='green')
-    plt.scatter(expert_data2[:, -1, 0], expert_data2[:, -1, 1], color='green')
-    plt.plot(attr_n1[0], attr_n1[1], 'bo')
-    plt.plot(attr_n2[0], attr_n2[1], 'o', color='orange')
-    plt.plot(attr_n1[2], attr_n1[3], 'bo')
-    plt.plot(attr_n2[2], attr_n2[3], 'o', color='orange')
-    plt.plot(sampled1[0, :, 0], sampled1[0, :, 1], color='blue', label=f"Agent 1 Traj (Frechet: {frechet1:.2f})")
-    plt.plot(sampled2[0, :, 0], sampled2[0, :, 1], color='orange', label=f"Agent 2 Traj (Frechet: {frechet2:.2f})")
-    plt.legend(loc="upper right", fontsize=14)
-    plt.savefig("figs/temp_T2/plot%s.png" % i)
+#     sampled1 = sampled1.cpu().detach().numpy()
+#     sampled2 = sampled2.cpu().detach().numpy()
+#     sampled1 = sampled1 * std + mean
+#     sampled2 = sampled2 * std + mean
+#     test1 = np.mean(sampled1, axis=0)
+#     test2 = np.mean(sampled2, axis=0)
+#     test_agent1 = test1[:, :]
+#     test_agent2 = test2[:, :]
+
+#     sys.setrecursionlimit(10000)
+#     fast_frechet = FastDiscreteFrechetMatrix(euclidean)
+#     frechet1 = fast_frechet.distance(ref_agent1,test_agent1)
+#     frechet2 = fast_frechet.distance(ref_agent2,test_agent2)
+#     print(frechet1, frechet2)
+
+#     init_state1 = attr_n1[:2]
+#     final_state1 = attr_n1[2:]
+#     init_state2 = attr_n2[:2]
+#     final_state2 = attr_n2[2:]
+
+#     init_state1 = init_state1 * std + mean
+#     final_state1 = final_state1 * std + mean
+#     init_state2 = init_state2 * std + mean
+#     final_state2 = final_state2 * std + mean
+
+#     attr_n1 = np.concatenate([init_state1, final_state1])
+#     attr_n2 = np.concatenate([init_state2, final_state2])
+
+#     plt.figure(figsize=(20, 8))
+#     plt.scatter(expert_data1[:, 0, 0], expert_data1[:, 0, 1], color='green')
+#     plt.scatter(expert_data2[:, 0, 0], expert_data2[:, 0, 1], color='green')
+#     plt.scatter(expert_data1[:, -1, 0], expert_data1[:, -1, 1], color='green')
+#     plt.scatter(expert_data2[:, -1, 0], expert_data2[:, -1, 1], color='green')
+#     plt.plot(attr_n1[0], attr_n1[1], 'bo')
+#     plt.plot(attr_n2[0], attr_n2[1], 'o', color='orange')
+#     plt.plot(attr_n1[2], attr_n1[3], 'bo')
+#     plt.plot(attr_n2[2], attr_n2[3], 'o', color='orange')
+#     plt.plot(sampled1[0, :, 0], sampled1[0, :, 1], color='blue', label=f"Agent 1 Traj (Frechet: {frechet1:.2f})")
+#     plt.plot(sampled2[0, :, 0], sampled2[0, :, 1], color='orange', label=f"Agent 2 Traj (Frechet: {frechet2:.2f})")
+#     plt.legend(loc="upper right", fontsize=14)
+#     plt.savefig("figs/temp_T2/plot%s.png" % i)
 
 
