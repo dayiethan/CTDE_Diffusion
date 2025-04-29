@@ -354,3 +354,82 @@ def mpc_plan_multi_safe(ode_model, env, initial_states, fixed_goals, segment_len
         full_segments.append(seg_array)
     full_traj = np.concatenate(full_segments, axis=1)
     return full_traj
+
+
+def mpc_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100):
+    """
+    True MPC: At each step, plan a full segment but only execute the first step.
+    
+    Parameters:
+      - ode_model: the diffusion model (must support sample() that accepts a single condition tensor).
+      - env: the environment (to get state dimensions, etc.)
+      - initial_states: numpy array of shape (n_agents, state_size).
+      - fixed_goals: numpy array of shape (n_agents, state_size).
+      - segment_length: how many steps we plan ahead (default 10).
+      - total_steps: how many total steps to run.
+      
+    Returns:
+      - full_traj: numpy array of shape (total_steps, n_agents, state_size)
+    """
+    n_agents = len(initial_states)
+    current_states = initial_states.copy()  # will be updated at every step
+    full_traj = []
+
+    for step in range(total_steps):
+        next_states = []
+        # For each agent, plan a 10-step trajectory, but we'll only take the first action.
+        for i in range(n_agents):
+            # Build the condition for agent i
+            cond1 = np.hstack([current_states[0], fixed_goals[0]])
+            cond2 = np.hstack([current_states[1], fixed_goals[1]])
+            cond1_tensor = torch.tensor(cond1, dtype=torch.float32, device=device).unsqueeze(0)
+            cond2_tensor = torch.tensor(cond2, dtype=torch.float32, device=device).unsqueeze(0)
+            
+            # Sample a full segment
+            sampled = ode_model.sample(attr=[cond1_tensor, cond2_tensor], traj_len=segment_length, n_samples=1, w=1., model_index=i)
+            seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, state_size)
+
+            # Take only the first step
+            next_state_i = seg_i[1]
+            next_states.append(next_state_i)
+
+        # Update current states
+        current_states = np.array(next_states)
+        # Save the executed states
+        full_traj.append(current_states)
+
+    full_traj = np.stack(full_traj, axis=1)  # Shape: (total_steps, n_agents, state_size)
+    return full_traj
+
+
+def mpc_plan_splicempc(ode_model, env, initial_state, fixed_goal, model_i, segment_length=10, total_steps=100):
+    """
+    Plans a full trajectory (total_steps long) by iteratively planning
+    segment_length-steps using the diffusion model.
+    
+    Parameters:
+      - ode_model: the Conditional_ODE (diffusion model) instance.
+      - env: your environment, which must implement reset_to() and step().
+      - initial_state: a numpy array of shape (state_size,) (the current state).
+      - fixed_goal: a numpy array of shape (state_size,) representing the final goal.
+      - model_i: the index of the agent/model being trained
+      - segment_length: number of timesteps to plan in each segment.
+      - total_steps: total length of the planned trajectory.
+    
+    Returns:
+      - full_traj: a numpy array of shape (total_steps, state_size)
+    """
+    full_traj = []
+    current_state = initial_state.copy()
+    n_segments = total_steps // segment_length
+    for seg in range(100):
+        cond = np.hstack([current_state, fixed_goal])
+        cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
+        sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=model_i)
+        segment = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
+
+        next_state_i = segment[1]
+        full_traj.append(next_state_i)
+
+        current_state = next_state_i
+    return np.array(full_traj)
