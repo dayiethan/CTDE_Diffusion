@@ -189,7 +189,7 @@ def mpc_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_len
 # --- 2. MPC Planning and Video Generation ---
 
 for i in range(100):
-    noise_std = 0.0
+    noise_std = 0.2
     initial1 = initial_point_up + noise_std * np.random.randn(*np.shape(initial_point_up))
     initial1 = (initial1 - mean) / std
     final1 = final_point_up + noise_std * np.random.randn(*np.shape(final_point_up))
@@ -215,7 +215,7 @@ for i in range(100):
 
     # # Save the planned trajectories to a CSV file:
 
-    save_folder = "data/mpc_H_10_zero_noise"
+    save_folder = "data/mpc_H_10"
 
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
@@ -225,8 +225,8 @@ for i in range(100):
     planned_traj1 = np.array(planned_traj1)
     planned_traj2 = np.array(planned_traj2)
 
-    np.savetxt(os.path.join(save_folder, f"diffusion_gnn_noise_0_0_planned_traj1_{i}.csv"), planned_traj1, delimiter=",")
-    np.savetxt(os.path.join(save_folder, f"diffusion_gnn_noise_0_0_planned_traj2_{i}.csv"), planned_traj2, delimiter=",")
+    np.savetxt(os.path.join(save_folder, f"diffusion_gnn_noise_0_2_planned_traj1_{i}.csv"), planned_traj1, delimiter=",")
+    np.savetxt(os.path.join(save_folder, f"diffusion_gnn_noise_0_2_planned_traj2_{i}.csv"), planned_traj2, delimiter=",")
 
     # Plot the planned trajectory:
     plt.figure(figsize=(22, 14))
@@ -240,7 +240,7 @@ for i in range(100):
     plt.xlabel("x")
     plt.ylabel("y")
     plt.title("MPC Planned Trajectory")
-    plt.savefig("figs/mpc_zero_noise/mpc_traj_%s.png" % str(i))
+    plt.savefig("figs/mpc/mpc_traj_%s.png" % str(i))
     # plt.show()
 
     # # Generate a video of the planning process:
