@@ -12,6 +12,8 @@ import os
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+print(device)
+
 # Parameters
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 T = 100 # Trajectory horizon
