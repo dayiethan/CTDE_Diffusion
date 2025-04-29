@@ -43,7 +43,7 @@ with open("data/sigma_data.npy", "rb") as f:
 
 # Training
 action_cond_ode = Conditional_ODE(env, [4, 4], sig.tolist(), device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.load(extra="_T10_mpc")
+action_cond_ode.load(extra="_T10_2")
 
 
 def mpc_plan(ode_model, env, initial_states, fixed_goals, model_i, segment_length=H, total_steps=T):
@@ -207,7 +207,7 @@ for i in range(100):
     # planned_traj2 = mpc_plan(action_cond_ode, env, [initial1, initial2], [final1, final2], 1, segment_length=H, total_steps=T)
     # planned_traj2 = planned_traj2 * std + mean
 
-    planned_trajs = mpc_plan_multi_true(action_cond_ode, env, [initial2, initial1], [final2, final1], segment_length=H, total_steps=T)
+    planned_trajs = mpc_plan_multi(action_cond_ode, env, [initial2, initial1], [final2, final1], segment_length=H, total_steps=T)
 
     planned_traj1 = planned_trajs[0] * std + mean
     planned_traj2 = planned_trajs[1] * std + mean
@@ -217,10 +217,13 @@ for i in range(100):
 
     # # Save the planned trajectories to a CSV file:
 
-    save_folder = "data/mpc_H_10_zero_noise_2"
+    save_folder = "data/splice_H_10"
 
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
+
+    if not os.path.exists("figs/splice_zero_noise"):
+        os.makedirs("figs/splice_zero_noise")
     
     # convert to numpy array
 
@@ -242,7 +245,7 @@ for i in range(100):
     plt.xlabel("x")
     plt.ylabel("y")
     plt.title("MPC Planned Trajectory")
-    plt.savefig("figs/mpc_zero_noise_2/mpc_traj_%s.png" % str(i))
+    plt.savefig("figs/splice_zero_noise/mpc_traj_%s.png" % str(i))
     # plt.show()
 
     # # Generate a video of the planning process:

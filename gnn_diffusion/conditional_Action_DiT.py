@@ -500,11 +500,11 @@ class Conditional_ODE():
                 dt = self.t_s[i] - self.t_s[i+1] if i != self.N - 1 else self.t_s[i]
                 x = x - delta * dt
 
-                # Add stochastic noise for stochastic DDIM (if not last step)
-                if eta > 0 and i < self.N - 1:
-                    noise = torch.randn_like(x)
-                    sigma_step = self.sigma_s[i]  # could be replaced with a custom schedule
-                    x = x + eta * sigma_step * noise
+                # # Add stochastic noise for stochastic DDIM (if not last step)
+                # if eta > 0 and i < self.N - 1:
+                #     noise = torch.randn_like(x)
+                #     sigma_step = self.sigma_s[i]  # could be replaced with a custom schedule
+                #     x = x + eta * sigma_step * noise
 
 
                 x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
