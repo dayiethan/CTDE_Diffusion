@@ -454,6 +454,63 @@ class Conditional_ODE():
 
         return x
 
+    @torch.no_grad()
+    def sample_with_noise(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0, eta: float = 0.1):
+        """
+        Samples a trajectory using the EMA copy of the specified transformer, conditioned on GNN embeddings.
+
+        attr: attribute tensor of shape (n_samples, attr_dim)
+        traj_len: trajectory length.
+        model_index: which transformer to use.
+        """
+        if N is not None and N != self.N:
+            self.set_N(N)
+
+        x = torch.randn((n_samples, traj_len, self.action_size), device=self.device) * self.sigma_s[0] * self.scale_s[0]
+        x[:, 0, :self.state_size] = attr[model_index][:, :self.state_size]
+        original_attr = attr[model_index].clone()
+
+        # Construct edge index for batch processing
+        batch_size = n_samples
+        edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long, device=self.device).repeat(1, batch_size)
+        offsets = (torch.arange(batch_size) * 2).to(self.device)
+        edge_index = edge_index + offsets.repeat_interleave(2).unsqueeze(0)
+
+        # Prepare node features for GNN
+        attr1 = attr[0].clone()
+        attr2 = attr[1].clone()
+        node_features = torch.stack([attr1, attr2], dim=1).view(-1, attr[model_index].shape[-1])  # Shape: (batch_size * 2, attr_dim)
+
+        # Get GNN embeddings
+        with torch.no_grad():
+            gnn_embeddings = self.gnn(node_features, edge_index)  # Shape: (batch_size * 2, embedding_dim)
+            gnn_embeddings = gnn_embeddings.view(batch_size, 2, -1)  # Shape: (batch_size, 2, embedding_dim)
+            embeddings = gnn_embeddings[:, model_index, :]
+
+        for i in range(self.N):
+            with torch.no_grad():
+                D_out = self.D(x / self.scale_s[i],
+                            torch.ones((n_samples, 1, 1), device=self.device) * self.sigma_s[i],
+                            condition=embeddings,  # Use GNN embeddings
+                            mask=torch.ones_like(attr[model_index]),
+                            use_ema=True,
+                            model_index=model_index)
+
+                delta = self.coeff1[i] * x - self.coeff2[i] * D_out 
+                dt = self.t_s[i] - self.t_s[i+1] if i != self.N - 1 else self.t_s[i]
+                x = x - delta * dt
+
+                # Add stochastic noise for stochastic DDIM (if not last step)
+                if eta > 0 and i < self.N - 1:
+                    noise = torch.randn_like(x)
+                    sigma_step = self.sigma_s[i]  # could be replaced with a custom schedule
+                    x = x + eta * sigma_step * noise
+
+
+                x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
+
+        return x
+
     # def sample(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0):
     #     """
     #     Samples a trajectory using the EMA copy of the specified transformer.
