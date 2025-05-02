@@ -15,7 +15,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Parameters
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 T = 100 # Trajectory horizon
-H = 10 # Planning horizon
+H = 100 # Planning horizon
 initial_point_up = np.array([0.0, 0.0])
 final_point_up = np.array([20.0, 0.0])
 final_point_down = np.array([0.0, 0.0])
@@ -45,7 +45,7 @@ trainer = GNNBaselineTrainerDecentralized(two_agents_gnn, device=device)
 # trainer.train([actions1, actions2], [attr1, attr2], n_gradient_steps=100000)
 # trainer.save()
 
-trainer.load(path='trained_models/mlp_gnn_H_10_decentralized_2_agents.pt')
+trainer.load(path='trained_models/gnn_baseline_H_100_decentralized.pt')
 
 def mpc_plan(ode_model, env, initial_states, fixed_goals, model_i, segment_length=H, total_steps=T):
     """
@@ -141,8 +141,8 @@ def mpc_plan_multi(trainer, env, initial_states, fixed_goals, segment_length=10,
 
 # --- 2. MPC Planning and Video Generation ---
 
-for i in range(10):
-    noise_std = 0.0
+for i in range(100):
+    noise_std = 0.2
     initial1 = initial_point_up + noise_std * np.random.randn(*np.shape(initial_point_up))
     initial1 = (initial1 - mean) / std
     final1 = final_point_up + noise_std * np.random.randn(*np.shape(final_point_up))
@@ -168,7 +168,7 @@ for i in range(10):
 
     # # Save the planned trajectories to a CSV file:
 
-    save_folder = "data/mpc_H_10"
+    save_folder = "data/H_100_noise"
 
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
@@ -178,23 +178,23 @@ for i in range(10):
     planned_traj1 = np.array(planned_traj1)
     planned_traj2 = np.array(planned_traj2)
 
-    np.savetxt(os.path.join(save_folder, f"mlp_gnn_planned_traj1_{i}.csv"), planned_traj1, delimiter=",")
-    np.savetxt(os.path.join(save_folder, f"mlp_gnn_planned_traj2_{i}.csv"), planned_traj2, delimiter=",")
+    np.savetxt(os.path.join(save_folder, f"mlp_gnn_planned_noise_0_2_traj1_{i}.csv"), planned_traj1, delimiter=",")
+    np.savetxt(os.path.join(save_folder, f"mlp_gnn_planned_noise_0_2_traj2_{i}.csv"), planned_traj2, delimiter=",")
 
 
-    # Plot the planned trajectory:
-    plt.figure(figsize=(22, 14))
-    plt.ylim(-7, 7)
-    plt.xlim(-1,21)
-    plt.plot(planned_traj1[:, 0], planned_traj1[:, 1], 'b.-')
-    plt.plot(planned_traj2[:, 0], planned_traj2[:, 1], 'o-', color='orange')
-    ox, oy, r = obstacle
-    circle1 = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
-    plt.gca().add_patch(circle1)
-    plt.xlabel("x")
-    plt.ylabel("y")
-    plt.title("MPC Planned Trajectory")
-    plt.savefig("figs/mpc_just_gnn/mpc_traj_%s.png" % i)
+    # # Plot the planned trajectory:
+    # plt.figure(figsize=(22, 14))
+    # plt.ylim(-7, 7)
+    # plt.xlim(-1,21)
+    # plt.plot(planned_traj1[:, 0], planned_traj1[:, 1], 'b.-')
+    # plt.plot(planned_traj2[:, 0], planned_traj2[:, 1], 'o-', color='orange')
+    # ox, oy, r = obstacle
+    # circle1 = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
+    # plt.gca().add_patch(circle1)
+    # plt.xlabel("x")
+    # plt.ylabel("y")
+    # plt.title("MPC Planned Trajectory")
+    # plt.savefig("figs/mpc_just_gnn/mpc_traj_%s.png" % i)
     # plt.show()
 
     # # Generate a video of the planning process:
