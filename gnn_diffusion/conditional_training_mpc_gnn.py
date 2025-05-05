@@ -41,8 +41,8 @@ print(device)
 # Parameters
 n_gradient_steps = 100_000
 batch_size = 64
-model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
-H = 10 # horizon, length of each trajectory
+model_size = {"d_model": 256, "n_heads": 8, "depth": 4}
+H = 25 # horizon, length of each trajectory
 
 # Define initial and final points, and a single central obstacle
 initial_point_up = np.array([0.0, 0.0])
@@ -70,8 +70,8 @@ print(orig1.shape)
 print(orig2.shape)
 
 # Use it:
-expert_data1 = create_mpc_dataset(expert_data_1, planning_horizon=10)
-expert_data2 = create_mpc_dataset(expert_data_2, planning_horizon=10)
+expert_data1 = create_mpc_dataset(expert_data_1, planning_horizon=25)
+expert_data2 = create_mpc_dataset(expert_data_2, planning_horizon=25)
 
 print(expert_data1.shape)
 print(expert_data2.shape)
@@ -136,8 +136,8 @@ with open("data/sigma_data.npy", "wb") as f:
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T10_mpc")
-action_cond_ode.save(extra="_T10_mpc")
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_H25_mpc")
+action_cond_ode.save(extra="_H25_mpc")
 # action_cond_ode.load(extra="_T10_2")
 
 

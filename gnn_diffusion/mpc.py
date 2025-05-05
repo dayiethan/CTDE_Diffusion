@@ -15,9 +15,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
 # Parameters
-model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
+model_size = {"d_model": 256, "n_heads": 8, "depth": 4}
 T = 100 # Trajectory horizon
-H = 10 # Planning horizon
+H = 25 # Planning horizon
 initial_point_up = np.array([0.0, 0.0])
 final_point_up = np.array([20.0, 0.0])
 final_point_down = np.array([0.0, 0.0])
@@ -43,7 +43,7 @@ with open("data/sigma_data.npy", "rb") as f:
 
 # Training
 action_cond_ode = Conditional_ODE(env, [4, 4], sig.tolist(), device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.load(extra="_T10_2")
+action_cond_ode.load(extra="_H25_mpc")
 
 
 def mpc_plan(ode_model, env, initial_states, fixed_goals, model_i, segment_length=H, total_steps=T):
@@ -141,10 +141,55 @@ def mpc_plan_multi(ode_model, env, initial_states, fixed_goals, segment_length=1
     # full_traj = np.transpose(full_traj, (1, 0, 2))
     return full_traj
 
-def mpc_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100):
-    """
-    True MPC: At each step, plan a full segment but only execute the first step.
+# def mpc_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100):
+#     """
+#     True MPC: At each step, plan a full segment but only execute the first step.
     
+#     Parameters:
+#       - ode_model: the diffusion model (must support sample() that accepts a single condition tensor).
+#       - env: the environment (to get state dimensions, etc.)
+#       - initial_states: numpy array of shape (n_agents, state_size).
+#       - fixed_goals: numpy array of shape (n_agents, state_size).
+#       - segment_length: how many steps we plan ahead (default 10).
+#       - total_steps: how many total steps to run.
+      
+#     Returns:
+#       - full_traj: numpy array of shape (total_steps, n_agents, state_size)
+#     """
+#     n_agents = len(initial_states)
+#     current_states = initial_states.copy()  # will be updated at every step
+#     full_traj = []
+
+#     for step in range(total_steps):
+#         next_states = []
+#         # For each agent, plan a 10-step trajectory, but we'll only take the first action.
+#         for i in range(n_agents):
+#             # Build the condition for agent i
+#             cond1 = np.hstack([current_states[0], fixed_goals[0]])
+#             cond2 = np.hstack([current_states[1], fixed_goals[1]])
+#             cond1_tensor = torch.tensor(cond1, dtype=torch.float32, device=device).unsqueeze(0)
+#             cond2_tensor = torch.tensor(cond2, dtype=torch.float32, device=device).unsqueeze(0)
+            
+#             # Sample a full segment
+#             sampled = ode_model.sample_with_noise(attr=[cond1_tensor, cond2_tensor], traj_len=segment_length, n_samples=1, w=1., model_index=i, eta = 0.13)
+#             seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, state_size)
+
+#             # Take only the first step
+#             next_state_i = seg_i[1]
+#             next_states.append(next_state_i)
+
+#         # Update current states
+#         current_states = np.array(next_states)
+#         # Save the executed states
+#         full_traj.append(current_states)
+
+#     full_traj = np.stack(full_traj, axis=1)  # Shape: (total_steps, n_agents, state_size)
+#     return full_traj
+
+def mpc_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100, n_implement=5):
+    """
+    True MPC with partial trajectory execution: Plan a full segment, but implement n_implement steps.
+
     Parameters:
       - ode_model: the diffusion model (must support sample() that accepts a single condition tensor).
       - env: the environment (to get state dimensions, etc.)
@@ -152,40 +197,59 @@ def mpc_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_len
       - fixed_goals: numpy array of shape (n_agents, state_size).
       - segment_length: how many steps we plan ahead (default 10).
       - total_steps: how many total steps to run.
+      - n_implement: how many steps to implement from each planned segment (must be ≤ segment_length).
       
     Returns:
       - full_traj: numpy array of shape (total_steps, n_agents, state_size)
     """
+    assert n_implement <= segment_length, "n_implement must be less than or equal to segment_length"
+
     n_agents = len(initial_states)
-    current_states = initial_states.copy()  # will be updated at every step
+    current_states = initial_states.copy()
     full_traj = []
 
-    for step in range(total_steps):
-        next_states = []
-        # For each agent, plan a 10-step trajectory, but we'll only take the first action.
+    n_steps = total_steps // n_implement
+
+    for step in range(n_steps):
+        segments = []
+        # Plan a full segment for each agent
         for i in range(n_agents):
-            # Build the condition for agent i
             cond1 = np.hstack([current_states[0], fixed_goals[0]])
             cond2 = np.hstack([current_states[1], fixed_goals[1]])
             cond1_tensor = torch.tensor(cond1, dtype=torch.float32, device=device).unsqueeze(0)
             cond2_tensor = torch.tensor(cond2, dtype=torch.float32, device=device).unsqueeze(0)
-            
-            # Sample a full segment
-            sampled = ode_model.sample_with_noise(attr=[cond1_tensor, cond2_tensor], traj_len=segment_length, n_samples=1, w=1., model_index=i, eta = 0.13)
-            seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, state_size)
 
-            # Take only the first step
-            next_state_i = seg_i[1]
-            next_states.append(next_state_i)
+            sampled = ode_model.sample_with_noise(
+                attr=[cond1_tensor, cond2_tensor],
+                traj_len=segment_length,
+                n_samples=1,
+                w=1.,
+                model_index=i,
+                eta=0.13
+            )
+            seg_i = sampled.cpu().detach().numpy()[0]  # (segment_length, state_size)
+            if step == 0:
+                segments.append(seg_i[0:n_implement,:])
+                current_states[i] = seg_i[n_implement-1,:]
+            else:
+                segments.append(seg_i[1:n_implement+1,:])
+                current_states[i] = seg_i[n_implement,:]
+        
+        seg_array = np.stack(segments, axis=0)
+        full_traj.append(seg_array)
 
-        # Update current states
-        current_states = np.array(next_states)
-        # Save the executed states
-        full_traj.append(current_states)
+        # # Implement n_implement steps from the planned segment
+        # for t in range(n_implement):
+        #     if steps_taken >= total_steps:
+        #         break
+        #     next_states = [segments[i][t + 1] for i in range(n_agents)]  # step t+1 (not t, assuming seg[0] is current)
+        #     current_states = np.array(next_states)
+        #     full_traj.append(current_states)
+        #     steps_taken += 1
 
-    full_traj = np.stack(full_traj, axis=1)  # Shape: (total_steps, n_agents, state_size)
+    full_traj = np.concatenate(full_traj, axis=1)  # Shape: (total_steps, n_agents, state_size)
+
     return full_traj
-
 
 
 # --- 2. MPC Planning and Video Generation ---
@@ -207,7 +271,8 @@ for i in range(100):
     # planned_traj2 = mpc_plan(action_cond_ode, env, [initial1, initial2], [final1, final2], 1, segment_length=H, total_steps=T)
     # planned_traj2 = planned_traj2 * std + mean
 
-    planned_trajs = mpc_plan_multi(action_cond_ode, env, [initial2, initial1], [final2, final1], segment_length=H, total_steps=T)
+    # planned_trajs = mpc_plan_multi_true(action_cond_ode, env, [initial2, initial1], [final2, final1], segment_length=H, total_steps=T, n_implement = 5)
+    planned_trajs = mpc_plan_multi_true(action_cond_ode, env, [initial2, initial1], [final2, final1], segment_length=H, total_steps=T, n_implement = 5)
 
     planned_traj1 = planned_trajs[0] * std + mean
     planned_traj2 = planned_trajs[1] * std + mean
@@ -217,13 +282,13 @@ for i in range(100):
 
     # # Save the planned trajectories to a CSV file:
 
-    save_folder = "data/splice_H_10"
+    save_folder = "data/mpc_H_25_I_5"
 
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
 
-    if not os.path.exists("figs/splice_noise"):
-        os.makedirs("figs/splice_noise")
+    if not os.path.exists("figs/mpc_noise_H_25_I_5"):
+        os.makedirs("figs/mpc_noise_H_25_I_5")
     
     # convert to numpy array
 
@@ -245,7 +310,7 @@ for i in range(100):
     plt.xlabel("x")
     plt.ylabel("y")
     plt.title("MPC Planned Trajectory")
-    plt.savefig("figs/splice_noise/mpc_traj_%s.png" % str(i))
+    plt.savefig("figs/mpc_noise_H_25_I_5/mpc_traj_%s.png" % str(i))
     # plt.show()
 
     # # Generate a video of the planning process:
