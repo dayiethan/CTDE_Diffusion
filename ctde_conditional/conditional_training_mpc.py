@@ -54,28 +54,23 @@ final_point_down = np.array([0.0, 0.0])
 initial_point_down = np.array([20.0, 0.0])
 obstacle = (10, 0, 4.0) 
 
-# num_trajectories = 10000
-# points_per_trajectory = 10
 
+# Loading training trajectories
 expert_data_1 = np.load('data/expert_data1_100_traj.npy')
 expert_data_2 = np.load('data/expert_data2_100_traj.npy')
 
 orig1 = expert_data_1
 orig2 = expert_data_2
-
 print(expert_data_1.shape)
 print(expert_data_2.shape)
 
 orig1 = np.array(orig1)
 orig2 = np.array(orig2)
-
 print(orig1.shape)
 print(orig2.shape)
 
-# Use it:
 expert_data1 = create_mpc_dataset(expert_data_1, planning_horizon=10)
 expert_data2 = create_mpc_dataset(expert_data_2, planning_horizon=10)
-
 print(expert_data1.shape)
 print(expert_data2.shape)
 
@@ -97,7 +92,6 @@ with open("data/std.npy", "wb") as f:
     np.save(f, std)
 
 
-
 # Define environment
 class TwoUnicycle():
     def __init__(self, state_size=2, action_size=2):
@@ -108,7 +102,7 @@ env = TwoUnicycle()
 
 
 
-# Setting up training data
+# Setting up training data and conditional vectors
 obs_init1 = expert_data1[:, 0, :]
 obs_init2 = expert_data2[:, 0, :]
 obs_final1 = np.repeat(orig1[:, -1, :], repeats=100, axis=0)
@@ -145,7 +139,6 @@ action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sig
 action_cond_ode.load(extra="_T10_splicempc")
 
 
-# Sampling
 # Sampling preparation
 noise_std = 0.
 noise = np.ones(np.shape(obs_temp1))
@@ -161,7 +154,6 @@ ref1 = np.mean(expert_data1, axis=0)
 ref2 = np.mean(expert_data2, axis=0)
 ref_agent1 = ref1[:, :]
 ref_agent2 = ref2[:, :]
-
 
 
 # Sampling

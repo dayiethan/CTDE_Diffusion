@@ -5,9 +5,12 @@ from utils.conditional_Action_DiT import Conditional_ODE
 import matplotlib.pyplot as plt
 from utils.discrete import *
 import sys
+import csv
+import pdb
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# Parameters
 n_gradient_steps = 100_000
 batch_size = 64
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
@@ -20,10 +23,9 @@ final_point_down = np.array([0.0, 0.0])
 initial_point_down = np.array([20.0, 0.0])
 obstacle = (10, 0, 4.0)  # Single central obstacle: (x, y, radius)
 
-# loading the trajectories
-import csv
-all_points1 = []    # want modes 1, 2, 4, 6
-all_points2 = []    # want modes 1, 2, 3, 5
+# Loading the trajectories
+all_points1 = []
+all_points2 = []
 with open('data/trajs_noise1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
@@ -97,6 +99,7 @@ class TwoUnicycle():
 
 env = TwoUnicycle()
 
+# Setting up conditional vectors
 obs_init1 = expert_data1[:, 0, :]
 obs_init2 = expert_data2[:, 0, :]
 obs_final1 = expert_data1[:, -1, :]
@@ -129,8 +132,6 @@ action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sig
 # action_cond_ode.save(extra="_T100")
 action_cond_ode.load(extra="_T100")
 
-# import pdb
-# breakpoint()
 noise_std = 0.05
 noise = np.ones(np.shape(obs_temp1))
 obs_temp1 = obs_temp1 + noise_std * noise
@@ -146,7 +147,7 @@ ref2 = np.mean(expert_data2, axis=0)
 ref_agent1 = ref1[:, :]
 ref_agent2 = ref2[:, :]
 
-# Sampling
+# Sampling (no plotting)
 for i in range(100):
     noise_std = 0.4
     initial1 = initial_point_up + noise_std * np.random.randn(*np.shape(initial_point_up))
@@ -174,6 +175,7 @@ for i in range(100):
     np.save("data/T100/traj1_%s.npy" % i, sampled1)
     np.save("data/T100/traj2_%s.npy" % i, sampled2)
 
+# # Sampling (with plotting)
 # for i in range(10):
 #     attr_t1 = attr_test1[i*10].unsqueeze(0)
 #     attr_t2 = attr_test2[i*10].unsqueeze(0)
