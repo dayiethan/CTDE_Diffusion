@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-from utils import Normalizer, set_seed
 from conditional_Action_DiT import Conditional_ODE
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -14,7 +13,7 @@ import pdb
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def mpc_plan(ode_model, env, initial_state, fixed_goal, model_i, segment_length=10, total_steps=100):
+def splice_plan(ode_model, env, initial_state, fixed_goal, model_i, segment_length=10, total_steps=100):
     """
     Plans a full trajectory (total_steps long) by iteratively planning
     segment_length-steps using the diffusion model.
@@ -48,7 +47,7 @@ def mpc_plan(ode_model, env, initial_state, fixed_goal, model_i, segment_length=
         current_state = segment[-1]
     return np.array(full_traj)
 
-def mpc_plan_multi(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100):
+def splice_plan_multi(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100):
     """
     Plans a full multi-agent trajectory by repeatedly sampling 10-step segments.
     Each agent’s condition is built as:
@@ -103,7 +102,7 @@ def mpc_plan_multi(ode_model, env, initial_states, fixed_goals, segment_length=1
     # full_traj = np.transpose(full_traj, (1, 0, 2))
     return full_traj
 
-def mpc_plan_safe(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100):
+def splice_plan_safe(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100):
     """
     Plans a full multi-agent trajectory by repeatedly sampling 10-step segments with a safety filter.
     Each agent’s condition is built as:
@@ -171,7 +170,7 @@ def mpc_plan_safe(ode_model, env, initial_states, fixed_goals, segment_length=10
     full_traj = np.concatenate(full_segments, axis=1)
     return full_traj
 
-def mpc_plan_mode_safe(ode_model, env, initial_states, fixed_goals, mode, segment_length=10, total_steps=100):
+def splice_plan_mode_safe(ode_model, env, initial_states, fixed_goals, mode, segment_length=10, total_steps=100):
     """
     Plans a full multi-agent trajectory by repeatedly sampling 10-step segments with a safety filter.
     Each agent’s condition is built as:
@@ -242,7 +241,7 @@ def mpc_plan_mode_safe(ode_model, env, initial_states, fixed_goals, mode, segmen
     full_traj = np.concatenate(full_segments, axis=1)
     return full_traj
 
-def mpc_plan_mode_multi(ode_model, env, initial_states, fixed_goals, mode, segment_length=10, total_steps=100):
+def splice_plan_mode_multi(ode_model, env, initial_states, fixed_goals, mode, segment_length=10, total_steps=100):
     """
     Plans a full multi-agent trajectory by repeatedly sampling 10-step segments.
     Each agent’s condition is built as:
@@ -317,7 +316,7 @@ def collision_cost(traj, obstacles, safety_margin=0.5):
       costs.append(cost)
     return max(costs)
 
-def mpc_plan_multi_safe(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100, n_candidates=5):
+def splice_plan_multi_safe(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100, n_candidates=5):
     n_agents = len(initial_states)
     current_states = initial_states.copy()  # update each segment
     full_segments = []
@@ -356,7 +355,7 @@ def mpc_plan_multi_safe(ode_model, env, initial_states, fixed_goals, segment_len
     return full_traj
 
 
-def mpc_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100):
+def splice_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100):
     """
     True MPC: At each step, plan a full segment but only execute the first step.
     
@@ -402,7 +401,7 @@ def mpc_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_len
     return full_traj
 
 
-def mpc_plan_splicempc(ode_model, env, initial_state, fixed_goal, model_i, segment_length=10, total_steps=100):
+def mpc_plan(ode_model, env, initial_state, fixed_goal, model_i, segment_length=10, total_steps=100):
     """
     Plans a full trajectory (total_steps long) by iteratively planning
     segment_length-steps using the diffusion model.

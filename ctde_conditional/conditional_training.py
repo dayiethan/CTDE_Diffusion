@@ -1,9 +1,9 @@
 import torch
 import numpy as np
-from utils import Normalizer, set_seed
-from conditional_Action_DiT import Conditional_ODE
+from utils.utils import Normalizer, set_seed
+from utils.conditional_Action_DiT import Conditional_ODE
 import matplotlib.pyplot as plt
-from discrete import *
+from utils.discrete import *
 import sys
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

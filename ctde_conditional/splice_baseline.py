@@ -1,14 +1,14 @@
 import torch
 import numpy as np
-from utils import Normalizer, set_seed
-from conditional_Action_DiT import Conditional_ODE
+from utils.utils import Normalizer, set_seed
+from utils.conditional_Action_DiT import Conditional_ODE
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from discrete import *
+from utils.discrete import *
 import sys
 import pdb
 import csv
-from mpc_util import mpc_plan
+from utils.mpc_util import splice_plan
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -44,7 +44,7 @@ action_cond_ode = Conditional_ODE(env, [4, 4], sig.tolist(), device=device, N=10
 action_cond_ode.load(extra="_T10_2")
 
 
-# --- 2. MPC Planning and Video Generation ---
+# --- 2. Splice Planning and Video Generation ---
 
 for i in range(10):
     noise_std = 0.4
@@ -57,10 +57,10 @@ for i in range(10):
     final2 = final_point_down + noise_std * np.random.randn(*np.shape(final_point_down))
     final2 = (final2 - mean) / std
 
-    planned_traj1 = mpc_plan(action_cond_ode, env, initial1, final1, 0, segment_length=H, total_steps=T)
+    planned_traj1 = splice_plan(action_cond_ode, env, initial1, final1, 0, segment_length=H, total_steps=T)
     planned_traj1 = planned_traj1 * std + mean
 
-    planned_traj2 = mpc_plan(action_cond_ode, env, initial2, final2, 1, segment_length=H, total_steps=T)
+    planned_traj2 = splice_plan(action_cond_ode, env, initial2, final2, 1, segment_length=H, total_steps=T)
     planned_traj2 = planned_traj2 * std + mean
 
     # Plot the planned trajectory:
@@ -74,8 +74,8 @@ for i in range(10):
     plt.gca().add_patch(circle1)
     plt.xlabel("x")
     plt.ylabel("y")
-    plt.title("MPC Planned Trajectory")
-    plt.savefig("figs/mpc/mpc_traj_%s.png" % i)
+    plt.title("Splice Planned Trajectory")
+    plt.savefig("figs/splice/baseline/mpc_traj_%s.png" % i)
     plt.show()
 
     # Generate a video of the planning process:
@@ -88,7 +88,7 @@ for i in range(10):
     markers, = ax.plot([], [], 'bo', markersize=8)
     line2, = ax.plot([], [], 'r-', lw=2, label="Traj 2")
     markers2, = ax.plot([], [], 'ro', markersize=8)
-    title = ax.text(0.5, 1.05, "MPC Planning", transform=ax.transAxes, ha="center")
+    title = ax.text(0.5, 1.05, "Splice Planning", transform=ax.transAxes, ha="center")
 
 
     def init():
@@ -125,8 +125,8 @@ for i in range(10):
                                 blit=True, interval=50)
 
 
-    ani.save("figs/mpc/mpc_ani_%s.mp4" % i, writer="ffmpeg", fps=12)
+    ani.save("figs/splice/baseline/mpc_ani_%s.mp4" % i, writer="ffmpeg", fps=12)
     plt.close()
-    print("MPC planning and video generation complete.")
+    print("Splice planning and video generation complete.")
 
 

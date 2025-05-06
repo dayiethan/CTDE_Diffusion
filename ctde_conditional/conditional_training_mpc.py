@@ -3,15 +3,15 @@ import torch.nn.functional as F
 from torch_geometric.nn import GraphConv
 from torch_geometric.data import Data, DataLoader
 import numpy as np
-from utils import Normalizer, set_seed
-from conditional_Action_DiT import Conditional_ODE
+from utils.utils import Normalizer, set_seed
+from utils.conditional_Action_DiT import Conditional_ODE
 import matplotlib.pyplot as plt
-from discrete import *
+from utils.discrete import *
 import sys
 import pdb
 import csv
 import os
-from mpc_util import mpc_plan_splicempc
+from utils.mpc_util import mpc_plan
 
 def create_mpc_dataset(expert_data, planning_horizon=10):
     n_traj, horizon, state_dim = expert_data.shape
@@ -176,26 +176,12 @@ for i in range(100):
     final2 = final_point_down + noise_std * np.random.randn(*np.shape(final_point_down))
     final2 = (final2 - mean) / std
 
-    planned_traj1 = mpc_plan_splicempc(action_cond_ode, env, initial1, final1, 0, segment_length=H, total_steps=T)
+    planned_traj1 = mpc_plan(action_cond_ode, env, initial1, final1, 0, segment_length=H, total_steps=T)
     planned_traj1 = planned_traj1 * std + mean
 
-    np.save("data/splice_mpc_trajs/mpc_traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_P10E1/mpc_traj1_%s.npy" % i, planned_traj1)
 
-    planned_traj2 = mpc_plan_splicempc(action_cond_ode, env, initial2, final2, 1, segment_length=H, total_steps=T)
+    planned_traj2 = mpc_plan(action_cond_ode, env, initial2, final2, 1, segment_length=H, total_steps=T)
     planned_traj2 = planned_traj2 * std + mean
 
-    np.save("data/splice_mpc_trajs/mpc_traj2_%s.npy" % i, planned_traj2)
-
-    # Plot the planned trajectory:
-    # plt.figure(figsize=(22, 14))
-    # plt.ylim(-7, 7)
-    # plt.xlim(-1,21)
-    # plt.plot(planned_traj1[:, 0], planned_traj1[:, 1], 'b.-')
-    # plt.plot(planned_traj2[:, 0], planned_traj2[:, 1], 'o-', color='orange')
-    # ox, oy, r = obstacle
-    # circle1 = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
-    # plt.gca().add_patch(circle1)
-    # plt.xlabel("x")
-    # plt.ylabel("y")
-    # plt.title("MPC Planned Trajectory")
-    # plt.savefig("figs/mpc/splice/mpc_traj_%s.png" % i)
+    np.save("sampled_trajs/mpc_P10E1/mpc_traj2_%s.npy" % i, planned_traj2)

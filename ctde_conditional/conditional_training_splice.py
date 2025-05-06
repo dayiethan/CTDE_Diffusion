@@ -1,9 +1,9 @@
 import torch
 import numpy as np
-from utils import Normalizer, set_seed
-from conditional_Action_DiT import Conditional_ODE
+from utils.utils import Normalizer, set_seed
+from utils.conditional_Action_DiT import Conditional_ODE
 import matplotlib.pyplot as plt
-from discrete import *
+from utils.discrete import *
 import sys
 import pdb
 import csv
@@ -232,6 +232,6 @@ for i in range(10):
     plt.plot(sampled1[0, :, 0], sampled1[0, :, 1], color='blue')
     plt.plot(sampled2[0, :, 0], sampled2[0, :, 1], color='orange')
     # plt.legend(loc="upper right", fontsize=14)
-    plt.savefig("figs/temp_T10_2/plot%s.png" % (i+10))
+    plt.savefig("figs/T10/plot%s.png" % (i+10))
 
 

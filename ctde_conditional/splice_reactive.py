@@ -1,14 +1,14 @@
 import torch
 import numpy as np
-from utils import Normalizer, set_seed
-from conditional_Action_DiT import Conditional_ODE
+from utils.utils import Normalizer, set_seed
+from utils.conditional_Action_DiT import Conditional_ODE
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from discrete import *
+from utils.discrete import *
 import sys
 import pdb
 import csv
-from mpc_util import mpc_plan_mode_safe
+from utils.mpc_util import splice_plan_safe
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -39,8 +39,8 @@ with open("data/sigma_data_reactive.npy", "rb") as f:
 
 
 # Training
-action_cond_ode = Conditional_ODE(env, [9, 9], sig.tolist(), device=device, N=100, n_models = 2, lin_scale = 128, **model_size)
-action_cond_ode.load(extra="_T10_reactivemode")
+action_cond_ode = Conditional_ODE(env, [8, 8], sig.tolist(), device=device, N=100, n_models = 2, lin_scale = 128, **model_size)
+action_cond_ode.load(extra="_T10_reactive")
 
 
 # --- 2. MPC Planning and Video Generation ---
@@ -55,9 +55,8 @@ for i in range(10):
     initial2 = (initial2 - mean) / std
     final2 = final_point_down + noise_std * np.random.randn(*np.shape(final_point_down))
     final2 = (final2 - mean) / std
-    mode = 6
 
-    planned_trajs = mpc_plan_mode_safe(action_cond_ode, env, [initial1, initial2], [final1, final2], mode, segment_length=H, total_steps=T)
+    planned_trajs = splice_plan_safe(action_cond_ode, env, [initial1, initial2], [final1, final2], segment_length=H, total_steps=T)
     planned_traj1 = planned_trajs[0] * std + mean
     planned_traj2 = planned_trajs[1] * std + mean
 
@@ -66,14 +65,14 @@ for i in range(10):
     plt.ylim(-7, 7)
     plt.xlim(-1,21)
     plt.plot(planned_traj1[:, 0], planned_traj1[:, 1], 'b.-')
-    plt.plot(planned_traj2[:, 0], planned_traj2[:, 1], 'o-', color='red')
+    plt.plot(planned_traj2[:, 0], planned_traj2[:, 1], 'o-', color='orange')
     ox, oy, r = obstacle
     circle1 = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
     plt.gca().add_patch(circle1)
     plt.xlabel("x")
     plt.ylabel("y")
     plt.title("MPC Planned Trajectory")
-    plt.savefig("figs/mpc/reactive_mode/mode%s/mpc_traj_%s.png" % (mode, i))
+    plt.savefig("figs/mpc/reactive_safety/mpc_traj_%s.png" % i)
     plt.show()
 
     # Generate a video of the planning process:
@@ -123,6 +122,6 @@ for i in range(10):
                                 blit=True, interval=50)
 
 
-    ani.save("figs/mpc/reactive_mode/mode%s/mpc_ani_%s.mp4" % (mode, i), writer="ffmpeg", fps=12)
+    ani.save("figs/mpc/reactive_safety/mpc_ani_%s.mp4" % i, writer="ffmpeg", fps=12)
     plt.close()
     print("MPC planning and video generation complete.")
