@@ -1,3 +1,6 @@
+# This script is used to sample the Conditional ODE model for the Two Arm Handover task and execute the demo.
+# It uses the 3-dimensional rotation vector of the arm's state and action.
+
 import time
 import torch
 

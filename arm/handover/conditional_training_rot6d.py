@@ -1,3 +1,7 @@
+# This script is used to train the Conditional ODE model for the Two Arm Handover task.
+# It uses the 6-dimensional rotation matrix (first two rows) of the arm's state and action.
+# The model is conditioned on the grasp position of the hammer.
+
 import torch
 import numpy as np
 from conditional_Action_DiT import Conditional_ODE

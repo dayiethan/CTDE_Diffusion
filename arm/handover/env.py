@@ -1,3 +1,5 @@
+# Sets up the Two Arm Handover environment
+
 from collections import OrderedDict
 
 import numpy as np
