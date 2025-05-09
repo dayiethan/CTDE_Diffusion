@@ -23,10 +23,11 @@ Some of the overlap between categories in the 'splice/' and not is due to those 
 - **`T100_noise0.05`**: Full horizon (100 timestpes) planning with noised sampled atat 0.05 noise level
 
 ## Main Files
-- **`conditional_training_mpc.py`**: Training and sampling of MPC approach (10 timestep planning, 1 timestep execution)
-- **`conditional_training_reactive.py`**: Training and sampling of splice approach( 10 tiemstep planning, 10 timestep execution) while conditioned on additional elements (other agent's state and/or expert demonstration mode)
-- **`conditional_training_splice.py`**: Training and sampling of splice approach (10 timestep planning, 10 timestep execution)
-- **`conditional_training.py`**: Training and sampling of full horizon planning (original)
+- **`training_mpc_guidance.py`**: Training and sampling of MPC approach (10 timestep planning, 1 timestep execution) with guidance function in denoising process to avoid collision
+- **`training_mpc.py`**: Training and sampling of MPC approach (10 timestep planning, 1 timestep execution)
+- **`training_reactive.py`**: Training and sampling of splice approach( 10 tiemstep planning, 10 timestep execution) while conditioned on additional elements (other agent's state and/or expert demonstration mode)
+- **`training_splice.py`**: Training and sampling of splice approach (10 timestep planning, 10 timestep execution)
+- **`training.py`**: Training and sampling of full horizon planning (original)
 - **`splice_baseline.py`**: Sampling of splice approach to generate a full 100 timestep trajectory
 - **`splice_reactive_mode.py`**: Sampling of splice approach with additional conditioning on other agent's state and expert demonstration mode to generate a full 100 timestep trajectory
 - **`splice_reactive.py`**: Sampling of splice approach with additional conditioning on other agent's state to generate a full 100 timestep trajectory

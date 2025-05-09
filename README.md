@@ -4,7 +4,7 @@ This repository contains code for multi-agent diffusion models used in path plan
 
 ## Folder Structure
 
-### base
+### old/base
 The `base` folder contains the original working 2-agent diffusion model path planning code. This model is designed to navigate around a central obstacle using similar training data. The key components of this folder include:
 
 - **data/**: Includes the training data used for the model.
@@ -17,7 +17,7 @@ The `base` folder contains the original working 2-agent diffusion model path pla
 - **diffusion_transformer_obstacle.py**: Uses expert demonstrations to train the 2-agent diffusion model that avoid an obstacle.
 
 
-### decentralized
+### old/decentralized
 The `decentralized` folder contains the 2-agent diffusion model path planning code with the goal of training two agents' policies against another so that they can be executed in a decentralized manner. This approach tries to use the attribute function provided by the AlignDiff code. The key components of this folder include:
 
 - **checking/**: Code to test and verify that multiple modes are able to appear in the generated data when they appear in the expert demonstrations.
@@ -27,7 +27,7 @@ The `decentralized` folder contains the 2-agent diffusion model path planning co
 - **single_mode/**: The training data for each agent only contains a single mode and thus each agent has only one possible mode to generate.
 - **vary_init/**: Varying the initial and final conditions of the expert demonstrations by adding more noise to the training data effectively having demonstrations start and end at different positions.
 
-### random
+### old/random
 The `random` folder contains work that utilizes expert demonstration data that includes a random array of initial and final positions for the agents. The goal of this work is to find optimal trajectories for two agents starting at given initial and final conditions. The key components of this folder include:
 
 - **data/**: Includes the expert demonstration data.
@@ -35,22 +35,22 @@ The `random` folder contains work that utilizes expert demonstration data that i
 - **traj_from_diffusion_transformer_cond.py**: Generates a trajectory from a trained diffusion model with random initial and final positions.
 - **diffusion_transformer_cond.py**: Uses expert demonstrations to train the diffusion model with random initial and final positions.
 
-### conditional
+### old/conditional
 The `conditional` folder is for performing the 2-agent swap task with a conditional diffusion model.
+- **data/**: Includes the expert demonstration data.
+- **figs/**: Includes the results of the generated trajectory and trained model.
+- **conditional_training.py**: Uses expert demonstrations to train the diffusion model conditioned on initial and final positions.
 
 ### ctde_conditional
-The `ctde_conditional` folder extends the 'conditional' folder's work in the 2-agent swap envionrment by training a separate model for each agent with a shared loss and then executing the models separately during trajectory generation.
+The `ctde_conditional` folder extends the 'conditional' folder's work in the 2-agent swap envionrment by training a separate model for each agent with a shared loss and then executing the models separately during trajectory generation. See the README.md file in this directory for more information.
 
 ### arm
-The `arm` folder is for the robosuite environment tasks.
+The `arm` folder is for the robosuite environment tasks. See the README.md file in this directory for more information.
 
 ### madiff
 The `madiff` folder is for running the MaDiff code for our 2-agent swap environment.
 
-### conditional
-The `conditional` folder is for performing the 2-agent swap task with a conditional diffusion model.
-
-### herding
+### old/herding
 The `herding` folder is the beginning of creating our own herding environment.
 
 ### dependencies
