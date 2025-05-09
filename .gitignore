@@ -1,13 +1,13 @@
 # Ignore all .pth files in the checkpoints folders
-base/checkpoints/*.pth
-base/checkpoints_obstacle/*.pth
-random/checkpoints/*.pth
-random/checkpoints/*/*.pth
-decentralized/single_mode/checkpoints/*.pth
-decentralized/multi_mode/checkpoints_multimode/*.pth
-decentralized/multi_mode_alternating/checkpoints_alternating/*.pth
-decentralized/multi_mode_alternating/checkpoints_obstacle/*.pth
-random/data/full_traj_rand_10000.csv
+old/base/checkpoints/*.pth
+old/base/checkpoints_obstacle/*.pth
+old/random/checkpoints/*.pth
+old/random/checkpoints/*/*.pth
+old/decentralized/single_mode/checkpoints/*.pth
+old/decentralized/multi_mode/checkpoints_multimode/*.pth
+old/decentralized/multi_mode_alternating/checkpoints_alternating/*.pth
+old/decentralized/multi_mode_alternating/checkpoints_obstacle/*.pth
+old/random/data/full_traj_rand_10000.csv
 madiff/diffuser/datasets/data/mpe/
 madiff/checkpoints/
 ctde_conditional/trained_models/
@@ -16,5 +16,3 @@ arm/lift/trained_models/
 arm/handover/rollouts/
 arm/handover/rollouts_pickup_pos/
 arm/handover/trained_models
-gnn_ctde/rollouts/
-gnn_ctde/trained_models/
