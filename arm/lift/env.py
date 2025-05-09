@@ -1,3 +1,5 @@
+# Sets up the Two Arm Lift environment
+
 from collections import OrderedDict
 
 import numpy as np

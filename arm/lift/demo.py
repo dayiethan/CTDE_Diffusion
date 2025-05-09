@@ -1,3 +1,5 @@
+# Generates demonstrations for the Two Arm Lift task
+
 import time
 
 import numpy as np
