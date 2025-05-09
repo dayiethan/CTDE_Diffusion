@@ -3,22 +3,17 @@
 
 import time
 import torch
-
 import numpy as np
 import matplotlib.pyplot as plt
 import pdb
 import pickle as pkl
 import copy
-
 import robosuite as suite
 from robosuite.controllers import load_composite_controller_config
 from conditional_Action_DiT import Conditional_ODE
-
 from env import TwoArmHandoverRole
-
 from scipy.spatial.transform import Rotation as R
 from transform_utils import SE3_log_map, SE3_exp_map, quat_to_rot6d, rotvec_to_rot6d, rot6d_to_quat, rot6d_to_rotvec, quat_to_rotm
-
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -30,8 +25,6 @@ class TwoArmHandover():
 
 class PolicyPlayer:
     def __init__ (self, env, render= True):
-        
-        
         self.env = env
 
         self.control_freq = env.control_freq
@@ -40,9 +33,6 @@ class PolicyPlayer:
         self.max_steps = int(self.max_time / self.dt)
 
         self.render = render
-
-        # robot0_base_body_id = env.sim.model.body_name2id("robot0:base")
-        # possible: 'robot0_base', 'robot0_fixed_base_link', 'robot0_shoulder_link'
 
         # Extract the base position and orientation (quaternion) from the simulation data
         robot0_base_body_id = self.env.sim.model.body_name2id("robot0_base")
@@ -85,15 +75,13 @@ class PolicyPlayer:
         return obs
 
     def load_model(self, type = "rot6d", state_dim = 10, action_dim = 10):
-        n_gradient_steps = 100_000
-        batch_size = 64
         model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
         H = 340 # horizon, length of each trajectory
 
+        # Load data
         expert_data = np.load("data/expert_actions_"+type+"_200.npy")
         expert_data1 = expert_data[:, :, :action_dim]
         expert_data2 = expert_data[:, :, action_dim:action_dim*2]
-
         hammer_states = np.load("data/hammer_states_"+type+"_200.npy")
 
         # Compute mean and standard deviation
@@ -126,15 +114,15 @@ class PolicyPlayer:
 
         env = TwoArmHandover(state_size=state_dim, action_size=action_dim)
 
+        # Prepare conditional vectors
         obs1 = torch.FloatTensor(hammer_states).to(device)
         obs2 = torch.FloatTensor(hammer_states).to(device)
         attr1 = obs1
         attr2 = obs2
         attr_dim1 = attr1.shape[1]
         attr_dim2 = attr2.shape[1]
-        # assert attr_dim1 == env.state_size * 2
-        # assert attr_dim2 == env.state_size * 2
 
+        # Prepare expert data
         actions1 = expert_data1[:, :H-1, :]
         actions2 = expert_data2[:, :H-1, :]
         actions1 = torch.FloatTensor(actions1).to(device)
@@ -142,17 +130,19 @@ class PolicyPlayer:
         sigma_data1 = actions1.std().item()
         sigma_data2 = actions2.std().item()
 
+        # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
         action_cond_ode.load(extra="_T340_"+type+"_hammer_200")
 
         return action_cond_ode
     
-    def get_demo(self, seed, mode):
+    def get_demo(self, seed, mode, cond_idx):
         """
         Main file to get the demonstration data
         """
         obs = self.reset(seed, mode)
 
+        # Loading
         expert_data = np.load("data/expert_actions_rot6d_200.npy")
         expert_data1 = expert_data[:, :, :10]
         expert_data2 = expert_data[:, :, 10:20]
@@ -164,10 +154,10 @@ class PolicyPlayer:
 
         with open("data/hammer_states_rot6d_200.npy", "rb") as f:
             obs = np.load(f)
-        cond_idx = -1
-        obs1 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0)
-        obs2 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0)
+        obs1 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0) # The index of the condition you want from pot_states, this should correlate to the seed and mode that are being sampled
+        obs2 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0) # The index of the condition you want from pot_states, this should correlate to the seed and mode that are being sampled
 
+        # Sampling
         traj_len = 340
         n_samples = 1
 
@@ -178,6 +168,7 @@ class PolicyPlayer:
         sampled1 = sampled1 * std + mean
         sampled2 = sampled2 * std + mean
 
+        # Decompose the sampled data to swap the rot6d vectors for rotation vectors
         pos1 = sampled1[:, :3]   # shape: (340, 3)
         rot6d1 = sampled1[:, 3:9]   # shape: (340, 6)
         grip1 = sampled1[:, 9]       # shape: (340,)
@@ -191,29 +182,13 @@ class PolicyPlayer:
         combined1 = np.hstack([pos1, rotvecs1, grip1.reshape(-1,1)])
         combined2 = np.hstack([pos2, rotvecs2, grip2.reshape(-1,1)])
 
+        # Run the sampled trajectory in the environment
         for i in range(len(combined1)):
             action = np.hstack([combined1[i], combined2[i]])
             obs, reward, done, info = self.env.step(action)
 
             if self.render:
                 self.env.render()
-
-
-    def process_obs(self, obs):
-
-        processed_obs = copy.deepcopy(obs)
-        robot0_pos, robot0_rotm, robot1_pos, robot1_rotm = self.get_poses(obs)
-
-        processed_obs['robot0_eef_pos'] = robot0_pos
-        processed_obs['robot0_eef_quat_site'] = R.from_matrix(robot0_rotm).as_quat()
-
-        processed_obs['robot1_eef_pos'] = robot1_pos
-        processed_obs['robot1_eef_quat_site'] = R.from_matrix(robot1_rotm).as_quat()
-
-        processed_obs['robot0_gripper_pos'] = self.env.sim.data.qpos[self.qpos_index_0]
-        processed_obs['robot1_gripper_pos'] = self.env.sim.data.qpos[self.qpos_index_1]
-
-        return processed_obs
             
 
 if __name__ == "__main__":
@@ -231,7 +206,8 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = True)
-    rollout = player.get_demo(seed = 1990, mode = 1)
+    cond_idx = 0
+    rollout = player.get_demo(seed = cond_idx*10, mode = 1, cond_idx = cond_idx)
     # for i in range(100):   
     #     rollout = player.get_demo(seed = i*10, mode = 2)
     #     with open("rollouts/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:

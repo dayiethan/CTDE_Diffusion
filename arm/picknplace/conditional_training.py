@@ -1,3 +1,5 @@
+# Trains a Conditional ODE model for the Pick and Place task
+
 import torch
 import numpy as np
 from conditional_Action_DiT import Conditional_ODE
@@ -11,8 +13,8 @@ batch_size = 64
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 275 # horizon, length of each trajectory
 
+# Load expert data
 expert_data = np.load("data/expert_actions.npy")
-
 
 # Compute mean and standard deviation
 mean = np.mean(expert_data, axis=(0,1))
@@ -40,17 +42,17 @@ class PicknPlace():
 
 env = PicknPlace()
 
+# Preapare expert data for training
 actions = expert_data[:, :H-1, :]
-with open("data/hammer_positions.npy", "rb") as f:
-    obs = np.load(f)
-obs = torch.FloatTensor(obs).to(device)
-
-attr = obs
-attr_dim = attr.shape[1]
-
 actions = torch.FloatTensor(actions).to(device)
 sigma_data = actions.std().item()
 
+# Prepare conditional vectors for training
+with open("data/hammer_positions.npy", "rb") as f:
+    obs = np.load(f)
+obs = torch.FloatTensor(obs).to(device)
+attr = obs
+attr_dim = attr.shape[1]
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim], [sigma_data], device=device, N=100, n_models = 1, **model_size)

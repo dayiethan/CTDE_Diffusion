@@ -1,22 +1,16 @@
 # Generates demonstrations for the Two Arm Lift task
 
 import time
-
 import numpy as np
 import matplotlib.pyplot as plt
 import pdb
 import pickle as pkl
 import copy
-
 import robosuite as suite
 from robosuite.controllers import load_composite_controller_config
-
 from env import TwoArmLiftRole
-
 from scipy.spatial.transform import Rotation as R
 from transform_utils import SE3_log_map, SE3_exp_map
-
-
 
 class PolicyPlayer:
     def __init__ (self, env, render = False):
@@ -28,9 +22,6 @@ class PolicyPlayer:
         self.max_steps = int(self.max_time / self.dt)
 
         self.render = render
-
-        # robot0_base_body_id = env.sim.model.body_name2id("robot0:base")
-        # possible: 'robot0_base', 'robot0_fixed_base_link', 'robot0_shoulder_link'
 
         # Extract the base position and orientation (quaternion) from the simulation data
         robot0_base_body_id = self.env.sim.model.body_name2id("robot0_base")
@@ -45,9 +36,6 @@ class PolicyPlayer:
         self.R_be_home = np.array([[0, 1, 0],
                                   [1, 0, 0],
                                   [0, 0, -1]])
-
-        # robot0_init_rotm_world = R.from_quat(obs['robot0_eef_quat_site'], scalar_first = False).as_matrix()
-        # robot1_init_rotm_world = R.from_quat(obs['robot1_eef_quat_site'], scalar_first = False).as_matrix()
 
         self.n_action = self.env.action_spec[0].shape[0]
 
@@ -209,15 +197,6 @@ class PolicyPlayer:
                      "gripper": -1}
         self.waypoints_robot1.append(waypoint)
 
-        
-
-    # def convert_action_robot(self, robot_goal_pos, robot_goal_rotm, robot_gripper):
-    #     action = np.zeros(int(self.n_action/2))
-    #     action[0:3] = robot_goal_pos
-    #     action[3:6] = R.from_matrix(robot_goal_rotm).as_rotvec()
-    #     action[6] = robot_gripper
-
-    #     return action
     def convert_action_robot(self, robot_pos, robot_rotm, robot_goal_pos, robot_goal_rotm, robot_gripper, alpha = 0.5):
         action = np.zeros(int(self.n_action/2))
 
@@ -258,7 +237,6 @@ class PolicyPlayer:
     def check_arrived(self, pos1, rotm1, pos2, rotm2, threshold = 0.05):
         pos_diff = pos1 - pos2
         rotm_diff = rotm2.T @ rotm1
-
 
         distance = np.sqrt(0.5 * np.linalg.norm(pos_diff)**2 + np.trace(np.eye(3) - rotm_diff))
 
@@ -487,13 +465,13 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = False)
-    rollout = player.get_demo(seed = 100, mode = 2)
-    # for i in range(200):   
-        # rollout = player.get_demo(seed = i*10, mode = 2)
-        # rollout['pot_pos'] = [player.pot_handle0_pos, player.pot_handle1_pos]
-        # with open("rollouts_pot/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
-        #     pkl.dump(rollout, f)
-        # rollout = player.get_demo(seed = i*10, mode = 3)
-        # rollout['pot_pos'] = [player.pot_handle0_pos, player.pot_handle1_pos]
-        # with open("rollouts_pot/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
-        #     pkl.dump(rollout, f)
+    # rollout = player.get_demo(seed = 100, mode = 2)
+    for i in range(200):   
+        rollout = player.get_demo(seed = i*10, mode = 2)
+        rollout['pot_pos'] = [player.pot_handle0_pos, player.pot_handle1_pos]
+        with open("rollouts_pot/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
+            pkl.dump(rollout, f)
+        rollout = player.get_demo(seed = i*10, mode = 3)
+        rollout['pot_pos'] = [player.pot_handle0_pos, player.pot_handle1_pos]
+        with open("rollouts_pot/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
+            pkl.dump(rollout, f)

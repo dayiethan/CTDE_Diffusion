@@ -1,20 +1,16 @@
 # Generates demonstrations for the Two Arm Handover task
 
 import time
-
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle as pkl
 import copy
-
 import robosuite as suite
 from robosuite.controllers import load_composite_controller_config
 from transform_utils import *
 import pdb
-
 from env import TwoArmHandoverRole
 from scipy.spatial.transform import Rotation as R
-
 
 class PolicyPlayer:
     def __init__ (self, env, render= True):
@@ -28,9 +24,6 @@ class PolicyPlayer:
         self.max_steps = int(self.max_time / self.dt)
 
         self.render = render
-
-        # robot0_base_body_id = env.sim.model.body_name2id("robot0:base")
-        # possible: 'robot0_base', 'robot0_fixed_base_link', 'robot0_shoulder_link'
 
         # Extract the base position and orientation (quaternion) from the simulation data
         robot0_base_body_id = self.env.sim.model.body_name2id("robot0_base")
@@ -55,6 +48,7 @@ class PolicyPlayer:
         """
         np.random.seed(seed)
         obs = self.env.reset()
+
         self.handle_length = self.env.hammer.handle_length
         self.hammer_headsize = 2*self.env.hammer.head_halfsize
 
@@ -77,11 +71,11 @@ class PolicyPlayer:
         self.waypoints_robot0 = []
         self.waypoints_robot1 = []
 
-        pass_x = 0.55
-        pass_y = 0
-        pass_z = 0.1
-        giver_x_offset = 0.05
-        receiver_x_offset = 0.24
+        pass_x = 0.55   # position of where the hammer is passed
+        pass_y = 0      # position of where the hammer is passed
+        pass_z = 0.1    # position of where the hammer is passed
+        giver_x_offset = 0.05       # offset for the giver robot at handover
+        receiver_x_offset = 0.24    # offset for the receiver robot at handover
 
         if mode == 1:
             """
@@ -268,8 +262,6 @@ class PolicyPlayer:
                         "gripper": -1}
             self.waypoints_robot1.append(waypoint)
 
-        
-
     def convert_action_robot(self, robot_pos, robot_rotm, robot_goal_pos, robot_goal_rotm, robot_gripper, alpha = 0.5):
         action = np.zeros(int(self.n_action/2))
 
@@ -310,7 +302,6 @@ class PolicyPlayer:
     def check_arrived(self, pos1, rotm1, pos2, rotm2, threshold = 0.05):
         pos_diff = pos1 - pos2
         rotm_diff = rotm2.T @ rotm1
-
 
         distance = np.sqrt(0.5 * np.linalg.norm(pos_diff)**2 + np.trace(np.eye(3) - rotm_diff))
 
