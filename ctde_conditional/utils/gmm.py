@@ -5,7 +5,7 @@ from joblib import dump, load
 
 # Loading training trajectories
 all_points = []
-with open('../data/trajs_noise1.csv', 'r') as file:
+with open('data/trajs_noise1.csv', 'r') as file:
     reader = csv.reader(file)
     for row in reader:
         x1, y1 = float(row[4]), float(row[5])
@@ -14,9 +14,9 @@ with open('../data/trajs_noise1.csv', 'r') as file:
 
 expert_data = np.array(all_points)
 
-with open("../data/mean_reactive.npy", "rb") as f:
+with open("data/mean_reactive.npy", "rb") as f:
     mean = np.load(f)
-with open("../data/std_reactive.npy", "rb") as f:
+with open("data/std_reactive.npy", "rb") as f:
     std = np.load(f)
 mean = np.concatenate([mean, mean])
 std = np.concatenate([std, std])
@@ -27,7 +27,7 @@ gmm = GaussianMixture(n_components=3, covariance_type='full', random_state=0)
 gmm.fit(expert_data)
 
 # Save the GMM
-dump(gmm, 'expert_gmm.pkl')
+dump(gmm, 'utils/expert_gmm.pkl')
 
 # Function to compute probability density of a new state vector
 def expert_likelihood(gmm_model, state_vector):

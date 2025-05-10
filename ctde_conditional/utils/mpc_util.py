@@ -1,13 +1,13 @@
 import torch
 import numpy as np
-from conditional_Action_DiT import Conditional_ODE
+from utils.conditional_Action_DiT import Conditional_ODE
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from discrete import *
+from utils.discrete import *
 import sys
 import pdb
 import csv
-from gmm import expert_likelihood
+from utils.gmm import expert_likelihood
 from joblib import dump, load
 import pdb
 
@@ -401,17 +401,17 @@ def splice_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_
     return full_traj
 
 
-def mpc_plan(ode_model, env, initial_state, fixed_goal, model_i, segment_length=10, total_steps=100):
+def mpc_plan(ode_model, env, initial_state, fixed_goal, model_i, leader_traj_cond = None, segment_length=10, total_steps=100):
     """
     Plans a full trajectory (total_steps long) by iteratively planning
-    segment_length-steps using the diffusion model.
+    segment_length-steps using the diffusion model and replanning at every timestep.
     
     Parameters:
       - ode_model: the Conditional_ODE (diffusion model) instance.
       - env: your environment, which must implement reset_to() and step().
       - initial_state: a numpy array of shape (state_size,) (the current state).
       - fixed_goal: a numpy array of shape (state_size,) representing the final goal.
-      - model_i: the index of the agent/model being trained
+      - model_i: the index of the agent/model being planned for.
       - segment_length: number of timesteps to plan in each segment.
       - total_steps: total length of the planned trajectory.
     
@@ -421,8 +421,12 @@ def mpc_plan(ode_model, env, initial_state, fixed_goal, model_i, segment_length=
     full_traj = []
     current_state = initial_state.copy()
     n_segments = total_steps // segment_length
+
     for seg in range(100):
-        cond = np.hstack([current_state, fixed_goal])
+        if leader_traj_cond is not None:
+            cond = np.hstack([current_state, fixed_goal, leader_traj_cond.flatten()])
+        else:
+            cond = np.hstack([current_state, fixed_goal])
         cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
         sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=model_i)
         segment = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)

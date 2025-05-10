@@ -184,15 +184,29 @@ class SinusoidalPosEmb(nn.Module):
 #%% Diffusion ODE with multiple models
 
 class Conditional_ODE():
-    def __init__(self, env, attr_dim: list, sigma_data: list, sigma_min: float = 0.001, sigma_max: float = 50,
-                 rho: float = 7, p_mean: float = -1.2, p_std: float = 1.2, 
-                 d_model: int = 384, n_heads: int = 6, depth: int = 12,
-                 device: str = "cpu", N: int = 5, lr: float = 2e-4, lin_scale = 128,
-                 n_models: int = 2):
+    def __init__(self,
+                 env,
+                 leader_attr_dim: int,
+                 follower_attr_dims: list,
+                 sigma_data_leader: float,
+                 sigma_data_followers: list,
+                 sigma_min: float = 0.001,
+                 sigma_max: float = 50.0,
+                 rho: float = 7.0,
+                 p_mean: float = -1.2,
+                 p_std: float = 1.2,
+                 d_model: int = 384,
+                 n_heads: int = 6,
+                 depth: int = 12,
+                 device: str = "cpu",
+                 N: int = 5,
+                 lr: float = 2e-4,
+                 lin_scale: int = 128,
+                 n_followers: int = 1,):
         """
         Predicts the sequence of actions to apply conditioned on the initial state.
         Diffusion is trained according to EDM: "Elucidating the Design Space of Diffusion-Based Generative Models"
-        This version supports training any number (n_models) of diffusion transformers simultaneously.
+        This version trains one **leader** (model_index=0) plus n_followers **followers** (model_index=1..n_followers).
         
         Parameters:
          - env: environment object that must have attributes `name`, `state_size`, and `action_size`.
@@ -205,29 +219,43 @@ class Conditional_ODE():
         
         self.state_size = env.state_size
         self.action_size = env.action_size
-        if attr_dim is None:
-            attr_dim = [env.state_size * 2]*n_models
-        # assert attr_dim[0] == self.state_size * 2, "Attribute dimension must equal 2*state_size"
+        # validate lengths
+        assert len(follower_attr_dims) == n_followers
+        assert len(sigma_data_followers) == n_followers
         
-        # Expect sigma_data to be a list with one sigma per model.
-        assert isinstance(sigma_data, list), "sigma_data must be a list"
-        assert len(sigma_data) == n_models, "Length of sigma_data must equal n_models"
-        self.sigma_data_list = sigma_data
-        
-        self.sigma_min, self.sigma_max = sigma_min, sigma_max
-        self.rho, self.p_mean, self.p_std = rho, p_mean, p_std
-        self.device = device
-        
-        # Create n_models diffusion transformers and their EMA copies.
-        self.n_models = n_models
-        self.F_list = nn.ModuleList()
+        # --- build leader + followers into ModuleList ---
+        self.F_list     = nn.ModuleList()
         self.F_ema_list = []
-        for i in range(n_models):
-            model = DiT1d(self.action_size, attr_dim=attr_dim[i], d_model=d_model,
-                           n_heads=n_heads, depth=depth, dropout=0.1, lin_scale=lin_scale).to(device)
-            model.train()
-            self.F_list.append(model)
-            self.F_ema_list.append(deepcopy(model).requires_grad_(False).eval())
+
+        # leader @ index 0
+        leader = DiT1d(self.action_size,
+                       attr_dim=leader_attr_dim,
+                       d_model=d_model, n_heads=n_heads,
+                       depth=depth, dropout=0.1,
+                       lin_scale=lin_scale).to(device)
+        self.F_list.append(leader)
+        self.F_ema_list.append(deepcopy(leader).eval().requires_grad_(False))
+
+        # followers @ indices 1..n_followers
+        for dim in follower_attr_dims:
+            foll = DiT1d(self.action_size,
+                         attr_dim=dim,
+                         d_model=d_model, n_heads=n_heads,
+                         depth=depth, dropout=0.1,
+                         lin_scale=lin_scale).to(device)
+            self.F_list.append(foll)
+            self.F_ema_list.append(deepcopy(foll).eval().requires_grad_(False))
+
+        # store sigma_data per model
+        self.sigma_data_list = [sigma_data_leader] + sigma_data_followers
+        self.sigma_min = sigma_min
+        self.sigma_max = sigma_max
+        self.rho       = rho
+        self.p_mean    = p_mean
+        self.p_std     = p_std
+        self.N         = N
+        self.device    = device
+        self.n_models  = n_followers + 1
         
         # Create a single optimizer for all transformer parameters.
         all_params = []
@@ -282,6 +310,14 @@ class Conditional_ODE():
     def sample_noise_distribution(self, N):
         log_sigma = torch.randn((N, 1, 1), device=self.device) * self.p_std + self.p_mean
         return log_sigma.exp()
+    
+    # def sample_noise_distribution(self, batch_size):
+    #     """Mixture of sigmas as in DiT."""
+    #     u = torch.rand(batch_size, device=self.device)
+    #     invsigmas = (self.sigma_min**(1/self.rho)
+    #                  + u * (self.sigma_max**(1/self.rho) - self.sigma_min**(1/self.rho)))
+    #     sigmas = invsigmas.pow(self.rho)
+    #     return sigmas.view(-1, *([1]*len(self.x_shape)))
     
     def D(self, x, sigma, condition=None, mask=None, use_ema=False, model_index=0):
         """
