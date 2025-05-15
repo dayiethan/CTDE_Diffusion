@@ -40,6 +40,10 @@ with open("data/std.npy", "rb") as f:
 with open("data/sigma_data.npy", "rb") as f:
     sig = np.load(f)
 
+# print the mean and std
+# print("mean: ", mean)
+# print("std: ", std)
+
 
 # Training
 action_cond_ode = Conditional_ODE(env, [4, 4], sig.tolist(), device=device, N=100, n_models = 2, **model_size)
@@ -221,7 +225,7 @@ def mpc_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_len
             cond1_tensor = torch.tensor(cond1, dtype=torch.float32, device=device).unsqueeze(0)
             cond2_tensor = torch.tensor(cond2, dtype=torch.float32, device=device).unsqueeze(0)
 
-            sampled = ode_model.sample_denoising_guidance(
+            sampled = ode_model.sample_denoising_guidance_2(
                 attr=[cond1_tensor, cond2_tensor],
                 traj_len=segment_length,
                 n_samples=1,
@@ -312,7 +316,7 @@ for i in range(5):
     plt.xlabel("x")
     plt.ylabel("y")
     plt.title("MPC Planned Trajectory")
-    plt.savefig("figs/mpc_noise_H_25_I_5_denoising_guidance/mpc_traj_%s.png" % str(i))
+    plt.savefig("figs/mpc_noise_H_25_I_5_denoising_guidance/mpc2_traj_%s.png" % str(i))
     # plt.show()
 
     # # Generate a video of the planning process:

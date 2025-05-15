@@ -455,7 +455,7 @@ class Conditional_ODE():
         return x
 
     @torch.no_grad()
-    def sample_denoising_guidance(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0, mean = 0, std = 1):
+    def sample_denoising_guidance(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0, mean = [0,0], std = [1,1]):
         """
         Samples a trajectory using the EMA copy of the specified transformer, conditioned on GNN embeddings.
 
@@ -519,6 +519,90 @@ class Conditional_ODE():
                 x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
 
         return x
+
+    @torch.no_grad()
+    def sample_denoising_guidance_2(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0, mean = [0,0], std = [1,1]):
+        """
+        Samples a trajectory using the EMA copy of the specified transformer, conditioned on GNN embeddings.
+
+        attr: attribute tensor of shape (n_samples, attr_dim)
+        traj_len: trajectory length.
+        model_index: which transformer to use.
+        """
+        if N is not None and N != self.N:
+            self.set_N(N)
+
+        x = torch.randn((n_samples, traj_len, self.action_size), device=self.device) * self.sigma_s[0] * self.scale_s[0]
+        x[:, 0, :self.state_size] = attr[model_index][:, :self.state_size]
+        original_attr = attr[model_index].clone()
+
+        # Construct edge index for batch processing
+        batch_size = n_samples
+        edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long, device=self.device).repeat(1, batch_size)
+        offsets = (torch.arange(batch_size) * 2).to(self.device)
+        edge_index = edge_index + offsets.repeat_interleave(2).unsqueeze(0)
+
+        # Prepare node features for GNN
+        attr1 = attr[0].clone()
+        attr2 = attr[1].clone()
+        node_features = torch.stack([attr1, attr2], dim=1).view(-1, attr[model_index].shape[-1])  # Shape: (batch_size * 2, attr_dim)
+
+        init1 = attr1[0, :2] * std + mean
+        init2 = attr2[0, :2] * std + mean
+
+        with torch.no_grad():
+            gnn_embeddings = self.gnn(node_features, edge_index)
+            gnn_embeddings = gnn_embeddings.view(batch_size, 2, -1)
+            embeddings = gnn_embeddings[:, model_index, :]
+
+        for i in range(self.N):
+            with torch.no_grad():
+                D_out = self.D(
+                    x / self.scale_s[i],
+                    torch.ones((n_samples, 1, 1), device=self.device) * self.sigma_s[i],
+                    condition=embeddings,
+                    mask=torch.ones_like(attr[model_index]),
+                    use_ema=True,
+                    model_index=model_index
+                )
+
+            guidance_grad = 0.0
+            if model_index == 1:
+                # Unnormalize first 5 steps of ego trajectory
+                dist = torch.norm(init1 - init2).item()
+
+                if dist < 2.99:
+                    x_un = x[:, :5, :self.state_size] * std + mean  # [n_samples, 5, state_size]
+                    attr2_un = attr2[:, :self.state_size] * std + mean  # [1, state_size]
+                    attr2_rep = attr2_un.unsqueeze(1).expand(n_samples, 5, -1)  # [n_samples, 5, state_size]
+
+                    # Compute difference vector and flattened norm
+                    diff = x_un - attr2_rep  # [n_samples, 5, state_size]
+                    v = diff.view(n_samples, -1)  # [n_samples, 5 * state_size]
+                    norm_sq = torch.sum(v**2, dim=1, keepdim=True)  # [n_samples, 1]
+                    eps = 1e-6
+                    cost = 1.0 / (norm_sq + eps)  # [n_samples, 1]
+
+                    # Analytical gradient of cost w.r.t. x[:, :5, :state_size]
+                    grad = 2 * diff / (norm_sq + eps).unsqueeze(-1) ** 2  # [n_samples, 5, state_size]
+
+                    # Pad to match x's shape: [n_samples, T, D]
+                    guidance_grad = torch.zeros_like(x)
+                    guidance_grad[:, :5, :self.state_size] = grad  # Only first 5 steps get repulsion
+
+                    # Optionally scale guidance_grad if needed
+                    # guidance_grad = self.coeff2[i] * guidance_grad
+
+            # Euler step
+            delta = self.coeff1[i] * x - self.coeff2[i] * D_out - self.coeff2[i]*guidance_grad*0.25
+            dt = self.t_s[i] - self.t_s[i+1] if i != self.N - 1 else self.t_s[i]
+            x = x - delta * dt
+
+            # Clamp ego's initial state (no gradients needed here)
+            x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
+
+        return x
+
 
     @torch.no_grad()
     def sample_with_noise(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0, eta: float = 0.1):
