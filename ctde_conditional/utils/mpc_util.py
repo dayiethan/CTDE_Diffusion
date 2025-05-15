@@ -436,3 +436,71 @@ def mpc_plan(ode_model, env, initial_state, fixed_goal, model_i, leader_traj_con
 
         current_state = next_state_i
     return np.array(full_traj)
+
+
+def reactive_mpc_plan(ode_model, env, initial_states, fixed_goals, model_i, segment_length=25, total_steps=100, n_implement=5):
+    """
+    Plans a full trajectory (total_steps long) by iteratively planning
+    segment_length-steps using the diffusion model and replanning at every timestep.
+    
+    Parameters:
+      - ode_model: the Conditional_ODE (diffusion model) instance.
+      - env: your environment, which must implement reset_to() and step().
+      - initial_state: a numpy array of shape (state_size,) (the current state).
+      - fixed_goal: a numpy array of shape (state_size,) representing the final goal.
+      - model_i: the index of the agent/model being planned for.
+      - segment_length: number of timesteps to plan in each segment.
+      - total_steps: total length of the planned trajectory.
+    
+    Returns:
+      - full_traj: a numpy array of shape (total_steps, state_size)
+    """
+    full_traj = []
+    current_states = initial_states.copy()
+
+    for seg in range(total_steps):
+        segments = []
+        for i in range(len(current_states)):
+            if i == 0:
+                cond = [current_states[i], fixed_goals[i]]
+                for j in range(len(current_states)):
+                    if j != i:
+                        cond.append(current_states[j])
+                        cond.append(fixed_goals[j])
+                cond = np.hstack(cond)
+                cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
+                sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=model_i)
+                seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
+
+                if seg == 0:
+                    segments.append(seg_i[0:n_implement,:])
+                    current_states[i] = seg_i[n_implement-1,:]
+                else:
+                    segments.append(seg_i[1:n_implement+1,:])
+                    current_states[i] = seg_i[n_implement,:]
+
+            else:
+                cond = [current_states[i], fixed_goals[i]]
+                for j in range(len(current_states)):
+                    if j != i and j != 0:
+                        cond.append(current_states[j])
+                        cond.append(fixed_goals[j])
+                cond.append(current_states[0])
+                cond.append(fixed_goals[0])
+                cond = np.hstack(cond)
+                cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
+                sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=model_i)
+                seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
+
+                if seg == 0:
+                    segments.append(seg_i[0:n_implement,:])
+                    current_states[i] = seg_i[n_implement-1,:]
+                else:
+                    segments.append(seg_i[1:n_implement+1,:])
+                    current_states[i] = seg_i[n_implement,:]
+        
+        seg_array = np.stack(segments, axis=0)
+        full_traj.append(seg_array)
+
+    full_traj = np.concatenate(full_traj, axis=1) 
+    return np.array(full_traj)
