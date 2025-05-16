@@ -87,13 +87,13 @@ class TwoUnicycle():
         self.action_size = action_size
         self.name = "TwoUnicycle"
 env = TwoUnicycle()
-
+# breakpoint()
 # Setting up training data
 obs_init1 = expert_data1[:, 0, :]
 obs_init2 = expert_data2[:, 0, :]
 obs_init1_cond = expert_data1[:, 4, :]
-obs_final1 = np.repeat(orig1[:, -1, :], repeats=10, axis=0)
-obs_final2 = np.repeat(orig2[:, -1, :], repeats=10, axis=0)
+obs_final1 = np.repeat(orig1[:, -1, :], repeats=100, axis=0)
+obs_final2 = np.repeat(orig2[:, -1, :], repeats=100, axis=0)
 obs1 = np.hstack([obs_init1, obs_final1, obs_init2, obs_final2])
 obs2 = np.hstack([obs_init2, obs_final2, obs_init1_cond, obs_final1])
 obs_temp1 = obs1
@@ -118,8 +118,8 @@ sig = np.array([sigma_data1, sigma_data2])
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, lin_scale = 128, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_P25E5_reactive")
-action_cond_ode.save(extra="_P25E5_reactive")
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_P25E5_reactive")
+# action_cond_ode.save(extra="_P25E5_reactive")
 action_cond_ode.load(extra="_P25E5_reactive")
 
 
@@ -142,6 +142,7 @@ ref_agent2 = ref2[:, :]
 
 # Sampling
 for i in range(100):
+    print("Planning Sample %s" % i)
     noise_std = 0.4
     initial1 = initial_point_up + noise_std * np.random.randn(*np.shape(initial_point_up))
     initial1 = (initial1 - mean) / std
