@@ -458,7 +458,7 @@ def reactive_mpc_plan(ode_model, env, initial_states, fixed_goals, model_i, segm
     full_traj = []
     current_states = initial_states.copy()
 
-    for seg in range(total_steps):
+    for seg in range(total_steps // n_implement):
         segments = []
         for i in range(len(current_states)):
             if i == 0:
@@ -469,7 +469,7 @@ def reactive_mpc_plan(ode_model, env, initial_states, fixed_goals, model_i, segm
                         cond.append(fixed_goals[j])
                 cond = np.hstack(cond)
                 cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
-                sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=model_i)
+                sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=0)
                 seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
 
                 if seg == 0:
@@ -489,7 +489,7 @@ def reactive_mpc_plan(ode_model, env, initial_states, fixed_goals, model_i, segm
                 cond.append(fixed_goals[0])
                 cond = np.hstack(cond)
                 cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
-                sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=model_i)
+                sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)
                 seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
 
                 if seg == 0:

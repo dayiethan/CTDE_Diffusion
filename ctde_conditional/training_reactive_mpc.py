@@ -38,7 +38,7 @@ print(device)
 n_gradient_steps = 100_000
 batch_size = 64
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
-H = 10 # horizon, length of each trajectory
+H = 25 # horizon, length of each trajectory
 T = 100 # total time steps
 
 # Define initial and final points, and a single central obstacle
