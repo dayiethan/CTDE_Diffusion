@@ -7,6 +7,7 @@ import numpy as np
 from conditional_Action_DiT import Conditional_ODE
 import matplotlib.pyplot as plt
 import sys
+import pdb
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -74,9 +75,10 @@ attr1 = obs1
 attr2 = obs2
 attr_dim1 = attr1.shape[1]
 attr_dim2 = attr2.shape[1]
+breakpoint()
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T340_rotvec_hammer_pickup_pos_20", endpoint_loss=False)
-action_cond_ode.save(extra="_T340_rotvec_hammer_pickup_pos_20")
-action_cond_ode.load(extra="_T340_rotvec_hammer_pickup_pos_20")
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_T340_rotvec_hammer_pickup_pos_20", endpoint_loss=False)
+# action_cond_ode.save(extra="_T340_rotvec_hammer_pickup_pos_20")
+# action_cond_ode.load(extra="_T340_rotvec_hammer_pickup_pos_20")
