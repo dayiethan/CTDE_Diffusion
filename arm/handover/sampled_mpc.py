@@ -182,7 +182,7 @@ class PolicyPlayer:
 
         # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_handover_mpc_P34E5")
+        action_cond_ode.load(extra="_handover_mpc_P34E5_2")
 
         return action_cond_ode
     
@@ -304,5 +304,5 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = True)
-    cond_idx = 1
-    rollout = player.get_demo(seed = cond_idx*10, mode = 1, cond_idx = cond_idx, H=34, T=340)
+    cond_idx = 2
+    rollout = player.get_demo(seed = cond_idx*10, mode = 2, cond_idx = cond_idx, H=34, T=340)

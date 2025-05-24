@@ -36,9 +36,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
 # Parameters
-n_gradient_steps = 500_000
+n_gradient_steps = 200_000
 batch_size = 64
-model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
+model_size = {
+    "d_model": 512,      # twice the transformer width
+    "n_heads": 8,        # more attention heads
+    "depth":   6,        # twice the number of layers
+    "lin_scale": 256,    # larger conditional embedder
+}
 H = 34 # horizon, length of each trajectory
 T = 340 # total time steps
 
@@ -102,6 +107,6 @@ attr_dim2 = attr2.shape[1]
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_handover_mpc_P34E5_2", endpoint_loss=False)
-action_cond_ode.save(extra="_handover_mpc_P34E5_2")
-action_cond_ode.load(extra="_handover_mpc_P34E5_2")
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_handover_mpc_P34E5_3", endpoint_loss=False)
+action_cond_ode.save(extra="_handover_mpc_P34E5_3")
+action_cond_ode.load(extra="_handover_mpc_P34E5_3")
