@@ -99,34 +99,14 @@ class PolicyPlayer:
         return obs
         
     def load_model(self, type = "rotvec", state_dim = 7, action_dim = 7):
-        model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
+        model_size = {
+            "d_model": 512,      # twice the transformer width
+            "n_heads": 8,        # more attention heads
+            "depth":   6,        # twice the number of layers
+            "lin_scale": 256,    # larger conditional embedder
+        }
         H = 34 # horizon, length of each trajectory
         T = 340 # total time steps
-
-        # # Load data
-        # expert_data = np.load("data_pickup_pos/expert_actions_"+type+"_200.npy")
-        # expert_data1 = expert_data[:, :, :action_dim]
-        # expert_data2 = expert_data[:, :, action_dim:action_dim*2]
-        # hammer_states = np.load("data_pickup_pos/hammer_states_"+type+"_200.npy")
-
-        # # Compute mean and standard deviation
-        # combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
-        # mean = np.mean(combined_data, axis=(0,1))
-        # std = np.std(combined_data, axis=(0,1))
-
-        # # Normalize data
-        # expert_data1 = (expert_data1 - mean) / std
-        # expert_data2 = (expert_data2 - mean) / std
-
-        # env = TwoArmHandover(state_size=state_dim, action_size=action_dim)
-
-        # # Prepare conditional vectors
-        # obs1 = torch.FloatTensor(hammer_states).to(device)
-        # obs2 = torch.FloatTensor(hammer_states).to(device)
-        # attr1 = obs1
-        # attr2 = obs2
-        # attr_dim1 = attr1.shape[1]
-        # attr_dim2 = attr2.shape[1]
 
         # Load expert data
         expert_data = np.load("data_pickup_pos/expert_actions_rotvec_200.npy")
@@ -182,7 +162,7 @@ class PolicyPlayer:
 
         # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_handover_mpc_P34E5_2")
+        action_cond_ode.load(extra="_handover_mpc_P34E5_3")
 
         return action_cond_ode
     
@@ -304,5 +284,5 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = True)
-    cond_idx = 2
+    cond_idx = 0
     rollout = player.get_demo(seed = cond_idx*10, mode = 2, cond_idx = cond_idx, H=34, T=340)
