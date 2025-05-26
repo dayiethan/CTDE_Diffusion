@@ -41,8 +41,10 @@ class ContinuousCondEmbedder(nn.Module):
         self.attr_dim = attr_dim
         self.lin_scale = lin_scale
         self.embedding = nn.Linear(attr_dim, int(attr_dim*lin_scale)) # 1 layer affine to transform initial state into embedding vector
-        self.attn = nn.MultiheadAttention(128, num_heads=2, batch_first=True)
-        self.linear = nn.Linear(128 * attr_dim, hidden_size)
+        embed_dim = lin_scale
+        heads     = min(8, embed_dim // 16)
+        self.attn   = nn.MultiheadAttention(embed_dim, num_heads=heads, batch_first=True)
+        self.linear = nn.Linear(embed_dim * attr_dim, hidden_size)
     
     def forward(self, attr: torch.Tensor, mask: torch.Tensor = None):
         '''
