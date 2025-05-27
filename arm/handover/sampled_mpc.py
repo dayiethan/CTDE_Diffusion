@@ -109,7 +109,7 @@ class PolicyPlayer:
         T = 340 # total time steps
 
         # Load expert data
-        expert_data = np.load("data_pickup_pos/expert_actions_rotvec_200.npy")
+        expert_data = np.load("data_pickup_pos/expert_actions_rotvec_800.npy")
         expert_data1 = expert_data[:, :, :7]
         expert_data2 = expert_data[:, :, 7:14]
         orig1 = expert_data1
@@ -145,7 +145,7 @@ class PolicyPlayer:
         sigma_data2 = actions2.std().item()
 
         # Prepare conditional vectors for training
-        with open("data_pickup_pos/hammer_states_rotvec_200.npy", "rb") as f:
+        with open("data_pickup_pos/hammer_states_rotvec_800.npy", "rb") as f:
             obs = np.load(f)
         obs_init1 = expert_data1[:, 0, :3]
         obs_init2 = expert_data2[:, 0, :3]
@@ -162,7 +162,7 @@ class PolicyPlayer:
 
         # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_handover_mpc_P34E5_3")
+        action_cond_ode.load(extra="_handover_mpc_P34E5_4")
 
         return action_cond_ode
     
@@ -245,7 +245,7 @@ class PolicyPlayer:
 
         model = self.load_model(type = "rotvec", state_dim = 7, action_dim = 7)
 
-        with open("data_pickup_pos/hammer_states_rotvec_200.npy", "rb") as f:
+        with open("data_pickup_pos/hammer_states_rotvec_800.npy", "rb") as f:
             obs = np.load(f)
         obs1 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0) # The index of the condition you want from pot_states, this should correlate to the seed and mode that are being sampled
         obs2 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0) # The index of the condition you want from pot_states, this should correlate to the seed and mode that are being sampled
@@ -284,5 +284,5 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = True)
-    cond_idx = 0
+    cond_idx = 1
     rollout = player.get_demo(seed = cond_idx*10, mode = 2, cond_idx = cond_idx, H=34, T=340)

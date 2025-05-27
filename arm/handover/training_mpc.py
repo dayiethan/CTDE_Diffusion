@@ -36,19 +36,20 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
 # Parameters
-n_gradient_steps = 200_000
+n_gradient_steps = 100_000
 batch_size = 64
-model_size = {
-    "d_model": 512,      # twice the transformer width
-    "n_heads": 8,        # more attention heads
-    "depth":   6,        # twice the number of layers
-    "lin_scale": 256,    # larger conditional embedder
-}
+# model_size = {
+#     "d_model": 512,      # twice the transformer width
+#     "n_heads": 8,        # more attention heads
+#     "depth":   6,        # twice the number of layers
+#     "lin_scale": 256,    # larger conditional embedder
+# }
+model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 34 # horizon, length of each trajectory
 T = 340 # total time steps
 
 # Load expert data
-expert_data = np.load("data_pickup_pos/expert_actions_rotvec_800.npy")
+expert_data = np.load("data_pickup_pos/expert_actions_rotvec_200.npy")
 expert_data1 = expert_data[:, :, :7]
 expert_data2 = expert_data[:, :, 7:14]
 orig1 = expert_data1
@@ -90,14 +91,14 @@ sigma_data1 = actions1.std().item()
 sigma_data2 = actions2.std().item()
 
 # Prepare conditional vectors for training
-with open("data_pickup_pos/hammer_states_rotvec_800.npy", "rb") as f:
+with open("data_pickup_pos/hammer_states_rotvec_200.npy", "rb") as f:
     obs = np.load(f)
 obs_init1 = expert_data1[:, 0, :3]
 obs_init2 = expert_data2[:, 0, :3]
 obs_init1_cond = expert_data1[:, 4, :3]
 obs = np.repeat(obs, repeats=340, axis=0)
-obs1 = np.hstack([obs_init1, obs_init2, obs])
-obs2 = np.hstack([obs_init2, obs_init1_cond, obs])
+obs1 = np.hstack([np.zeros(np.shape(obs)), obs])
+obs2 = np.hstack([obs_init1_cond, obs])
 obs1 = torch.FloatTensor(obs1).to(device)
 obs2 = torch.FloatTensor(obs2).to(device)
 attr1 = obs1
@@ -107,6 +108,6 @@ attr_dim2 = attr2.shape[1]
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_handover_mpc_P34E5_4", endpoint_loss=False)
-action_cond_ode.save(extra="_handover_mpc_P34E5_4")
-action_cond_ode.load(extra="_handover_mpc_P34E5_4")
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_handover_mpc_P34E5_5", endpoint_loss=False)
+action_cond_ode.save(extra="_handover_mpc_P34E5_5")
+action_cond_ode.load(extra="_handover_mpc_P34E5_5")
