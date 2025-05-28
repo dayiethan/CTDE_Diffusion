@@ -186,7 +186,7 @@ class PolicyPlayer:
             for i in range(len(current_states)):
                 breakpoint()
                 if i == 0:
-                    cond = [obs]
+                    cond = [current_states[0], obs]
                     cond = np.hstack(cond)
                     cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
                     sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=0)
