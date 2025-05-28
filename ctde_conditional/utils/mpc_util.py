@@ -505,7 +505,7 @@ def reactive_mpc_plan(ode_model, env, initial_states, fixed_goals, model_i, segm
     full_traj = np.concatenate(full_traj, axis=1) 
     return np.array(full_traj)
 
-def reactive_mpc_latent_plan(ode_model, env, initial_states, fixed_goals, encoders, segment_length=10, latent_length=10, total_steps=100, n_implement=1):
+def reactive_mpc_latent_plan(ode_model, env, initial_states, fixed_goals, encoder, segment_length=10, total_steps=100, n_implement=1):
     """
     Plans a full trajectory (total_steps long) by iteratively planning
     segment_length-steps using the diffusion model and replanning at every timestep.
@@ -523,81 +523,54 @@ def reactive_mpc_latent_plan(ode_model, env, initial_states, fixed_goals, encode
     Returns:
       - full_traj: a numpy array of shape (total_steps, state_size)
     """
-    n_agents = len(initial_states)
-    # full trajectories per agent
-    full_traj = [ [] for _ in range(n_agents) ]
-    # current state & history buffer per agent
-    current = [s.copy() for s in initial_states]
-    history = [ [s.copy()] for s in initial_states ]
+    leader_history = []
+    full_traj = []
+    current_states = initial_states.copy()
 
-    steps = total_steps // n_implement
-    for seg_idx in range(steps):
-        # plan one segment for each agent
-        next_states = []
-        for i in range(n_agents):
-            # 1) build latent window from history[i]
-            hist = np.stack(history[i], axis=0)              # (t, state_dim)
-            if hist.shape[0] < latent_length:
-                pad = np.repeat(hist[0:1], latent_length - hist.shape[0], axis=0)
-                latent_win = np.concatenate([pad, hist], axis=0)
-            else:
-                latent_win = hist[-latent_length:]
-            # encode → z (1, latent_dim)
-            with torch.no_grad():
-                z = encoders[i](
-                    torch.from_numpy(latent_win[None]).float().to(device)
-                )  # shape: (1, latent_dim)
-            z_np = z.cpu().numpy().reshape(-1)  # (latent_dim,)
-
-            # 2) build cond vector per your training spec
+    for seg in range(total_steps // n_implement):
+        segments = []
+        for i in range(len(current_states)):
             if i == 0:
-                # leader cond: [curr_leader, goal_leader, curr_follower, z]
-                cond_list = [
-                    current[0], fixed_goals[0],
-                    current[1]
-                ]
+                cond = [current_states[i], fixed_goals[i]]
+                for j in range(len(current_states)):
+                    if j != i:
+                        cond.append(current_states[j])
+                cond = np.hstack(cond)
+                cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
+                sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=0)
+                seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
+                for j in range(n_implement):
+                    leader_history.append(seg_i[j,:])
+                if seg == 0:
+                    segments.append(seg_i[0:n_implement,:])
+                    current_states[i] = seg_i[n_implement-1,:]
+                else:
+                    segments.append(seg_i[1:n_implement+1,:])
+                    current_states[i] = seg_i[n_implement,:]
+
             else:
-                # follower cond: [curr_foll, goal_foll, leader_5ahead, z]
-                # compute leader's 5-ahead index in history[0]
-                idx5 = min(len(history[0]) - 1, seg_idx * n_implement + 5)
-                leader_5 = history[0][idx5]
-                cond_list = [
-                    current[1], fixed_goals[1],
-                    leader_5
-                ]
-            cond_list.append(z_np)
+                _latent_list = np.array(leader_history)
+                latent_list = np.vstack([np.repeat(_latent_list[0:1, :], repeats=total_steps-len(_latent_list), axis=0), _latent_list])
+                latent = torch.from_numpy(np.array([latent_list])).float().to(device)
+                z1 = encoder(latent)
 
-            cond = np.hstack(cond_list)   # (cond_dim,)
-            cond_t = torch.from_numpy(cond[None]).float().to(device)  # (1,cond_dim)
+                cond = [current_states[i], fixed_goals[i]]
+                cond.append(current_states[0])
+                cond.append(z1.detach().cpu().numpy()[0])
+                cond = np.hstack(cond)
+                cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
+                sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)
+                seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
 
-            # 3) sample full segment
-            sampled = ode_model.sample(
-                attr=cond_t,
-                traj_len=segment_length,
-                n_samples=1,
-                w=1.0,
-                model_index=i
-            )
-            seg_traj = sampled.cpu().numpy()[0]  # (segment_length, state_dim)
+                if seg == 0:
+                    segments.append(seg_i[0:n_implement,:])
+                    current_states[i] = seg_i[n_implement-1,:]
+                else:
+                    segments.append(seg_i[1:n_implement+1,:])
+                    current_states[i] = seg_i[n_implement,:]
+        
+        seg_array = np.stack(segments, axis=0)
+        full_traj.append(seg_array)
 
-            # 4) implement the right slice
-            if seg_idx == 0:
-                take = seg_traj[0:n_implement]
-            else:
-                # skip the first point so we don't repeat
-                take = seg_traj[1: 1 + n_implement]
-
-            # advance
-            next_state = take[-1]
-            full_traj[i].append(take)
-            next_states.append(next_state)
-
-        # commit next_states → current & history
-        for i in range(n_agents):
-            current[i] = next_states[i].copy()
-            history[i].append(next_states[i].copy())
-
-    # concatenate each agent's segments into (total_steps, state_dim)
-    full_traj = [ np.concatenate(blocks, axis=0) for blocks in full_traj ]
-    # stack agents → shape (n_agents, total_steps, state_dim)
-    return np.stack(full_traj, axis=0)
+    full_traj = np.concatenate(full_traj, axis=1) 
+    return np.array(full_traj)

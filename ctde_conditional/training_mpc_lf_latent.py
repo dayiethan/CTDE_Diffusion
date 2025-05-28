@@ -29,6 +29,7 @@ def create_mpc_dataset(expert_data, planning_horizon=10):
     n_subtraj = horizon  # we'll create one sub-trajectory starting at each time step
 
     # Resulting array shape: (n_traj * n_subtraj, planning_horizon, state_dim)
+    latent = []
     result = []
 
     for traj in expert_data:
@@ -42,32 +43,13 @@ def create_mpc_dataset(expert_data, planning_horizon=10):
                 sub_traj = traj[start_idx:]
                 padding = np.repeat(traj[-1][np.newaxis, :], end_idx - horizon, axis=0)
                 sub_traj = np.concatenate([sub_traj, padding], axis=0)
+            _latent_list = traj[:start_idx+1]
+            latent_list = np.vstack([np.repeat(_latent_list[0:1, :], repeats=horizon-len(_latent_list), axis=0), _latent_list])
+            latent.append(latent_list)
             result.append(sub_traj)
-
+    latent = np.stack(latent, axis=0)
     result = np.stack(result, axis=0)
-    return result
-
-def create_latent_dataset(expert_data, latent_horizon=10):
-    n_traj, horizon, state_dim = expert_data.shape
-    n_subtraj = horizon  # we'll create one sub-trajectory starting at each time step
-
-    # Resulting array shape: (n_traj * n_subtraj, latent_horizon, state_dim)
-    result = []
-
-    for traj in expert_data:
-        for end_idx in range(n_subtraj):
-            # If not enough steps, pad with the first step
-            start_idx = end_idx - latent_horizon
-            if start_idx >= 0:
-                sub_traj = traj[start_idx:end_idx]
-            else:
-                # Need padding
-                sub_traj = traj[1:end_idx + 1]
-                padding = np.repeat(traj[0][np.newaxis, :], latent_horizon - end_idx, axis=0)
-                sub_traj = np.concatenate([padding, sub_traj], axis=0)
-            result.append(sub_traj)
-    result = np.stack(result, axis=0)
-    return result
+    return result, latent
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
@@ -75,14 +57,15 @@ print(device)
 # Parameters
 n_gradient_steps = 100_000
 batch_size = 64
-model_size = {
-    "d_model": 512,      # twice the transformer width
-    "n_heads": 8,        # more attention heads
-    "depth":   6,        # twice the number of layers
-    "lin_scale": 256,    # larger conditional embedder
-}
+# model_size = {
+#     "d_model": 512,      # twice the transformer width
+#     "n_heads": 8,        # more attention heads
+#     "depth":   6,        # twice the number of layers
+#     "lin_scale": 256,    # larger conditional embedder
+# }
+model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 10 # horizon, length of each trajectory
-HL = 10 # latent horizon, length of each latent trajectory
+HL = 100 # latent horizon, length of each latent trajectory
 T = 100 # total time steps
 
 # Define initial and final points, and a single central obstacle
@@ -106,10 +89,8 @@ orig2 = np.array(orig2)
 print(orig1.shape)
 print(orig2.shape)
 
-expert_data1 = create_mpc_dataset(expert_data_1, planning_horizon=H)
-expert_data2 = create_mpc_dataset(expert_data_2, planning_horizon=H)
-latent_data1 = create_latent_dataset(expert_data_1, latent_horizon=HL)
-latent_data2 = create_latent_dataset(expert_data_2, latent_horizon=HL)
+expert_data1, latent_data1 = create_mpc_dataset(expert_data_1, planning_horizon=H)
+expert_data2, latent_data2 = create_mpc_dataset(expert_data_2, planning_horizon=H)
 print(expert_data1.shape)
 print(expert_data2.shape)
 print(latent_data1.shape)
@@ -147,11 +128,11 @@ z1 = encoder1(latent1)
 z2 = encoder2(latent2)
 obs_init1 = expert_data1[:, 0, :]
 obs_init2 = expert_data2[:, 0, :]
-obs_init1_cond = expert_data1[:, 9, :]  # follower is conditioned on the leader's state 10 timesteps ahead of itself
+obs_init1_cond = expert_data1[:, 2, :]  # follower is conditioned on the leader's state 3 timesteps ahead of itself
 obs_final1 = np.repeat(orig1[:, -1, :], repeats=100, axis=0)
 obs_final2 = np.repeat(orig2[:, -1, :], repeats=100, axis=0)
-obs1 = np.hstack([obs_init1, obs_final1, obs_init2, z1.detach().cpu().numpy()])
-obs2 = np.hstack([obs_init2, obs_final2, obs_init1_cond, z2.detach().cpu().numpy()])
+obs1 = np.hstack([obs_init1, obs_final1, obs_init2])
+obs2 = np.hstack([obs_init2, obs_final2, obs_init1_cond, z1.detach().cpu().numpy()])
 obs_temp1 = obs1
 obs_temp2 = obs2
 actions1 = expert_data1[:, :H-1, :]
@@ -173,9 +154,9 @@ sig = np.array([sigma_data1, sigma_data2])
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_P10E1_lf_latent")
-# action_cond_ode.save(extra="_P10E1_lf_latent")
-action_cond_ode.load(extra="_P10E1_lf_latent")
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_P10E3_lf_latent")
+# action_cond_ode.save(extra="_P10E3_lf_latent")
+action_cond_ode.load(extra="_P10E3_lf_latent")
 
 # Sampling
 for i in range(100):
@@ -190,13 +171,12 @@ for i in range(100):
     final2 = final_point_down + noise_std * np.random.randn(*np.shape(final_point_down))
     final2 = (final2 - mean) / std
 
-    planned_trajs = reactive_mpc_latent_plan(action_cond_ode, env, [initial1, initial2], [final1, final2], [encoder1, encoder2], segment_length=H, latent_length=HL, total_steps=T, n_implement=5)
+    planned_trajs = reactive_mpc_latent_plan(action_cond_ode, env, [initial1, initial2], [final1, final2], encoder1, segment_length=H, total_steps=T, n_implement=3)
 
     planned_traj1 =  planned_trajs[0] * std + mean
 
-    np.save("sampled_trajs/mpc_latent_P10E1/mpc_traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_latent_P10E3/mpc_traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
 
-    np.save("sampled_trajs/mpc_latent_P10E1/mpc_traj2_%s.npy" % i, planned_traj2)
-
+    np.save("sampled_trajs/mpc_latent_P10E3/mpc_traj2_%s.npy" % i, planned_traj2)
