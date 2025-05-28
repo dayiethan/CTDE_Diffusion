@@ -103,31 +103,6 @@ class PolicyPlayer:
         H = 34 # horizon, length of each trajectory
         T = 340 # total time steps
 
-        # # Load data
-        # expert_data = np.load("data_pickup_pos/expert_actions_"+type+"_200.npy")
-        # expert_data1 = expert_data[:, :, :action_dim]
-        # expert_data2 = expert_data[:, :, action_dim:action_dim*2]
-        # hammer_states = np.load("data_pickup_pos/hammer_states_"+type+"_200.npy")
-
-        # # Compute mean and standard deviation
-        # combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
-        # mean = np.mean(combined_data, axis=(0,1))
-        # std = np.std(combined_data, axis=(0,1))
-
-        # # Normalize data
-        # expert_data1 = (expert_data1 - mean) / std
-        # expert_data2 = (expert_data2 - mean) / std
-
-        # env = TwoArmHandover(state_size=state_dim, action_size=action_dim)
-
-        # # Prepare conditional vectors
-        # obs1 = torch.FloatTensor(hammer_states).to(device)
-        # obs2 = torch.FloatTensor(hammer_states).to(device)
-        # attr1 = obs1
-        # attr2 = obs2
-        # attr_dim1 = attr1.shape[1]
-        # attr_dim2 = attr2.shape[1]
-
         # Load expert data
         expert_data = np.load("data_pickup_pos/expert_actions_rotvec_200.npy")
         expert_data1 = expert_data[:, :, :7]
@@ -167,12 +142,10 @@ class PolicyPlayer:
         # Prepare conditional vectors for training
         with open("data_pickup_pos/hammer_states_rotvec_200.npy", "rb") as f:
             obs = np.load(f)
-        obs_init1 = expert_data1[:, 0, :3]
-        obs_init2 = expert_data2[:, 0, :3]
         obs_init1_cond = expert_data1[:, 4, :3]
         obs = np.repeat(obs, repeats=340, axis=0)
-        obs1 = np.hstack([obs_init1, obs_init2, obs])
-        obs2 = np.hstack([obs_init2, obs_init1_cond, obs])
+        obs1 = np.hstack([obs])
+        obs2 = np.hstack([obs_init1_cond, obs])
         obs1 = torch.FloatTensor(obs1).to(device)
         obs2 = torch.FloatTensor(obs2).to(device)
         attr1 = obs1
@@ -182,7 +155,7 @@ class PolicyPlayer:
 
         # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_handover_mpc_P34E5")
+        action_cond_ode.load(extra="_handover_mpc_P34E5_new")
 
         return action_cond_ode
     
@@ -211,7 +184,7 @@ class PolicyPlayer:
             segments = []
             for i in range(len(current_states)):
                 if i == 0:
-                    cond = [current_states[0], current_states[1], obs]
+                    cond = [obs]
                     cond = np.hstack(cond)
                     cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
                     sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=0)
@@ -225,7 +198,7 @@ class PolicyPlayer:
                         current_states[i] = seg_i[n_implement,:3]
 
                 else:
-                    cond = [current_states[1], current_states[0], obs]
+                    cond = [current_states[0], obs]
                     cond = np.hstack(cond)
                     cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
                     sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)

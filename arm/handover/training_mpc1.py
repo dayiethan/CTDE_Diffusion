@@ -87,8 +87,6 @@ sigma_data2 = actions2.std().item()
 # Prepare conditional vectors for training
 with open("data_pickup_pos/hammer_states_rotvec_200.npy", "rb") as f:
     obs = np.load(f)
-obs_init1 = expert_data1[:, 0, :3]
-obs_init2 = expert_data2[:, 0, :3]
 obs_init1_cond = expert_data1[:, 4, :3]
 obs = np.repeat(obs, repeats=340, axis=0)
 obs1 = np.hstack([obs])
