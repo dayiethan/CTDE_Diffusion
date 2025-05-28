@@ -182,7 +182,9 @@ class PolicyPlayer:
 
         for seg in range(total_steps // n_implement):
             segments = []
+            breakpoint()
             for i in range(len(current_states)):
+                breakpoint()
                 if i == 0:
                     cond = [obs]
                     cond = np.hstack(cond)
