@@ -142,9 +142,10 @@ class PolicyPlayer:
         # Prepare conditional vectors for training
         with open("data_pickup_pos/hammer_states_rotvec_200.npy", "rb") as f:
             obs = np.load(f)
+        obs_init1 = expert_data1[:, 0, :3]
         obs_init1_cond = expert_data1[:, 4, :3]
         obs = np.repeat(obs, repeats=340, axis=0)
-        obs1 = np.hstack([obs])
+        obs1 = np.hstack([obs_init1, obs])
         obs2 = np.hstack([obs_init1_cond, obs])
         obs1 = torch.FloatTensor(obs1).to(device)
         obs2 = torch.FloatTensor(obs2).to(device)
@@ -182,9 +183,7 @@ class PolicyPlayer:
 
         for seg in range(total_steps // n_implement):
             segments = []
-            breakpoint()
             for i in range(len(current_states)):
-                breakpoint()
                 if i == 0:
                     cond = [current_states[0], obs]
                     cond = np.hstack(cond)
@@ -200,7 +199,7 @@ class PolicyPlayer:
                         current_states[i] = seg_i[n_implement,:3]
 
                 else:
-                    cond = [current_states[0], obs]
+                    cond = [current_states[i], current_states[0], obs]
                     cond = np.hstack(cond)
                     cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
                     sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)
@@ -217,6 +216,7 @@ class PolicyPlayer:
             full_traj.append(seg_array)
 
         full_traj = np.concatenate(full_traj, axis=1) 
+        print("Full trajectory shape: ", np.shape(full_traj))
         return np.array(full_traj)
 
     

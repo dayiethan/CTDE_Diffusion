@@ -303,8 +303,7 @@ class Conditional_ODE():
               n_gradient_steps: int,
               batch_size: int = 32,
               extra: str = "",
-              time_limit=None,
-              endpoint_loss: bool = False):
+              time_limit=None,):
         """
         Trains the diffusion transformers on multiple datasets.
         
@@ -342,14 +341,7 @@ class Conditional_ODE():
                 
                 pred = self.D(x + eps, sigma, condition=attr, mask=mask, model_index=i)
                 loss = (loss_mask * self.loss_weighting(sigma, model_index=i) * (pred - x) ** 2).mean()
-                
-                if endpoint_loss:
-                    pred_start = pred[:, 0, :self.state_size]
-                    cond_start = attr[:, :self.state_size]
-                    endpoint_loss = ((pred_start - cond_start) ** 2).mean()
-                    loss = loss + 2.0 * endpoint_loss
-                else:
-                    loss_total += loss
+                loss_total += loss
             
             self.optim.zero_grad()
             loss_total.backward()
@@ -372,7 +364,7 @@ class Conditional_ODE():
         print('\nTraining completed!')
         
     @torch.no_grad()
-    def sample(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0):
+    def sample(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0, clamp: bool = True):
         """
         Samples a trajectory using the EMA copy of the specified transformer.
         
@@ -384,7 +376,8 @@ class Conditional_ODE():
             self.set_N(N)
         
         x = torch.randn((n_samples, traj_len, self.action_size), device=self.device) * self.sigma_s[0] * self.scale_s[0]
-        # x[:, 0, :self.state_size] = attr[:, :self.state_size]
+        if clamp:
+            x[:, 0, :3] = attr[:, :3]
         # x[:, -1, :self.state_size] = attr[:, self.state_size:]
         original_attr = attr.clone()
         
@@ -405,7 +398,8 @@ class Conditional_ODE():
             delta = self.coeff1[i] * x - self.coeff2[i] * D_out
             dt = self.t_s[i] - self.t_s[i+1] if i != self.N - 1 else self.t_s[i]
             x = x - delta * dt
-            # x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
+            if clamp:
+                x[:, 0, :3] = original_attr[:, :3]
             # x[:, -1, :self.state_size] = original_attr[:, self.state_size:]
         return x
     
