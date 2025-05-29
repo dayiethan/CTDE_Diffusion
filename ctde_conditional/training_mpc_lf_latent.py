@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from utils.conditional_Action_DiT import Conditional_ODE
+from utils.conditional_Action_DiT_latent import Conditional_ODE
 import matplotlib.pyplot as plt
 from utils.discrete import *
 import sys
@@ -121,18 +121,19 @@ env = TwoUnicycle()
 
 # Setting up training data
 latent1 = torch.from_numpy(latent_data1).float().to(device)
-latent2 = torch.from_numpy(latent_data2).float().to(device)
-encoder1 = LatentEncoder(input_dim=HL * env.state_size, latent_dim=4).to(device)
-encoder2 = LatentEncoder(input_dim=HL * env.state_size, latent_dim=4).to(device)
-z1 = encoder1(latent1)
-z2 = encoder2(latent2)
+# latent2 = torch.from_numpy(latent_data2).float().to(device)
+latent_dim = 8
+encoder1 = LatentEncoder(input_dim=HL * env.state_size, latent_dim=latent_dim).to(device)
+# encoder2 = LatentEncoder(input_dim=HL * env.state_size, latent_dim=4).to(device)
+# z1 = encoder1(latent1)
+# z2 = encoder2(latent2)
 obs_init1 = expert_data1[:, 0, :]
 obs_init2 = expert_data2[:, 0, :]
 obs_init1_cond = expert_data1[:, 2, :]  # follower is conditioned on the leader's state 3 timesteps ahead of itself
 obs_final1 = np.repeat(orig1[:, -1, :], repeats=100, axis=0)
 obs_final2 = np.repeat(orig2[:, -1, :], repeats=100, axis=0)
 obs1 = np.hstack([obs_init1, obs_final1, obs_init2])
-obs2 = np.hstack([obs_init2, obs_final2, obs_init1_cond, z1.detach().cpu().numpy()])
+obs2 = np.hstack([obs_init2, obs_final2, obs_init1_cond])
 obs_temp1 = obs1
 obs_temp2 = obs2
 actions1 = expert_data1[:, :H-1, :]
@@ -142,7 +143,7 @@ obs2 = torch.FloatTensor(obs2).to(device)
 attr1 = obs1
 attr2 = obs2
 attr_dim1 = attr1.shape[1]
-attr_dim2 = attr2.shape[1]
+attr_dim2 = attr2.shape[1] + latent_dim
 
 actions1 = expert_data1[:, :H-1, :]
 actions2 = expert_data2[:, :H-1, :]
@@ -153,10 +154,10 @@ sigma_data2 = actions2.std().item()
 sig = np.array([sigma_data1, sigma_data2])
 
 # Training
-action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_P10E3_lf_latent")
-# action_cond_ode.save(extra="_P10E3_lf_latent")
-action_cond_ode.load(extra="_P10E3_lf_latent")
+action_cond_ode = Conditional_ODE(env, encoder1, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, latent1, extra="_P10E3_lf_latenttrain")
+action_cond_ode.save(extra="_P10E3_lf_latenttrain")
+action_cond_ode.load(extra="_P10E3_lf_latenttrain")
 
 # Sampling
 for i in range(100):
@@ -175,8 +176,8 @@ for i in range(100):
 
     planned_traj1 =  planned_trajs[0] * std + mean
 
-    np.save("sampled_trajs/mpc_latent_P10E3/mpc_traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_latenttrain_P10E3/mpc_traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
 
-    np.save("sampled_trajs/mpc_latent_P10E3/mpc_traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_latenttrain_P10E3/mpc_traj2_%s.npy" % i, planned_traj2)
