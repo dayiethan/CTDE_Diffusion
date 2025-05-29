@@ -143,10 +143,11 @@ class PolicyPlayer:
         with open("data_pickup_pos/hammer_states_rotvec_200.npy", "rb") as f:
             obs = np.load(f)
         obs_init1 = expert_data1[:, 0, :3]
+        obs_init2 = expert_data2[:, 0, :3]
         obs_init1_cond = expert_data1[:, 4, :3]
         obs = np.repeat(obs, repeats=340, axis=0)
         obs1 = np.hstack([obs_init1, obs])
-        obs2 = np.hstack([obs_init1_cond, obs])
+        obs2 = np.hstack([obs_init2, obs_init1_cond, obs])
         obs1 = torch.FloatTensor(obs1).to(device)
         obs2 = torch.FloatTensor(obs2).to(device)
         attr1 = obs1
@@ -156,7 +157,7 @@ class PolicyPlayer:
 
         # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_handover_mpc_P34E5_new")
+        action_cond_ode.load(extra="_handover_mpc_P34E5_largecond")
 
         return action_cond_ode
     
