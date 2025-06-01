@@ -577,7 +577,7 @@ class Conditional_ODE():
                     attr2_rep = attr2_un.unsqueeze(1).expand(n_samples, 5, -1)  # [n_samples, 5, state_size]
 
                     # Compute difference vector and flattened norm
-                    diff = x_un - attr2_rep  # [n_samples, 5, state_size]
+                    diff = (x_un - attr2_rep)*torch.tensor([0.1,3])  # [n_samples, 5, state_size]
                     v = diff.view(n_samples, -1)  # [n_samples, 5 * state_size]
                     norm_sq = torch.sum(v**2, dim=1, keepdim=True)  # [n_samples, 1]
                     eps = 1e-6
@@ -594,7 +594,7 @@ class Conditional_ODE():
                     # guidance_grad = self.coeff2[i] * guidance_grad
 
             # Euler step
-            delta = self.coeff1[i] * x - self.coeff2[i] * D_out - self.coeff2[i]*guidance_grad*0.25
+            delta = self.coeff1[i] * x - self.coeff2[i] * D_out - self.coeff2[i]*guidance_grad
             dt = self.t_s[i] - self.t_s[i+1] if i != self.N - 1 else self.t_s[i]
             x = x - delta * dt
 

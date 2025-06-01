@@ -259,7 +259,7 @@ def mpc_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_len
 
 # --- 2. MPC Planning and Video Generation ---
 
-for i in range(5):
+for i in range(10):
     noise_std = 0.2
     initial1 = initial_point_up + noise_std * np.random.randn(*np.shape(initial_point_up))
     initial1 = (initial1 - mean) / std
