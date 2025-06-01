@@ -157,7 +157,7 @@ class PolicyPlayer:
 
         # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_handover_mpc_P34E5_largecond")
+        action_cond_ode.load(extra="_handover_mpc_P34E5_largecond_actionH")
 
         return action_cond_ode
     
