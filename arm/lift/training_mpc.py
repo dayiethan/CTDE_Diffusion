@@ -94,6 +94,6 @@ attr_dim2 = attr2.shape[1]
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_lift_mpc_P25E2", endpoint_loss=False)
-action_cond_ode.save(extra="_lift_mpc_P25E2")
-action_cond_ode.load(extra="_lift_mpc_P25E2")
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_lift_mpc_P25E2_50ksteps", endpoint_loss=False)
+action_cond_ode.save(extra="_lift_mpc_P25E2_50ksteps")
+action_cond_ode.load(extra="_lift_mpc_P25E2_50ksteps")

@@ -104,7 +104,7 @@ class PolicyPlayer:
 
         return obs
         
-    def load_model(self, type = "rotvec", state_dim = 7, action_dim = 7):
+    def load_model(self, extra, state_dim = 7, action_dim = 7):
         model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
         H = 25 # horizon, length of each trajectory
         T = 250 # total time steps
@@ -153,7 +153,7 @@ class PolicyPlayer:
 
         # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_lift_mpc_P25E2")
+        action_cond_ode.load(extra=extra)
 
         return action_cond_ode
     
@@ -217,7 +217,7 @@ class PolicyPlayer:
         return np.array(full_traj)
 
     
-    def get_demo(self, seed, cond_idx, H=25, T=250):
+    def get_demo(self, seed, cond_idx, extra, H=25, T=250):
         """
         Main file to get the demonstration data
         """
@@ -235,13 +235,11 @@ class PolicyPlayer:
         expert_data1 = (expert_data1 - mean) / std
         expert_data2 = (expert_data2 - mean) / std
 
-        model = self.load_model(type = "rotvec", state_dim = 7, action_dim = 7)
+        model = self.load_model(extra=extra, state_dim = 7, action_dim = 7)
 
         with open("data/pot_states_rot6d_20.npy", "rb") as f:
             obs = np.load(f)
-        obs1 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0) # The index of the condition you want from pot_states, this should correlate to the seed and mode that are being sampled
-        obs2 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0) # The index of the condition you want from pot_states, this should correlate to the seed and mode that are being sampled
-
+            
         # Sampling
         traj_len = 250
         n_samples = 1
@@ -276,5 +274,5 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = False)
-    cond_idx = 0
-    player.get_demo(seed = cond_idx*10, cond_idx = cond_idx, H=25, T=250)
+    cond_idx = 1
+    player.get_demo(seed = cond_idx*10, cond_idx = cond_idx, extra="_lift_mpc_P25E2_50ksteps", H=25, T=250)
