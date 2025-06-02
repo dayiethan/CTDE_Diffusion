@@ -85,8 +85,8 @@ obs_init1_cond = expert_data1[:, 4, :3]
 obs = np.repeat(obs, repeats=T, axis=0)
 obs1 = np.hstack([obs_init1, obs])
 obs2 = np.hstack([obs_init2, obs_init1_cond, obs])
-obs1 = torch.FloatTensor(obs).to(device)
-obs2 = torch.FloatTensor(obs).to(device)
+obs1 = torch.FloatTensor(obs1).to(device)
+obs2 = torch.FloatTensor(obs2).to(device)
 attr1 = obs1
 attr2 = obs2
 attr_dim1 = attr1.shape[1]
