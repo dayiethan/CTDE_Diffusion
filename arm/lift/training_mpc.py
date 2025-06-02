@@ -38,7 +38,7 @@ print(device)
 
 
 # Parameters
-n_gradient_steps = 100_000
+n_gradient_steps = 50_000
 batch_size = 64
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 25 # horizon, length of each trajectory
@@ -81,7 +81,7 @@ with open("data/pot_states_rotvec_20.npy", "rb") as f:
     obs = np.load(f)
 obs_init1 = expert_data1[:, 0, :3]
 obs_init2 = expert_data2[:, 0, :3]
-obs_init1_cond = expert_data1[:, 4, :3]
+obs_init1_cond = expert_data1[:, 1, :3]
 obs = np.repeat(obs, repeats=T, axis=0)
 obs1 = np.hstack([obs_init1, obs])
 obs2 = np.hstack([obs_init2, obs_init1_cond, obs])
@@ -94,6 +94,6 @@ attr_dim2 = attr2.shape[1]
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_lift_mpc_P25E5", endpoint_loss=False)
-action_cond_ode.save(extra="_lift_mpc_P25E5")
-action_cond_ode.load(extra="_lift_mpc_P25E5")
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_lift_mpc_P25E2", endpoint_loss=False)
+action_cond_ode.save(extra="_lift_mpc_P25E2")
+action_cond_ode.load(extra="_lift_mpc_P25E2")
