@@ -80,7 +80,7 @@ class PolicyPlayer:
         self.pot_handle0_pos = self.robot0_base_ori_rotm.T @ (self.env._handle0_xpos - self.robot0_base_pos) + self.pot_handle_offset
         self.pot_handle1_pos = self.robot1_base_ori_rotm.T @ (self.env._handle1_xpos - self.robot1_base_pos) + self.pot_handle_offset
 
-    def reset(self, seed = 0, mode = 1):
+    def reset(self, seed = 0):
         """
         Resetting environment. Re-initializing the waypoints too.
         """
@@ -153,7 +153,7 @@ class PolicyPlayer:
 
         # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_lift_mpc_P25E5")
+        action_cond_ode.load(extra="_lift_mpc_P25E2")
 
         return action_cond_ode
     
@@ -217,11 +217,11 @@ class PolicyPlayer:
         return np.array(full_traj)
 
     
-    def get_demo(self, seed, mode, cond_idx, H=25, T=250):
+    def get_demo(self, seed, cond_idx, H=25, T=250):
         """
         Main file to get the demonstration data
         """
-        obs = self.reset(seed, mode)
+        obs = self.reset(seed)
 
         # Loading
         expert_data = np.load("data/expert_actions_rotvec_20.npy")
@@ -246,7 +246,7 @@ class PolicyPlayer:
         traj_len = 250
         n_samples = 1
 
-        planned_trajs = self.reactive_mpc_plan(model, env, [expert_data1[cond_idx, 0, :3], expert_data2[cond_idx, 0, :3]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=5)
+        planned_trajs = self.reactive_mpc_plan(model, env, [expert_data1[cond_idx, 0, :3], expert_data2[cond_idx, 0, :3]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=2)
         planned_traj1 =  planned_trajs[0] * std + mean
         # np.save("sampled_trajs/mpc_P34E5/mpc_traj1_%s.npy" % i, planned_traj1)
         planned_traj2 = planned_trajs[1] * std + mean
@@ -277,4 +277,4 @@ if __name__ == "__main__":
 
     player = PolicyPlayer(env, render = False)
     cond_idx = 0
-    player.get_demo(seed = cond_idx*10, mode = 2, cond_idx = cond_idx, H=25, T=250)
+    player.get_demo(seed = cond_idx*10, cond_idx = cond_idx, H=25, T=250)
