@@ -99,12 +99,6 @@ class PolicyPlayer:
         return obs
         
     def load_model(self, type = "rotvec", state_dim = 7, action_dim = 7):
-        # model_size = {
-        #     "d_model": 512,      # twice the transformer width
-        #     "n_heads": 8,        # more attention heads
-        #     "depth":   6,        # twice the number of layers
-        #     "lin_scale": 256,    # larger conditional embedder
-        # }
         model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
         H = 34 # horizon, length of each trajectory
         T = 340 # total time steps
@@ -152,8 +146,8 @@ class PolicyPlayer:
         obs_init2 = expert_data2[:, 0, :3]
         obs_init1_cond = expert_data1[:, 4, :3]
         obs = np.repeat(obs, repeats=340, axis=0)
-        obs1 = np.hstack([np.zeros(np.shape(obs)), obs])
-        obs2 = np.hstack([obs_init1_cond, obs])
+        obs1 = np.hstack([obs_init1, obs])
+        obs2 = np.hstack([obs_init2, obs_init1_cond, obs])
         obs1 = torch.FloatTensor(obs1).to(device)
         obs2 = torch.FloatTensor(obs2).to(device)
         attr1 = obs1
@@ -161,10 +155,9 @@ class PolicyPlayer:
         attr_dim1 = attr1.shape[1]
         attr_dim2 = attr2.shape[1]
 
-
         # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_handover_mpc_P34E5_5")
+        action_cond_ode.load(extra="_handover_mpc_P34E5_largecond_actionH")
 
         return action_cond_ode
     
@@ -192,9 +185,8 @@ class PolicyPlayer:
         for seg in range(total_steps // n_implement):
             segments = []
             for i in range(len(current_states)):
-                # Leader
                 if i == 0:
-                    cond = [np.zeros(3), obs]
+                    cond = [current_states[0], obs]
                     cond = np.hstack(cond)
                     cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
                     sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=0)
@@ -205,10 +197,10 @@ class PolicyPlayer:
                         current_states[i] = seg_i[n_implement-1,:3]
                     else:
                         segments.append(seg_i[1:n_implement+1,:])
-                        current_states[i] = seg_i[n_implement-1,:3]
-                # Follower
+                        current_states[i] = seg_i[n_implement,:3]
+
                 else:
-                    cond = [current_states[0], obs]
+                    cond = [current_states[i], current_states[0], obs]
                     cond = np.hstack(cond)
                     cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
                     sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)
@@ -225,6 +217,7 @@ class PolicyPlayer:
             full_traj.append(seg_array)
 
         full_traj = np.concatenate(full_traj, axis=1) 
+        print("Full trajectory shape: ", np.shape(full_traj))
         return np.array(full_traj)
 
     
@@ -288,4 +281,4 @@ if __name__ == "__main__":
 
     player = PolicyPlayer(env, render = True)
     cond_idx = 1
-    rollout = player.get_demo(seed = cond_idx*10, mode = 2, cond_idx = cond_idx, H=34, T=340)
+    rollout = player.get_demo(seed = cond_idx*10, mode = 1, cond_idx = cond_idx, H=34, T=340)
