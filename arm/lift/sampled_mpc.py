@@ -166,14 +166,13 @@ class PolicyPlayer:
         Parameters:
         - ode_model: the Conditional_ODE (diffusion model) instance.
         - env: your environment, which must implement reset_to() and step().
-        - initial_state: a numpy array of shape (state_size,) (the current state).
-        - fixed_goal: a numpy array of shape (state_size,) representing the final goal.
-        - model_i: the index of the agent/model being planned for.
-        - segment_length: number of timesteps to plan in each segment.
+        - initial_states: a numpy array of shape (n_agents, state_size) that represent the starting states for the robots.
+        - obs: a numpy array of shape (6,) representing the eef positions of the two pot handles.
         - total_steps: total length of the planned trajectory.
+        - n_implement: number of steps to implement at each iteration.
         
         Returns:
-        - full_traj: a numpy array of shape (total_steps, state_size)
+        - full_traj: a numpy array of shape (n_agents, total_steps, state_size)
         """
         full_traj = []
         current_states = initial_states.copy()
