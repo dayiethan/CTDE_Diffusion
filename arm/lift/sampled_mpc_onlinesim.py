@@ -104,9 +104,9 @@ class PolicyPlayer:
 
         return obs
         
-    def load_model(self, extra, state_dim = 7, action_dim = 7):
+    def load_model(self, extra, state_dim=7, action_dim=7):
         model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
-        H = 25 # horizon, length of each trajectory
+        H = 25  # horizon, length of each trajectory
         T = 250 # total time steps
 
         # Load expert data
@@ -118,14 +118,14 @@ class PolicyPlayer:
 
         # Compute mean and standard deviation
         combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
-        mean = np.mean(combined_data, axis=(0,1))
-        std = np.std(combined_data, axis=(0,1))
+        self.mean = np.mean(combined_data, axis=(0,1))
+        self.std = np.std(combined_data, axis=(0,1))
 
         # Normalize data
-        expert_data1 = (expert_data1 - mean) / std
-        expert_data2 = (expert_data2 - mean) / std
+        expert_data1 = (expert_data1 - self.mean) / self.std
+        expert_data2 = (expert_data2 - self.mean) / self.std
 
-        env = TwoArmLift(state_size=state_dim, action_size=action_dim)
+        env_desc = TwoArmLift(state_size=state_dim, action_size=action_dim) # Renamed to avoid conflict
 
         # Prepare conditional vectors for training
         with open("data/pot_states_rotvec_20.npy", "rb") as f:
@@ -152,109 +152,120 @@ class PolicyPlayer:
         sigma_data2 = actions2.std().item()
 
         # Load the model
-        action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
+        action_cond_ode = Conditional_ODE(env_desc, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
         action_cond_ode.load(extra=extra)
 
         return action_cond_ode
     
-    
-    def reactive_mpc_plan(self, ode_model, env, initial_states, obs, segment_length=25, total_steps=250, n_implement=5):
+    def _extract_planning_states_from_env_obs(self, env_obs):
         """
-        Plans a full trajectory (total_steps long) by iteratively planning
-        segment_length-steps using the diffusion model and replanning at every timestep.
-        
+        Extracts 7D (pos + rotvec + gripper) end-effector states for both robots
+        from the robosuite environment observation.
+        """
+        # Robot 0
+        r0_pos = env_obs['robot0_eef_pos']
+        r0_quat = env_obs['robot0_eef_quat']
+        r0_rotvec = R.from_quat(r0_quat).as_rotvec()
+        jnt_id_0 = self.env.sim.model.joint_name2id("gripper0_right_finger_joint") #gripper0_right_finger_joint, gripper0_right_right_outer_knuckle_joint
+        qpos_index_0 = self.env.sim.model.jnt_qposadr[jnt_id_0]
+        r0_gripper = self.env.sim.data.qpos[qpos_index_0]
+        robot0_planning_state = np.hstack([r0_pos, r0_rotvec, r0_gripper])
+        # robot0_planning_state = (robot0_planning_state - self.mean) / self.std
+
+        # Robot 1
+        r1_pos = env_obs['robot1_eef_pos']
+        r1_quat = env_obs['robot1_eef_quat']
+        r1_rotvec = R.from_quat(r1_quat).as_rotvec()
+        jnt_id_1 = self.env.sim.model.joint_name2id("gripper1_right_finger_joint") #gripper0_right_finger_joint, gripper0_right_right_outer_knuckle_joint
+        qpos_index_1 = self.env.sim.model.jnt_qposadr[jnt_id_1]
+        r1_gripper = self.env.sim.data.qpos[qpos_index_1]
+        robot1_planning_state = np.hstack([r1_pos, r1_rotvec, r1_gripper])
+        # robot1_planning_state = (robot1_planning_state - self.mean) / self.std
+
+        return robot0_planning_state, robot1_planning_state
+    
+    
+    def execute_mpc_online(self, ode_model, pot_handles_obs_condition, segment_length=25, total_steps=250, n_implement=2):
+        """
+        Executes MPC online, replanning and interacting with the environment.
+
         Parameters:
-        - ode_model: the Conditional_ODE (diffusion model) instance.
-        - env: your environment, which must implement reset_to() and step().
-        - initial_states: a numpy array of shape (n_agents, state_size) that represent the starting states for the robots.
-        - obs: a numpy array of shape (6,) representing the eef positions of the two pot handles.
-        - total_steps: total length of the planned trajectory.
-        - n_implement: number of steps to implement at each iteration.
+        - ode_model: The Conditional_ODE model.
+        - pot_handles_obs_condition: A numpy array (e.g., shape (6,)) representing the static eef positions of the two pot handles for conditioning the model.
+        - segment_length: Planning horizon for the ode_model (H).
+        - total_steps: Total environment steps to run (T).
+        - n_implement: Number of steps from the plan to execute before replanning.
+        """
+        if self.mean is None or self.std is None:
+            raise ValueError("Mean and Std for action denormalization are not set. Call load_model first.")
         
-        Returns:
-        - full_traj: a numpy array of shape (n_agents, total_steps, state_size)
-        """
-        full_traj = []
-        current_states = initial_states.copy()
+        current_env_obs_dict = self.env._get_observations() # Get initial observation from env
+        # breakpoint()
 
-        for seg in range(total_steps // n_implement):
-            segments = []
-            for i in range(len(current_states)):
-                if i == 0:
-                    cond = [current_states[0], obs]
-                    cond = np.hstack(cond)
-                    cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
-                    sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=0)
-                    seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
+        planned_actions_segment_r0 = None
+        planned_actions_segment_r1 = None
+        current_plan_step_idx = 0 # To iterate through the currently planned segment
 
-                    if seg == 0:
-                        segments.append(seg_i[0:n_implement,:])
-                        current_states[i] = seg_i[n_implement-1,:3]
-                    else:
-                        segments.append(seg_i[1:n_implement+1,:])
-                        current_states[i] = seg_i[n_implement,:3]
+        for env_step_count in range(total_steps):
+            if env_step_count % n_implement == 0:  # Time to replan
+                r0_current_planning_state, r1_current_planning_state = self._extract_planning_states_from_env_obs(current_env_obs_dict)
 
-                else:
-                    cond = [current_states[i], current_states[0], obs]
-                    cond = np.hstack(cond)
-                    cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
-                    sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)
-                    seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
+                # Plan for robot 0
+                cond0_list = [r0_current_planning_state[:3], pot_handles_obs_condition]
+                cond0 = np.hstack(cond0_list)
+                cond0_tensor = torch.tensor(cond0, dtype=torch.float32, device=device).unsqueeze(0)
+                sampled0 = ode_model.sample(attr=cond0_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=0)
+                planned_actions_segment_r0 = sampled0.cpu().detach().numpy()[0]  # Shape: (segment_length, action_size)
 
-                    if seg == 0:
-                        segments.append(seg_i[0:n_implement,:])
-                        current_states[i] = seg_i[n_implement-1,:3]
-                    else:
-                        segments.append(seg_i[1:n_implement+1,:])
-                        current_states[i] = seg_i[n_implement,:3]
-            seg_array = np.stack(segments, axis=0)
-            full_traj.append(seg_array)
+                # Plan for robot 1
+                cond1_list = [r1_current_planning_state[:3], planned_actions_segment_r0[n_implement, :3], pot_handles_obs_condition]
+                cond1 = np.hstack(cond1_list)
+                cond1_tensor = torch.tensor(cond1, dtype=torch.float32, device=device).unsqueeze(0)
+                sampled1 = ode_model.sample(attr=cond1_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=1)
+                planned_actions_segment_r1 = sampled1.cpu().detach().numpy()[0] # Shape: (segment_length, action_size)
 
-        full_traj = np.concatenate(full_traj, axis=1) 
-        print("Full trajectory shape: ", np.shape(full_traj))
-        return np.array(full_traj)
+                current_plan_step_idx = 0  # Reset index for the new plan
 
-    
-    def get_demo(self, seed, cond_idx, extra, H=25, T=250):
-        """
-        Main file to get the demonstration data
-        """
-        obs = self.reset(seed)
+            action_r0_normalized = planned_actions_segment_r0[current_plan_step_idx]
+            action_r1_normalized = planned_actions_segment_r1[current_plan_step_idx]
+            current_plan_step_idx += 1
 
-        # Loading
-        expert_data = np.load("data/expert_actions_rotvec_20.npy")
-        expert_data1 = expert_data[:, :, :7]
-        expert_data2 = expert_data[:, :, 7:14]
-        combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
-        mean = np.mean(combined_data, axis=(0,1))
-        std = np.std(combined_data, axis=(0,1))
-
-        # Normalize data
-        expert_data1 = (expert_data1 - mean) / std
-        expert_data2 = (expert_data2 - mean) / std
-
-        model = self.load_model(extra=extra, state_dim = 7, action_dim = 7)
-
-        with open("data/pot_states_rot6d_20.npy", "rb") as f:
-            obs = np.load(f)
+            action_r0_denormalized = action_r0_normalized * self.std + self.mean
+            action_r1_denormalized = action_r1_normalized * self.std + self.mean
             
-        # Sampling
-        traj_len = 250
-        n_samples = 1
+            combined_action_to_env = np.hstack([action_r0_denormalized, action_r1_denormalized])
 
-        planned_trajs = self.reactive_mpc_plan(model, env, [expert_data1[cond_idx, 0, :3], expert_data2[cond_idx, 0, :3]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=2)
-        planned_traj1 =  planned_trajs[0] * std + mean
-        # np.save("samples/lift_mpc_P25E2_50ksteps/mpc_traj1_1.npy", planned_traj1)
-        planned_traj2 = planned_trajs[1] * std + mean
-        # np.save("samples/lift_mpc_P25E2_50ksteps/mpc_traj2_1.npy", planned_traj2)
-
-        # Run the sampled trajectory in the environment
-        for i in range(len(planned_traj1)):
-            action = np.hstack([planned_traj1[i], planned_traj2[i]])
-            obs, reward, done, info = self.env.step(action)
+            next_env_obs_dict, reward, done, info = self.env.step(combined_action_to_env)
 
             if self.render:
                 self.env.render()
+            
+            current_env_obs_dict = next_env_obs_dict # Update current observation
+
+    
+    def get_demo(self, seed, cond_idx, extra, H=25, T=250, n_implement_steps=2): # Added n_implement_steps
+        """
+        Main file to run the MPC online execution.
+        H: Planning horizon for the model.
+        T: Total environment steps.
+        n_implement_steps: Number of steps to execute from plan before replanning.
+        """
+        obs_dict_after_reset = self.reset(seed) # Resets env and self.rollout
+        model = self.load_model(extra=extra, state_dim=7, action_dim=7)
+
+        with open("data/pot_states_rot6d_20.npy", "rb") as f:
+            pot_handles_conditions = np.load(f)
+        
+        current_pot_handles_condition = pot_handles_conditions[cond_idx]
+        
+        print("Starting online MPC execution...")
+        self.execute_mpc_online(
+            ode_model=model,
+            pot_handles_obs_condition=current_pot_handles_condition,
+            segment_length=H,      # Planning horizon
+            total_steps=T,         # Total env steps
+            n_implement=n_implement_steps # Steps to execute per plan
+        )
 
     
         
