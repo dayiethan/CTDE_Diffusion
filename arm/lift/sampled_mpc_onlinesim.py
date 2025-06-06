@@ -54,6 +54,7 @@ class PolicyPlayer:
         self.dt = 1.0 / self.control_freq
         self.max_time = 10
         self.max_steps = int(self.max_time / self.dt)
+        self.max_step = int(15 * self.control_freq)
 
         self.render = render
 
@@ -184,8 +185,57 @@ class PolicyPlayer:
 
         return robot0_planning_state, robot1_planning_state
     
+    def check_arrived(self, pos1, rotm1, grip1, pos2, rotm2, grip2, threshold = 0.05):
+        pos_diff = pos1 - pos2
+        rotm_diff = rotm2.T @ rotm1
+        grip_diff = grip1 - grip2
+
+        distance = np.sqrt(0.5 * np.linalg.norm(pos_diff)**2 + np.trace(np.eye(3) - rotm_diff) + 0.5 * grip_diff**2)
+
+        if distance < threshold:
+            return True
+        else:
+            return False
+
+    def get_poses(self, obs):
+        robot0_pos_world = obs['robot0_eef_pos']
+        robot0_rotm_world = R.from_quat(obs['robot0_eef_quat_site']).as_matrix()
+
+        robot1_pos_world = obs['robot1_eef_pos']
+        robot1_rotm_world = R.from_quat(obs['robot1_eef_quat_site']).as_matrix()
+
+        robot0_pos = self.robot0_base_ori_rotm.T @ (robot0_pos_world - self.robot0_base_pos)
+        robot0_rotm = self.robot0_base_ori_rotm.T @ robot0_rotm_world
+
+        robot1_pos = self.robot1_base_ori_rotm.T @ (robot1_pos_world - self.robot1_base_pos)
+        robot1_rotm = self.robot1_base_ori_rotm.T @ robot1_rotm_world
+        
+        return robot0_pos, robot0_rotm, robot1_pos, robot1_rotm
     
-    def execute_mpc_online(self, ode_model, pot_handles_obs_condition, segment_length=25, total_steps=250, n_implement=2):
+
+    def convert_action_robot(self, robot_pos, robot_rotm, robot_goal_pos, robot_goal_rotm, robot_gripper, alpha = 0.5):
+        action = np.zeros(int(self.n_action/2))
+
+        g = np.eye(4)
+        g[0:3, 0:3] = robot_rotm
+        g[0:3, 3] = robot_pos
+
+        gd = np.eye(4)
+        gd[0:3, 0:3] = robot_goal_rotm
+        gd[0:3, 3] = robot_goal_pos
+
+        xi = SE3_log_map(np.linalg.inv(g) @ gd)
+
+        gd_modified = g @ SE3_exp_map(alpha * xi)
+
+        action[0:3] = gd_modified[:3,3]
+        action[3:6] = R.from_matrix(gd_modified[:3,:3]).as_rotvec()
+        action[6] = robot_gripper
+
+        return action
+    
+    
+    def execute_mpc_online(self, seed, ode_model, pot_handles_obs_condition, segment_length=25, total_steps=250, n_implement=2):
         """
         Executes MPC online, replanning and interacting with the environment.
 
@@ -198,9 +248,8 @@ class PolicyPlayer:
         """
         if self.mean is None or self.std is None:
             raise ValueError("Mean and Std for action denormalization are not set. Call load_model first.")
-        
-        current_env_obs_dict = self.env._get_observations() # Get initial observation from env
-        # breakpoint()
+
+        obs = self.reset(seed)
 
         planned_actions_segment_r0 = None
         planned_actions_segment_r1 = None
@@ -208,6 +257,7 @@ class PolicyPlayer:
 
         for env_step_count in range(total_steps):
             if env_step_count % n_implement == 0:  # Time to replan
+                current_env_obs_dict = self.env._get_observations()
                 r0_current_planning_state, r1_current_planning_state = self._extract_planning_states_from_env_obs(current_env_obs_dict)
 
                 # Plan for robot 0
@@ -235,12 +285,27 @@ class PolicyPlayer:
             
             combined_action_to_env = np.hstack([action_r0_denormalized, action_r1_denormalized])
 
-            next_env_obs_dict, reward, done, info = self.env.step(combined_action_to_env)
+            robot0_arrived = False
+            robot1_arrived = False
+            for i in range(self.max_step):
+                robot0_pos, robot0_rotm, robot1_pos, robot1_rotm = self.get_poses(obs)
+                action0 = self.convert_action_robot(robot0_pos, robot0_rotm, action_r0_denormalized[:3], R.from_rotvec(action_r0_denormalized[3:6]).as_matrix(), action_r0_denormalized[6])
+                action1 = self.convert_action_robot(robot1_pos, robot1_rotm, action_r1_denormalized[:3], R.from_rotvec(action_r1_denormalized[3:6]).as_matrix(), action_r1_denormalized[6])
+                obs, reward, done, info = self.env.step(np.hstack([action0, action1]))
+                
+                if self.render:
+                    self.env.render()
+                
+                if not robot0_arrived:
+                    r0_gripper = self.env.sim.data.qpos[self.qpos_index_0]
+                    robot0_arrived = self.check_arrived(robot0_pos, robot0_rotm, r0_gripper, combined_action_to_env[:3], combined_action_to_env[3:6], combined_action_to_env[6])
 
-            if self.render:
-                self.env.render()
-            
-            current_env_obs_dict = next_env_obs_dict # Update current observation
+                if not robot1_arrived:
+                    r1_gripper = self.env.sim.data.qpos[self.qpos_index_1]
+                    robot1_arrived = self.check_arrived(robot1_pos, robot1_rotm, r1_gripper, combined_action_to_env[7:10], combined_action_to_env[10:13], combined_action_to_env[13])
+
+                if robot0_arrived and robot1_arrived:
+                    break
 
     
     def get_demo(self, seed, cond_idx, extra, H=25, T=250, n_implement_steps=2): # Added n_implement_steps
@@ -260,6 +325,7 @@ class PolicyPlayer:
         
         print("Starting online MPC execution...")
         self.execute_mpc_online(
+            seed=seed,
             ode_model=model,
             pot_handles_obs_condition=current_pot_handles_condition,
             segment_length=H,      # Planning horizon
