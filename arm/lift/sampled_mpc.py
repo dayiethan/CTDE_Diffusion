@@ -120,6 +120,7 @@ class PolicyPlayer:
         combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
         mean = np.mean(combined_data, axis=(0,1))
         std = np.std(combined_data, axis=(0,1))
+        # breakpoint()
 
         # Normalize data
         expert_data1 = (expert_data1 - mean) / std
@@ -158,7 +159,7 @@ class PolicyPlayer:
         return action_cond_ode
     
     
-    def reactive_mpc_plan(self, ode_model, env, initial_states, obs, segment_length=25, total_steps=250, n_implement=5):
+    def reactive_mpc_plan(self, ode_model, initial_states, obs, segment_length=25, total_steps=250, n_implement=5):
         """
         Plans a full trajectory (total_steps long) by iteratively planning
         segment_length-steps using the diffusion model and replanning at every timestep.
@@ -181,6 +182,7 @@ class PolicyPlayer:
             segments = []
             for i in range(len(current_states)):
                 if i == 0:
+                    breakpoint()
                     cond = [current_states[0], obs]
                     cond = np.hstack(cond)
                     cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
@@ -220,7 +222,7 @@ class PolicyPlayer:
         Main file to get the demonstration data
         """
         obs = self.reset(seed)
-
+        # breakpoint()
         # Loading
         expert_data = np.load("data/expert_actions_rotvec_20.npy")
         expert_data1 = expert_data[:, :, :7]
@@ -241,8 +243,8 @@ class PolicyPlayer:
         # Sampling
         traj_len = 250
         n_samples = 1
-
-        planned_trajs = self.reactive_mpc_plan(model, env, [expert_data1[cond_idx, 0, :3], expert_data2[cond_idx, 0, :3]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=2)
+        # breakpoint()
+        planned_trajs = self.reactive_mpc_plan(model, [expert_data1[cond_idx, 0, :3], expert_data2[cond_idx, 0, :3]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=2)
         planned_traj1 =  planned_trajs[0] * std + mean
         # np.save("samples/lift_mpc_P25E2_50ksteps/mpc_traj1_1.npy", planned_traj1)
         planned_traj2 = planned_trajs[1] * std + mean
@@ -272,5 +274,5 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = False)
-    cond_idx = 1
+    cond_idx = 0
     player.get_demo(seed = cond_idx*10, cond_idx = cond_idx, extra="_lift_mpc_P25E2_50ksteps", H=25, T=250)
