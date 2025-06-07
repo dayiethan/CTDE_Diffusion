@@ -206,7 +206,6 @@ def mpc_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_len
 
     n_agents = len(initial_states)
     current_states = initial_states.copy()
-    current_states_updated = initial_states.copy()
     full_traj = []
 
     n_steps = total_steps // n_implement
@@ -231,25 +230,13 @@ def mpc_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_len
             seg_i = sampled.cpu().detach().numpy()[0]  # (segment_length, state_size)
             if step == 0:
                 segments.append(seg_i[0:n_implement,:])
-                current_states_updated[i] = seg_i[n_implement-1,:]
+                current_states[i] = seg_i[n_implement-1,:]
             else:
                 segments.append(seg_i[1:n_implement+1,:])
-                current_states_updated[i] = seg_i[n_implement,:]
-        
-        # Update current states for the next iteration
-        current_states = current_states_updated.copy()
+                current_states[i] = seg_i[n_implement,:]
         
         seg_array = np.stack(segments, axis=0)
         full_traj.append(seg_array)
-
-        # # Implement n_implement steps from the planned segment
-        # for t in range(n_implement):
-        #     if steps_taken >= total_steps:
-        #         break
-        #     next_states = [segments[i][t + 1] for i in range(n_agents)]  # step t+1 (not t, assuming seg[0] is current)
-        #     current_states = np.array(next_states)
-        #     full_traj.append(current_states)
-        #     steps_taken += 1
 
     full_traj = np.concatenate(full_traj, axis=1)  # Shape: (total_steps, n_agents, state_size)
 
@@ -258,117 +245,182 @@ def mpc_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_len
 
 # --- 2. MPC Planning and Video Generation ---
 
-for i in range(10):
-    noise_std = 0.2
-    initial1 = initial_point_up + noise_std * np.random.randn(*np.shape(initial_point_up))
-    initial1 = (initial1 - mean) / std
-    final1 = final_point_up + noise_std * np.random.randn(*np.shape(final_point_up))
-    final1 = (final1 - mean) / std
-    initial2 = initial_point_down + noise_std * np.random.randn(*np.shape(initial_point_down))
-    initial2 = (initial2 - mean) / std
-    final2 = final_point_down + noise_std * np.random.randn(*np.shape(final_point_down))
-    final2 = (final2 - mean) / std
+# initial position for test
 
-    # planned_traj1 = mpc_plan(action_cond_ode, env, [initial1, initial2], [final1, final2], 0, segment_length=H, total_steps=T)
-    # planned_traj1 = planned_traj1 * std + mean
+arc_len_1 = 5
+arc_len_2 = 5
 
-    # planned_traj2 = mpc_plan(action_cond_ode, env, [initial1, initial2], [final1, final2], 1, segment_length=H, total_steps=T)
-    # planned_traj2 = planned_traj2 * std + mean
+initial1_orig = np.array([10-4*np.sin(arc_len_1/8),4*np.cos(arc_len_1/8)])
+final1 = final_point_up
+initial2_orig = np.array([10+4*np.sin(arc_len_2/8),4*np.cos(arc_len_2/8)])
+final2 = final_point_down
 
-    # planned_trajs = mpc_plan_multi_true(action_cond_ode, env, [initial2, initial1], [final2, final1], segment_length=H, total_steps=T, n_implement = 5)
-    planned_trajs = mpc_plan_multi_true(action_cond_ode, env, [initial2, initial1], [final2, final1], segment_length=H, total_steps=T, n_implement = 5)
+initial1 = (initial1_orig - mean) / std
+initial2 = (initial2_orig - mean) / std
 
-    planned_traj1 = planned_trajs[0] * std + mean
-    planned_traj2 = planned_trajs[1] * std + mean
+final1 = (final1 - mean) / std
+final2 = (final2 - mean) / std
 
-    initial1 = planned_traj1[-1,:]
-    initial2 = planned_traj2[-1,:]
+cond1 = np.hstack([initial1, final1])
+cond2 = np.hstack([initial2, final2])
 
-    # # Save the planned trajectories to a CSV file:
+cond1_tensor = torch.tensor(cond1, dtype=torch.float32, device=device).unsqueeze(0)
+cond2_tensor = torch.tensor(cond2, dtype=torch.float32, device=device).unsqueeze(0)
 
-    save_folder = "data/mpc_H_25_I_5_2"
+plt.figure(figsize=(22, 14))
+plt.ylim(-7, 7)
+plt.xlim(-1,21)
+# plot star for initial point of both agents
+plt.plot(initial1_orig[0], initial1_orig[1], '*', color='blue',  markersize=20, label='Initial 1')
+plt.plot(initial2_orig[0], initial2_orig[1], '*', color='orange', markersize=20, label='Initial 2')
 
-    if not os.path.exists(save_folder):
-        os.makedirs(save_folder)
+ox, oy, r = obstacle
+circle1 = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
+plt.gca().add_patch(circle1)
+plt.xlabel("x")
+plt.ylabel("y")
+plt.title("MPC Planned Trajectory")
 
-    save_fig_path = "figs/mpc_noise_H_25_I_5_2"
+for _ in range(10):
 
-    if not os.path.exists(save_fig_path):
-        os.makedirs(save_fig_path)
+    segments = []
+
+    for i in range(2):
+
+        sampled = action_cond_ode.sample_with_noise(
+                    attr=[cond1_tensor, cond2_tensor],
+                    traj_len=H,
+                    n_samples=1,
+                    w=1.,
+                    model_index=i,
+                    eta=0.13
+                )
+        seg_i = sampled.cpu().detach().numpy()[0]
+
+        segments.append(seg_i)
+
+    seg_array = np.stack(segments, axis=0)
+
+    planned_traj1 = seg_array[0]*std + mean
+    planned_traj2 = seg_array[1]*std + mean
+
+    #Plot the planned trajectory:
     
-    # convert to numpy array
-
-    planned_traj1 = np.array(planned_traj1)
-    planned_traj2 = np.array(planned_traj2)
-
-    np.savetxt(os.path.join(save_folder, f"diffusion_gnn_noise_0_2_planned_traj1_{i}.csv"), planned_traj1, delimiter=",")
-    np.savetxt(os.path.join(save_folder, f"diffusion_gnn_noise_0_2_planned_traj2_{i}.csv"), planned_traj2, delimiter=",")
-
-    # Plot the planned trajectory:
-    plt.figure(figsize=(22, 14))
-    plt.ylim(-7, 7)
-    plt.xlim(-1,21)
-    plt.plot(planned_traj1[:, 0], planned_traj1[:, 1], 'b.-')
-    plt.plot(planned_traj2[:, 0], planned_traj2[:, 1], 'o-', color='orange')
-    ox, oy, r = obstacle
-    circle1 = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
-    plt.gca().add_patch(circle1)
-    plt.xlabel("x")
-    plt.ylabel("y")
-    plt.title("MPC Planned Trajectory")
-    plt.savefig(os.path.join(save_fig_path, f"mpc_traj_{i}.png"))
-    # plt.savefig("figs/mpc_noise_H_25_I_5_2/mpc_traj_%s.png" % str(i))
-    # plt.show()
-
-    # # Generate a video of the planning process:
-    # fig, ax = plt.subplots(figsize=(22, 14))
-    # ax.set_xlim(-1, 21)
-    # ax.set_ylim(-7, 7)
-    # circle2 = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
-    # ax.add_patch(circle2)
-    # line, = ax.plot([], [], 'b-', lw=2, label="Traj 1")
-    # markers, = ax.plot([], [], 'bo', markersize=8)
-    # line2, = ax.plot([], [], 'r-', lw=2, label="Traj 2")
-    # markers2, = ax.plot([], [], 'ro', markersize=8)
-    # title = ax.text(0.5, 1.05, "MPC Planning", transform=ax.transAxes, ha="center")
+    plt.plot(planned_traj1[:, 0], planned_traj1[:, 1], color='blue')
+    plt.plot(planned_traj2[:, 0], planned_traj2[:, 1], color='orange')
+    # plt.savefig("figs/mpc_noise_H_25_I_5/mpc_traj_%s.png" % str(i))
+plt.show()
 
 
-    # def init():
-    #     line.set_data([], [])
-    #     return line, title
 
-    # def update(frame):
-    #     # Update the first trajectory.
-    #     line.set_data(planned_traj1[:frame, 0], planned_traj1[:frame, 1])
-    #     if frame >= 10:
-    #         indices = np.arange(0, frame, 10)
-    #         if indices[-1] != frame - 1:
-    #             indices = np.append(indices, frame - 1)
-    #     else:
-    #         indices = [0]
-    #     markers.set_data(planned_traj1[indices, 0], planned_traj1[indices, 1])
+# for i in range(1):
+#     noise_std = 0.2
+#     initial1 = initial_point_up + noise_std * np.random.randn(*np.shape(initial_point_up))
+#     initial1 = (initial1 - mean) / std
+#     final1 = final_point_up + noise_std * np.random.randn(*np.shape(final_point_up))
+#     final1 = (final1 - mean) / std
+#     initial2 = initial_point_down + noise_std * np.random.randn(*np.shape(initial_point_down))
+#     initial2 = (initial2 - mean) / std
+#     final2 = final_point_down + noise_std * np.random.randn(*np.shape(final_point_down))
+#     final2 = (final2 - mean) / std
+
+#     # planned_traj1 = mpc_plan(action_cond_ode, env, [initial1, initial2], [final1, final2], 0, segment_length=H, total_steps=T)
+#     # planned_traj1 = planned_traj1 * std + mean
+
+#     # planned_traj2 = mpc_plan(action_cond_ode, env, [initial1, initial2], [final1, final2], 1, segment_length=H, total_steps=T)
+#     # planned_traj2 = planned_traj2 * std + mean
+
+#     # planned_trajs = mpc_plan_multi_true(action_cond_ode, env, [initial2, initial1], [final2, final1], segment_length=H, total_steps=T, n_implement = 5)
+#     planned_trajs = mpc_plan_multi_true(action_cond_ode, env, [initial2, initial1], [final2, final1], segment_length=H, total_steps=T, n_implement = 5)
+
+#     planned_traj1 = planned_trajs[0] * std + mean
+#     planned_traj2 = planned_trajs[1] * std + mean
+
+#     initial1 = planned_traj1[-1,:]
+#     initial2 = planned_traj2[-1,:]
+
+#     # # Save the planned trajectories to a CSV file:
+
+#     save_folder = "data/mpc_H_25_I_5"
+
+#     if not os.path.exists(save_folder):
+#         os.makedirs(save_folder)
+
+#     if not os.path.exists("figs/mpc_noise_H_25_I_5"):
+#         os.makedirs("figs/mpc_noise_H_25_I_5")
+    
+#     # convert to numpy array
+
+#     planned_traj1 = np.array(planned_traj1)
+#     planned_traj2 = np.array(planned_traj2)
+
+#     # np.savetxt(os.path.join(save_folder, f"diffusion_gnn_noise_0_2_planned_traj1_{i}.csv"), planned_traj1, delimiter=",")
+#     # np.savetxt(os.path.join(save_folder, f"diffusion_gnn_noise_0_2_planned_traj2_{i}.csv"), planned_traj2, delimiter=",")
+
+#     # Plot the planned trajectory:
+#     # plt.figure(figsize=(22, 14))
+#     # plt.ylim(-7, 7)
+#     # plt.xlim(-1,21)
+#     # plt.plot(planned_traj1[:, 0], planned_traj1[:, 1], 'b.-')
+#     # plt.plot(planned_traj2[:, 0], planned_traj2[:, 1], 'o-', color='orange')
+#     # ox, oy, r = obstacle
+#     # circle1 = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
+#     # plt.gca().add_patch(circle1)
+#     # plt.xlabel("x")
+#     # plt.ylabel("y")
+#     # plt.title("MPC Planned Trajectory")
+#     # plt.savefig("figs/mpc_noise_H_25_I_5/mpc_traj_%s.png" % str(i))
+#     # plt.show()
+
+#     # # Generate a video of the planning process:
+#     # fig, ax = plt.subplots(figsize=(22, 14))
+#     # ax.set_xlim(-1, 21)
+#     # ax.set_ylim(-7, 7)
+#     # circle2 = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
+#     # ax.add_patch(circle2)
+#     # line, = ax.plot([], [], 'b-', lw=2, label="Traj 1")
+#     # markers, = ax.plot([], [], 'bo', markersize=8)
+#     # line2, = ax.plot([], [], 'r-', lw=2, label="Traj 2")
+#     # markers2, = ax.plot([], [], 'ro', markersize=8)
+#     # title = ax.text(0.5, 1.05, "MPC Planning", transform=ax.transAxes, ha="center")
+
+
+#     # def init():
+#     #     line.set_data([], [])
+#     #     return line, title
+
+#     # def update(frame):
+#     #     # Update the first trajectory.
+#     #     line.set_data(planned_traj1[:frame, 0], planned_traj1[:frame, 1])
+#     #     if frame >= 10:
+#     #         indices = np.arange(0, frame, 10)
+#     #         if indices[-1] != frame - 1:
+#     #             indices = np.append(indices, frame - 1)
+#     #     else:
+#     #         indices = [0]
+#     #     markers.set_data(planned_traj1[indices, 0], planned_traj1[indices, 1])
         
-    #     # Update the second trajectory.
-    #     line2.set_data(planned_traj2[:frame, 0], planned_traj2[:frame, 1])
-    #     if frame >= 10:
-    #         indices2 = np.arange(0, frame, 10)
-    #         if indices2[-1] != frame - 1:
-    #             indices2 = np.append(indices2, frame - 1)
-    #     else:
-    #         indices2 = [0]
-    #     markers2.set_data(planned_traj2[indices2, 0], planned_traj2[indices2, 1])
+#     #     # Update the second trajectory.
+#     #     line2.set_data(planned_traj2[:frame, 0], planned_traj2[:frame, 1])
+#     #     if frame >= 10:
+#     #         indices2 = np.arange(0, frame, 10)
+#     #         if indices2[-1] != frame - 1:
+#     #             indices2 = np.append(indices2, frame - 1)
+#     #     else:
+#     #         indices2 = [0]
+#     #     markers2.set_data(planned_traj2[indices2, 0], planned_traj2[indices2, 1])
         
-    #     title.set_text(f"Step {frame}")
-    #     return line, markers, line2, markers2, title
+#     #     title.set_text(f"Step {frame}")
+#     #     return line, markers, line2, markers2, title
 
 
 
-    # ani = animation.FuncAnimation(fig, update, frames=len(planned_traj1), init_func=init,
-    #                             blit=True, interval=50)
+#     # ani = animation.FuncAnimation(fig, update, frames=len(planned_traj1), init_func=init,
+#     #                             blit=True, interval=50)
 
 
-    # ani.save("figs/mpc/mpc_ani_%s.mp4" % i, writer="ffmpeg", fps=12)
-    # plt.close()
-    print("MPC planning and video generation complete.")
+#     # ani.save("figs/mpc/mpc_ani_%s.mp4" % i, writer="ffmpeg", fps=12)
+#     # plt.close()
+#     print("MPC planning and video generation complete.")
 
 
