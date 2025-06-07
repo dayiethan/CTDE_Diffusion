@@ -6,7 +6,7 @@ from utils.discrete import *
 import sys
 import pdb
 import csv
-from utils.mpc_util import reactive_mpc_plan
+from utils.mpc_util import reactive_mpc_plan, reactive_mpc_plan_guidesample
 
 def create_mpc_dataset(expert_data, planning_horizon=25):
     n_traj, horizon, state_dim = expert_data.shape
@@ -35,15 +35,16 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
 # Parameters
-n_gradient_steps = 100_000
+n_gradient_steps = 50_000
 batch_size = 64
-model_size = {
-    "d_model": 512,      # twice the transformer width
-    "n_heads": 8,        # more attention heads
-    "depth":   6,        # twice the number of layers
-    "lin_scale": 256,    # larger conditional embedder
-}
-H = 20 # horizon, length of each trajectory
+# model_size = {
+#     "d_model": 512,      # twice the transformer width
+#     "n_heads": 8,        # more attention heads
+#     "depth":   6,        # twice the number of layers
+#     "lin_scale": 256,    # larger conditional embedder
+# }
+model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
+H = 25 # horizon, length of each trajectory
 T = 100 # total time steps
 
 # Define initial and final points, and a single central obstacle
@@ -54,8 +55,8 @@ initial_point_down = np.array([20.0, 0.0])
 obstacle = (10, 0, 4.0) 
 
 # Loading training trajectories
-expert_data_1 = np.load('data/expert_data1_100_traj.npy')
-expert_data_2 = np.load('data/expert_data2_100_traj.npy')
+expert_data_1 = np.load('data/expert_data1_570_mpc.npy')
+expert_data_2 = np.load('data/expert_data2_570_mpc.npy')
 
 orig1 = expert_data_1
 orig2 = expert_data_2
@@ -96,7 +97,7 @@ env = TwoUnicycle()
 # Setting up training data
 obs_init1 = expert_data1[:, 0, :]
 obs_init2 = expert_data2[:, 0, :]
-obs_init1_cond = expert_data1[:, 9, :]
+obs_init1_cond = expert_data1[:, 2, :]
 obs_final1 = np.repeat(orig1[:, -1, :], repeats=100, axis=0)
 obs_final2 = np.repeat(orig2[:, -1, :], repeats=100, axis=0)
 obs1 = np.hstack([obs_init1, obs_final1, obs_init2, obs_final2])
@@ -123,9 +124,9 @@ sig = np.array([sigma_data1, sigma_data2])
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_P20E10_lf")
-# action_cond_ode.save(extra="_P20E10_lf")
-action_cond_ode.load(extra="_P20E10_lf")
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_P25E3_lf_mpcdata")
+# action_cond_ode.save(extra="_P25E3_lf_mpcdata")
+action_cond_ode.load(extra="_P25E3_lf_mpcdata")
 
 
 
@@ -162,9 +163,9 @@ for i in range(100):
 
     planned_traj1 =  planned_trajs[0] * std + mean
 
-    np.save("sampled_trajs/mpc_P20E10/mpc_traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_P25E3_mpcdata/mpc_traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
 
-    np.save("sampled_trajs/mpc_P20E10/mpc_traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_P25E3_mpcdata/mpc_traj2_%s.npy" % i, planned_traj2)
 
