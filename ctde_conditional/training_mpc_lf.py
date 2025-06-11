@@ -126,7 +126,7 @@ sig = np.array([sigma_data1, sigma_data2])
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
 # action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_P25E3_lf_mpcdata")
 # action_cond_ode.save(extra="_P25E3_lf_mpcdata")
-action_cond_ode.load(extra="_P25E3_lf_mpcdata")
+action_cond_ode.load(extra="_P25E3_reactive")
 
 
 
@@ -163,9 +163,9 @@ for i in range(100):
 
     planned_traj1 =  planned_trajs[0] * std + mean
 
-    np.save("sampled_trajs/mpc_P25E3_mpcdata/mpc_traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_P25E3_2/mpc_traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
 
-    np.save("sampled_trajs/mpc_P25E3_mpcdata/mpc_traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_P25E3_2/mpc_traj2_%s.npy" % i, planned_traj2)
 
