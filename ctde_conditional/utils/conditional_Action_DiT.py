@@ -555,6 +555,162 @@ class Conditional_ODE():
 
         return x
     
+    @torch.no_grad()
+    def sample_collision_guided(self,
+                            attrs: list,
+                            traj_len: int,
+                            n_samples: int,
+                            w: float = 1.5,
+                            N: int = None,
+                            model_index: int = 0,
+                            mean=None,
+                            std=None):
+        """
+        Exactly like `sample`, but adds a small repulsive gradient
+        to discourage the follower (model_index=1) from colliding
+        with the leader in the first `repulse_horizon` timesteps.
+        
+        attrs: [attr_leader, attr_follower], each a torch.Tensor
+            of shape (n_samples, attr_dim).
+        mean/std: 1-D arrays of length self.state_size for de-norm.
+        """
+        # 1) same N logic as sample
+        if N is not None and N != self.N:
+            self.set_N(N)
+
+        # 2) initialize x same as sample
+        x = (torch.randn(n_samples, traj_len, self.action_size, device=self.device)
+            * self.sigma_s[0] * self.scale_s[0])
+        # clamp the first-state to the conditioning
+        x[:, 0, :self.state_size] = attrs[model_index][:, :self.state_size]
+        original_attr = attrs[model_index].clone()
+
+        # 3) prepare the repeated attr/dropout mask as in sample
+        attr = attrs[model_index]
+        attr_mask = torch.ones_like(attr)
+        attr_cat = attr.repeat(2, 1)
+        attr_mask_cat = attr_mask.repeat(2, 1)
+        attr_mask_cat[n_samples:] = 0
+
+        # 4) precompute de-norm tensors for collision guidance
+        mean_t = torch.as_tensor(mean, device=self.device, dtype=torch.float32)[None]
+        std_t  = torch.as_tensor(std,  device=self.device, dtype=torch.float32)[None]
+
+        # initial poses of both agents (in raw units), shape (n_samples, state_size)
+        init_lead = attrs[0][:, :self.state_size] * std_t + mean_t
+        init_foll = attrs[1][:, :self.state_size] * std_t + mean_t
+
+        # 5) diffusion‐denoising loop
+        for i in range(self.N):
+            # a) standard DiT denoising step
+            with torch.no_grad():
+                D_out = self.D(x.repeat(2,1,1) / self.scale_s[i],
+                            torch.full((2*n_samples,1,1),
+                                        self.sigma_s[i], device=self.device),
+                            condition=attr_cat,
+                            mask=attr_mask_cat,
+                            use_ema=True,
+                            model_index=model_index)
+                D_out = w * D_out[:n_samples] + (1-w) * D_out[n_samples:]
+
+            # b) collision‐repulsion gradient (only for follower)
+            guidance_grad = torch.zeros_like(x)
+            if model_index == 1:
+                # distance between leader & follower at t=0
+                # (broadcast over batch)
+                dist0 = torch.norm(init_lead - init_foll, dim=1)     # shape (n,)
+                # only apply if they start too close
+                if (dist0 < self.repulse_radius).any():
+                    # de-normalize the *first* repulse_horizon states
+                    T_r = self.repulse_horizon
+                    x_denorm = x[:, :T_r, :self.state_size] * std_t + mean_t   # (n,T_r,D)
+                    # leader “future” is the same de‐normed t=0 state
+                    lead_rep = init_lead.unsqueeze(1).expand(-1, T_r, -1)     # (n,T_r,D)
+
+                    diff = (x_denorm - lead_rep) * self.repulse_scale         # (n,T_r,D)
+                    v    = diff.view(n_samples, -1)                           # (n, T_r*D)
+                    sq   = (v*v).sum(-1, keepdim=True)                        # (n,1)
+                    eps  = 1e-6
+                    # gradient of 1/sq  w.r.t. x_denorm gives repulsion
+                    grad = 2 * diff / ((sq + eps).unsqueeze(-1)**2)           # (n,T_r,D)
+                    guidance_grad[:, :T_r, :self.state_size] = grad
+
+            # c) Euler‐step with added guidance
+            delta = self.coeff1[i] * x - self.coeff2[i] * D_out - self.guidance_weight * guidance_grad
+            dt    = (self.t_s[i] - self.t_s[i+1]) if i < self.N-1 else self.t_s[i]
+            x     = x - delta * dt
+
+            # d) re‐clamp the first state
+            x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
+
+        return x
+    
+    def sample_guidance(self,
+           attr,
+           traj_len,
+           n_samples: int,
+           w: float = 1.5,
+           N: int = None,
+           model_index: int = 0,
+           leader_traj: torch.Tensor = None,       # ⭑ (new)
+           collision_weight: float = 1.0,           # ⭑ repulsion strength
+           eps: float = 1e-6):                      # ⭑ small term to avoid div/0
+        """
+        Samples a trajectory using the EMA copy of the specified transformer,
+        optionally adding a repulsive collision term against a leader.
+
+        leader_traj: if provided and model_index != 0, must be
+                    Tensor[n_samples, traj_len, state_size].
+        collision_weight: scales how strongly followers avoid the leader.
+        """
+        if N is not None and N != self.N:
+            self.set_N(N)
+
+        # Initialize
+        x = (torch.randn((n_samples, traj_len, self.action_size), device=self.device)
+            * self.sigma_s[0] * self.scale_s[0])
+        x[:, 0, :self.state_size] = attr[:, :self.state_size]
+        original_attr = attr.clone()
+
+        # prepare conditioning
+        attr_mask = torch.ones_like(attr)
+        attr_cat = attr.repeat(2, 1)
+        attr_mask_cat = attr_mask.repeat(2, 1)
+        attr_mask_cat[n_samples:] = 0
+
+        for i in range(self.N):
+            with torch.no_grad():
+                D_out = self.D(x.repeat(2, 1, 1) / self.scale_s[i],
+                            torch.ones((2 * n_samples, 1, 1), device=self.device) * self.sigma_s[i],
+                            condition=attr_cat,
+                            mask=attr_mask_cat,
+                            use_ema=True,
+                            model_index=model_index)
+                D_out = w * D_out[:n_samples] + (1 - w) * D_out[n_samples:]
+
+            # basic diffusion gradient
+            delta = self.coeff1[i] * x - self.coeff2[i] * D_out
+
+            # ⭑ add repulsive penalty for followers
+            if model_index != 0 and leader_traj is not None:
+                # only on the state dimensions (assumes state_size ≤ action_size)
+                d = x[:, :, :self.state_size] - leader_traj[:, :, :self.state_size]
+                dist_sq = (d**2).sum(dim=-1, keepdim=True).clamp_min(eps)
+                rep_force = collision_weight * d / dist_sq
+                # inject into the same slots as the state gradient
+                delta[:, :, :self.state_size] += rep_force
+
+            # Euler step
+            dt = (self.t_s[i] - self.t_s[i+1]) if i != self.N - 1 else self.t_s[i]
+            x = x - delta * dt
+
+            # re-anchor the initial state
+            x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
+
+        return x
+
+
+    
     def save(self, extra: str = ""):
         """Saves the state dictionaries for all transformers and their EMA copies."""
         state = {}
