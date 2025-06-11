@@ -23,8 +23,10 @@ Some of the overlap between categories in the 'splice/' and not is due to those 
 - **`T100_noise0.05`**: Full horizon (100 timestpes) planning with noised sampled atat 0.05 noise level
 
 ## Main Files
-- **`training_mpc_guidance.py`**: Training and sampling of MPC approach (10 timestep planning, 1 timestep execution) with guidance function in denoising process to avoid collision
+- **`training_mpc_guidance.py`**: Training and sampling of MPC approach (10 timestep planning, 1 timestep execution) with guidance function in denoising process to avoid collision (old)
+- **`training_mpc_guidesample.py`**: Training and sampling of MPC approach with guidance function during sampling for collision avoidance
 - **`training_mpc_lf_latent.py`**: Training and sampling of mpc approach(varying timestep planning, varying timestep execution) while conditioned as a leader/follower approach on the latent representation of the leader's history
+- **`training_mpc_lf_restore.py`**: Training and sampling of mpc approach(varying timestep planning, varying timestep execution) while conditioned as a leader/follower approach (basically the same as training_mpc_lf.py but just haven't deleted that file yet)
 - **`training_mpc_lf.py`**: Training and sampling of mpc approach(varying timestep planning, varying timestep execution) while conditioned as a leader/follower approach
 - **`training_mpc.py`**: Training and sampling of MPC approach (10 timestep planning, 1 timestep execution)
 - **`training_reactive.py`**: Training and sampling of splice approach(10 timestep planning, 10 timestep execution) while conditioned on additional elements (other agent's state and/or expert demonstration mode)
