@@ -22,6 +22,26 @@ Some of the overlap between categories in the 'splice/' and not is due to those 
 - **`T100`**: Full horizon (100 timestpes) planning
 - **`T100_noise0.05`**: Full horizon (100 timestpes) planning with noised sampled atat 0.05 noise level
 
+## sampled_trajs
+- **`mpc_guidance_P10E1`**: Plan 10, execute 1 with old sampling guidance: _T10_mpc_guidance.pt
+- **`mpc_latent_P10E1`**: Plan 10, execute 1 with latent state conditioning; model: _P10E1_lf_latent.pt
+- **`mpc_latent_P10E3`**: Plan 10, execute 3 with latent state conditioning; model: missing
+- **`mpc_latent_P10E3`**: Plan 10, execute 3 with latent state conditioning where the latent state MLP is simultaneously trained; model: _P10E3_lf_latenttrain.pt
+- **`mpc_P10E1`**: Plan 10, execute 1 with latent state conditioning; model: _P10E1_lf_latent.pt
+- **`mpc_P10E5`**: Plan 10, execute 5; model: _P10_E5_reactive.pt
+- **`mpc_P20E10`**: Plan 20, execute 10; model: _P20E10_lf.pt
+- **`mpc_P25E3`**: Plan 25, execute 3; model: _P25E3.pt
+- **`mpc_P25E3_guidesample1`**: Plan 25, execute 3 with sampling guidance; model: _P25E3.pt
+- **`mpc_P25E3_guidesample2`**: Plan 25, execute 3 with sampling guidance; model: _P25E3_2.pt
+- **`mpc_P25E3_mpcdata1`**: Plan 25, execute 3 using MPC generated expert data; model: _P25E3_mpcdata.pt
+- **`mpc_P25E3_mpcdata2`**: Plan 25, execute 3 using MPC generated expert data and sampling guidance; model: _P25E3_mpcdata.pt
+- **`mpc_P25E3_noguidance1`**: Plan 25, execute 3; model: _P25E3.pt
+- **`mpc_P25E3_noguidance2`**: Plan 25, execute 3; model: _P25E3_2.pt
+- **`mpc_P25E3_smallcond`**: Plan 25, execute 3 with smaller conditional vector; model: _P25E3_smallcond.pt
+- **`mpc_P25E5`**: Plan 25, execute 5; model: _P25E5.pt
+- **`mpc_P25E5_guidesample`**: Plan 25, execute 5 with sampling guidance; model: _P25E5.pt
+- **`mpc_P25E5_noguidance`**: Plan 25, execute 5; model: _P25E5.pt
+
 ## Main Files
 - **`training_mpc_guidance.py`**: Training and sampling of MPC approach (10 timestep planning, 1 timestep execution) with guidance function in denoising process to avoid collision (old)
 - **`training_mpc_guidesample.py`**: Training and sampling of MPC approach with guidance function during sampling for collision avoidance

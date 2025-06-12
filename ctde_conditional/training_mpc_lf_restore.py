@@ -6,7 +6,7 @@ from utils.discrete import *
 import sys
 import pdb
 import csv
-from utils.mpc_util import reactive_mpc_plan, reactive_mpc_plan_guidesample
+from utils.mpc_util import reactive_mpc_plan, reactive_mpc_plan_smallcond, reactive_mpc_plan_smallcond_guidesample
 
 def create_mpc_dataset(expert_data, planning_horizon=25):
     n_traj, horizon, state_dim = expert_data.shape
@@ -91,11 +91,11 @@ env = TwoUnicycle()
 # Setting up training data
 obs_init1 = expert_data1[:, 0, :]
 obs_init2 = expert_data2[:, 0, :]
-obs_init1_cond = expert_data1[:, 2, :]
+obs_init1_cond = expert_data1[:, 4, :]
 obs_final1 = np.repeat(orig1[:, -1, :], repeats=100, axis=0)
 obs_final2 = np.repeat(orig2[:, -1, :], repeats=100, axis=0)
-obs1 = np.hstack([obs_init1, obs_final1, obs_init2, obs_final2])
-obs2 = np.hstack([obs_init2, obs_final2, obs_init1_cond, obs_final1])
+obs1 = np.hstack([obs_init1, obs_final1, obs_init2])
+obs2 = np.hstack([obs_init2, obs_final2, obs_init1_cond])
 obs_temp1 = obs1
 obs_temp2 = obs2
 actions1 = expert_data1[:, :H-1, :]
@@ -107,8 +107,8 @@ attr1 = obs1
 attr2 = obs2
 attr_dim1 = attr1.shape[1]
 attr_dim2 = attr2.shape[1]
-assert attr_dim1 == env.state_size * 4
-assert attr_dim2 == env.state_size * 4
+assert attr_dim1 == env.state_size * 3
+assert attr_dim2 == env.state_size * 3
 
 actions1 = torch.FloatTensor(actions1).to(device)
 actions2 = torch.FloatTensor(actions2).to(device)
@@ -118,9 +118,9 @@ sig = np.array([sigma_data1, sigma_data2])
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, lin_scale = 128, **model_size)
-# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_P25E3_reactive")
-# action_cond_ode.save(extra="_P25E3_reactive")
-action_cond_ode.load(extra="_P25E5_reactive")
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_P25E5_smallcond")
+# action_cond_ode.save(subdirect="mpc/", extra="_P25E5_smallcond")
+action_cond_ode.load(subdirect="mpc/", extra="_P25E3_smallcond")
 
 
 
@@ -153,13 +153,13 @@ for i in range(100):
     final2 = final_point_down + noise_std * np.random.randn(*np.shape(final_point_down))
     final2 = (final2 - mean) / std
 
-    planned_trajs = reactive_mpc_plan(action_cond_ode, env, [initial1, initial2], [final1, final2], 0, segment_length=H, total_steps=T, n_implement=5)
+    planned_trajs = reactive_mpc_plan_smallcond_guidesample(action_cond_ode, env, [initial1, initial2], [final1, final2], 0, segment_length=H, total_steps=T, n_implement=5)
 
     planned_traj1 =  planned_trajs[0] * std + mean
 
-    np.save("sampled_trajs/mpc_P25E5_noguidance/mpc_traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_P25E3_smallcond_guidesample/mpc_traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
 
-    np.save("sampled_trajs/mpc_P25E5_noguidance/mpc_traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_P25E3_smallcond_guidesample/mpc_traj2_%s.npy" % i, planned_traj2)
 
