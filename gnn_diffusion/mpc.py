@@ -43,7 +43,7 @@ with open("data/sigma_data.npy", "rb") as f:
 
 # Training
 action_cond_ode = Conditional_ODE(env, [4, 4], sig.tolist(), device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.load(extra="_H25_mpc")
+action_cond_ode.load(extra="_H25_mpc_old")
 
 
 def mpc_plan(ode_model, env, initial_states, fixed_goals, model_i, segment_length=H, total_steps=T):
@@ -186,6 +186,71 @@ def mpc_plan_multi(ode_model, env, initial_states, fixed_goals, segment_length=1
 #     full_traj = np.stack(full_traj, axis=1)  # Shape: (total_steps, n_agents, state_size)
 #     return full_traj
 
+def mpc_plan_multi_leader_follower(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100, n_implement=5):
+    """
+    True MPC with partial trajectory execution: Plan a full segment, but implement n_implement steps.
+
+    Parameters:
+      - ode_model: the diffusion model (must support sample() that accepts a single condition tensor).
+      - env: the environment (to get state dimensions, etc.)
+      - initial_states: numpy array of shape (n_agents, state_size).
+      - fixed_goals: numpy array of shape (n_agents, state_size).
+      - segment_length: how many steps we plan ahead (default 10).
+      - total_steps: how many total steps to run.
+      - n_implement: how many steps to implement from each planned segment (must be ≤ segment_length).
+      
+    Returns:
+      - full_traj: numpy array of shape (total_steps, n_agents, state_size)
+    """
+    assert n_implement <= segment_length, "n_implement must be less than or equal to segment_length"
+
+    n_agents = len(initial_states)
+    current_states = initial_states.copy()
+    full_traj = []
+
+    n_steps = total_steps // n_implement
+
+    for step in range(n_steps):
+        segments = []
+        # Plan a full segment for each agent
+        for i in [0,1]:
+            cond1 = np.hstack([current_states[0], fixed_goals[0]])
+            cond2 = np.hstack([current_states[1], fixed_goals[1]])
+            cond1_tensor = torch.tensor(cond1, dtype=torch.float32, device=device).unsqueeze(0)
+            cond2_tensor = torch.tensor(cond2, dtype=torch.float32, device=device).unsqueeze(0)
+
+            sampled = ode_model.sample_with_noise(
+                attr=[cond1_tensor, cond2_tensor],
+                traj_len=segment_length,
+                n_samples=1,
+                w=1.,
+                model_index=i,
+                eta=0.13
+            )
+            seg_i = sampled.cpu().detach().numpy()[0]  # (segment_length, state_size)
+            if step == 0:
+                segments.append(seg_i[0:n_implement,:])
+                current_states[i] = seg_i[n_implement-1,:]
+            else:
+                segments.append(seg_i[1:n_implement+1,:])
+                current_states[i] = seg_i[n_implement,:]
+        
+        seg_array = np.stack(segments, axis=0)
+        full_traj.append(seg_array)
+
+        # # Implement n_implement steps from the planned segment
+        # for t in range(n_implement):
+        #     if steps_taken >= total_steps:
+        #         break
+        #     next_states = [segments[i][t + 1] for i in range(n_agents)]  # step t+1 (not t, assuming seg[0] is current)
+        #     current_states = np.array(next_states)
+        #     full_traj.append(current_states)
+        #     steps_taken += 1
+
+    full_traj = np.concatenate(full_traj, axis=1)  # Shape: (total_steps, n_agents, state_size)
+
+    return full_traj
+
 def mpc_plan_multi_true(ode_model, env, initial_states, fixed_goals, segment_length=10, total_steps=100, n_implement=5):
     """
     True MPC with partial trajectory execution: Plan a full segment, but implement n_implement steps.
@@ -276,7 +341,7 @@ for i in range(10):
     # planned_traj2 = planned_traj2 * std + mean
 
     # planned_trajs = mpc_plan_multi_true(action_cond_ode, env, [initial2, initial1], [final2, final1], segment_length=H, total_steps=T, n_implement = 5)
-    planned_trajs = mpc_plan_multi_true(action_cond_ode, env, [initial2, initial1], [final2, final1], segment_length=H, total_steps=T, n_implement = 5)
+    planned_trajs = mpc_plan_multi_leader_follower(action_cond_ode, env, [initial2, initial1], [final2, final1], segment_length=H, total_steps=T, n_implement = 3)
 
     planned_traj1 = planned_trajs[0] * std + mean
     planned_traj2 = planned_trajs[1] * std + mean
@@ -286,12 +351,12 @@ for i in range(10):
 
     # # Save the planned trajectories to a CSV file:
 
-    save_folder = "data/mpc_H_25_I_5_2"
+    save_folder = "data/mpc_H_25_I_3_lf"
 
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
 
-    save_fig_path = "figs/mpc_noise_H_25_I_5_2"
+    save_fig_path = "figs/mpc_noise_H_25_I_3_lf"
 
     if not os.path.exists(save_fig_path):
         os.makedirs(save_fig_path)
