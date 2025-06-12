@@ -157,9 +157,9 @@ for i in range(100):
 
     planned_traj1 =  planned_trajs[0] * std + mean
 
-    np.save("sampled_trajs/mpc_P25E3_smallcond_guidesample/mpc_traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_P25E3_smallcond_guidesample2/mpc_traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
 
-    np.save("sampled_trajs/mpc_P25E3_smallcond_guidesample/mpc_traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_P25E3_smallcond_guidesample2/mpc_traj2_%s.npy" % i, planned_traj2)
 

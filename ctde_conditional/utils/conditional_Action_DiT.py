@@ -710,6 +710,79 @@ class Conditional_ODE():
         return x
 
 
+    def sample_guidance2(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0,
+                leader_current_pos=None, collision_weight: float = 0.1, safety_radius: float = 0.5):
+        """
+        Samples a trajectory using the EMA copy of the specified transformer, with optional collision avoidance
+        from a leader's current static position.
+        
+        attr: attribute tensor of shape (n_samples, attr_dim)
+        traj_len: trajectory length.
+        model_index: which transformer to use.
+        
+        --- New Parameters for Collision Avoidance ---
+        leader_current_pos: A tensor of the leader's current position, shape (n_samples, 3).
+                            If provided and model_index != 0, collision avoidance will be active.
+        collision_weight: The strength of the collision avoidance guidance. Tune this parameter.
+        safety_radius: The minimum desired distance between the follower's planned trajectory and the leader.
+        """
+        if N is not None and N != self.N:
+            self.set_N(N)
+        
+        x = torch.randn((n_samples, traj_len, self.action_size), device=self.device) * self.sigma_s[0] * self.scale_s[0]
+        x[:, 0, :self.state_size] = attr[:, :self.state_size]
+        original_attr = attr.clone()
+
+        attr_mask = torch.ones_like(attr)
+        attr_cat = attr.repeat(2, 1)
+        attr_mask_cat = attr_mask.repeat(2, 1)
+        attr_mask_cat[n_samples:] = 0
+
+        for i in range(self.N):
+            guidance_grad = torch.zeros_like(x) # Initialize gradient to zero
+            
+            # --- MODIFIED: Collision Avoidance Gradient Calculation ---
+            # Only apply guidance for follower agents when a leader's current position is provided
+            if model_index != 0 and leader_current_pos is not None and collision_weight > 0:
+                x_grad = x.clone().requires_grad_(True)
+                leader_current_pos_tensor = torch.tensor(leader_current_pos, device=self.device)
+
+                # Follower's planned positions for the entire segment
+                follower_pos_segment = x_grad[:, :, :2]
+
+                leader_pos_tensor = torch.tensor(leader_current_pos, dtype=x.dtype, device=self.device)
+                leader_pos_static = leader_pos_tensor.view(1, 1, -1)
+                
+                # Calculate the Euclidean distance from each point in the follower's trajectory
+                # to the leader's static position. Broadcasting handles the rest.
+                distances = torch.linalg.norm(follower_pos_segment - leader_pos_static, dim=-1)
+
+                # Calculate the collision cost based on violations of the safety radius
+                cost = torch.sum(torch.clamp(safety_radius - distances, min=0))
+
+                # Compute the gradient to find the direction of highest cost
+                cost.backward()
+                guidance_grad = x_grad.grad.clone()
+
+            with torch.no_grad():
+                D_out = self.D(x.repeat(2, 1, 1) / self.scale_s[i],
+                            torch.ones((2 * n_samples, 1, 1), device=self.device) * self.sigma_s[i],
+                            condition=attr_cat,
+                            mask=attr_mask_cat,
+                            use_ema=True,
+                            model_index=model_index)
+                
+                D_out = w * D_out[:n_samples] + (1 - w) * D_out[n_samples:]
+                delta = self.coeff1[i] * x - self.coeff2[i] * D_out
+                delta = delta + collision_weight * guidance_grad
+                dt = self.t_s[i] - self.t_s[i+1] if i != self.N - 1 else self.t_s[i]
+                x = (x - delta * dt).detach()
+                
+                x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
+                
+        return x
+
+
     
     def save(self, subdirect: str = "", extra: str = ""):
         """Saves the state dictionaries for all transformers and their EMA copies."""

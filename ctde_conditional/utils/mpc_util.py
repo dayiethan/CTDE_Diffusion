@@ -669,7 +669,7 @@ def reactive_mpc_plan_smallcond_guidesample(ode_model, env, initial_states, fixe
                         cond.append(current_states[j])
                 cond = np.hstack(cond)
                 cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
-                sampled = ode_model.sample_guidance(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=0)
+                sampled = ode_model.sample_guidance2(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=0)
                 seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
 
                 if seg == 0:
@@ -687,7 +687,7 @@ def reactive_mpc_plan_smallcond_guidesample(ode_model, env, initial_states, fixe
                 cond.append(current_states[0])
                 cond = np.hstack(cond)
                 cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
-                sampled = ode_model.sample_guidance(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)
+                sampled = ode_model.sample_guidance2(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i, leader_current_pos=current_states[0])
                 seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
 
                 if seg == 0:
