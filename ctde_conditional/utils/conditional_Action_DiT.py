@@ -301,6 +301,7 @@ class Conditional_ODE():
               attributes_list: list,
               n_gradient_steps: int,
               batch_size: int = 32,
+              subdirect: str = "", 
               extra: str = "",
               time_limit=None):
         """
@@ -362,7 +363,7 @@ class Conditional_ODE():
                 pbar.set_description(f'step: {step+1} loss: {loss_avg/10:.4f} grad_norm: {grad_norm:.4f}')
                 pbar.update(10)
                 loss_avg = 0.0
-                self.save(extra)
+                self.save(subdirect, extra)
                 if time_limit is not None and time.time() - t0 > time_limit:
                     print(f"Time limit reached at {time.time() - t0:.0f}s")
                     break
@@ -752,7 +753,7 @@ class Conditional_ODE():
 
                 leader_pos_tensor = torch.tensor(leader_current_pos, dtype=x.dtype, device=self.device)
                 leader_pos_static = leader_pos_tensor.view(1, 1, -1)
-                
+
                 # Calculate the Euclidean distance from each point in the follower's trajectory
                 # to the leader's static position. Broadcasting handles the rest.
                 distances = torch.linalg.norm(follower_pos_segment - leader_pos_static, dim=-1)

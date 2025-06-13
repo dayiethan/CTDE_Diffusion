@@ -305,6 +305,7 @@ class Conditional_ODE():
               n_gradient_steps: int,
               batch_size: int = 32,
               latent: torch.Tensor = None,
+              subdirect: str = "", 
               extra: str = "",
               time_limit=None):
         """
@@ -373,7 +374,7 @@ class Conditional_ODE():
                 pbar.set_description(f'step: {step+1} loss: {loss_avg/10:.4f} grad_norm: {grad_norm:.4f}')
                 pbar.update(10)
                 loss_avg = 0.0
-                self.save(extra)
+                self.save(subdirect, extra)
                 if time_limit is not None and time.time() - t0 > time_limit:
                     print(f"Time limit reached at {time.time() - t0:.0f}s")
                     break
@@ -417,17 +418,17 @@ class Conditional_ODE():
             # x[:, -1, :self.state_size] = original_attr[:, self.state_size:]
         return x
     
-    def save(self, extra: str = ""):
+    def save(self, subdirect: str = "", extra: str = ""):
         """Saves the state dictionaries for all transformers and their EMA copies."""
         state = {}
         for i in range(self.n_models):
             state[f"model_{i}"] = self.F_list[i].state_dict()
             state[f"model_ema_{i}"] = self.F_ema_list[i].state_dict()
-        torch.save(state, "trained_models/" + self.filename + extra + ".pt")
+        torch.save(state, "trained_models/" + subdirect + self.filename + extra + ".pt")
         
-    def load(self, extra: str = ""):
+    def load(self,subdirect: str = "",  extra: str = ""):
         """Loads state dictionaries for all transformers and their EMA copies."""
-        name = "trained_models/" + self.filename + extra + ".pt"
+        name = "trained_models/" + subdirect + self.filename + extra + ".pt"
         if os.path.isfile(name):
             print("Loading " + name)
             checkpoint = torch.load(name, map_location=self.device)
