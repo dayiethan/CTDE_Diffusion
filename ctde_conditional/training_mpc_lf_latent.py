@@ -55,15 +55,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
 # Parameters
-n_gradient_steps = 100_000
+n_gradient_steps = 500_000
 batch_size = 64
-# model_size = {
-#     "d_model": 512,      # twice the transformer width
-#     "n_heads": 8,        # more attention heads
-#     "depth":   6,        # twice the number of layers
-#     "lin_scale": 256,    # larger conditional embedder
-# }
-model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
+model_size = {
+    "d_model": 512,      # twice the transformer width
+    "n_heads": 8,        # more attention heads
+    "depth":   6,        # twice the number of layers
+    "lin_scale": 256,    # larger conditional embedder
+}
+# model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 25 # horizon, length of each trajectory
 HL = 100 # latent horizon, length of each latent trajectory
 T = 100 # total time steps
@@ -155,9 +155,9 @@ sig = np.array([sigma_data1, sigma_data2])
 
 # Training
 action_cond_ode = Conditional_ODE(env, encoder1, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, latent1, subdirect="mpc/", extra="_P25E3_lf_latenttrain")
-action_cond_ode.save(subdirect="mpc/", extra="_P25E3_lf_latenttrain")
-action_cond_ode.load(subdirect="mpc/", extra="_P25E3_lf_latenttrain")
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, latent1, subdirect="mpc/", extra="_P25E3_lf_latenttrain_bigger")
+action_cond_ode.save(subdirect="mpc/", extra="_P25E3_lf_latenttrain_bigger")
+action_cond_ode.load(subdirect="mpc/", extra="_P25E3_lf_latenttrain_bigger")
 
 # Sampling
 for i in range(100):
@@ -176,8 +176,8 @@ for i in range(100):
 
     planned_traj1 =  planned_trajs[0] * std + mean
 
-    np.save("sampled_trajs/mpc_latenttrain_P25E3/mpc_traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_latenttrain_P25E3_bigger/mpc_traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
 
-    np.save("sampled_trajs/mpc_latenttrain_P25E3/mpc_traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_latenttrain_P25E3_bigger/mpc_traj2_%s.npy" % i, planned_traj2)

@@ -35,9 +35,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
 # Parameters
-n_gradient_steps = 100_000
+n_gradient_steps = 500_000
 batch_size = 64
-model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
+model_size = {
+    "d_model": 512,      # twice the transformer width
+    "n_heads": 8,        # more attention heads
+    "depth":   6,        # twice the number of layers
+    "lin_scale": 256,    # larger conditional embedder
+}
+# model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 25 # horizon, length of each trajectory
 T = 100 # total time steps
 
@@ -117,10 +123,10 @@ sigma_data2 = actions2.std().item()
 sig = np.array([sigma_data1, sigma_data2])
 
 # Training
-action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, lin_scale = 128, **model_size)
-# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_P25E5_smallcond")
-# action_cond_ode.save(subdirect="mpc/", extra="_P25E5_smallcond")
-action_cond_ode.load(subdirect="mpc/", extra="_P25E3_smallcond")
+action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_P25E5_smallcond_bigger")
+action_cond_ode.save(subdirect="mpc/", extra="_P25E5_smallcond_bigger")
+action_cond_ode.load(subdirect="mpc/", extra="_P25E5_smallcond_bigger")
 
 
 
@@ -153,13 +159,13 @@ for i in range(100):
     final2 = final_point_down + noise_std * np.random.randn(*np.shape(final_point_down))
     final2 = (final2 - mean) / std
 
-    planned_trajs = reactive_mpc_plan_smallcond_guidesample(action_cond_ode, env, [initial1, initial2], [final1, final2], 0, segment_length=H, total_steps=T, n_implement=5)
+    planned_trajs = reactive_mpc_plan_smallcond(action_cond_ode, env, [initial1, initial2], [final1, final2], 0, segment_length=H, total_steps=T, n_implement=5)
 
     planned_traj1 =  planned_trajs[0] * std + mean
 
-    np.save("sampled_trajs/mpc_P25E3_smallcond_guidesample2/mpc_traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_P25E3_smallcond_bigger/mpc_traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
 
-    np.save("sampled_trajs/mpc_P25E3_smallcond_guidesample2/mpc_traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_P25E3_smallcond_bigger/mpc_traj2_%s.npy" % i, planned_traj2)
 
