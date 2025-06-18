@@ -94,9 +94,9 @@ attr_dim2 = attr2.shape[1]
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_lift_mpc_P50E2_100ksteps", endpoint_loss=False)
-# action_cond_ode.save(extra="_lift_mpc_P50E2_100ksteps")
-action_cond_ode.load(extra="_lift_mpc_P50E2_100ksteps")
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_lift_mpc_P50E2_100ksteps_new", endpoint_loss=False)
+action_cond_ode.save(extra="_lift_mpc_P50E2_100ksteps_new")
+action_cond_ode.load(extra="_lift_mpc_P50E2_100ksteps_new")
 
 # Sampling
 def reactive_mpc_plan(ode_model, env, initial_states, obs, segment_length=25, total_steps=250, n_implement=5):
@@ -157,9 +157,9 @@ def reactive_mpc_plan(ode_model, env, initial_states, obs, segment_length=25, to
     return np.array(full_traj)
 
 
-cond_idx = 1
+cond_idx = 0
 planned_trajs = reactive_mpc_plan(action_cond_ode, env, [expert_data1[cond_idx, 0, :3], expert_data2[cond_idx, 0, :3]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=2)
 planned_traj1 =  planned_trajs[0] * std + mean
-np.save("samples/planned_traj1_2.npy", planned_traj1)
+np.save("samples/planned_traj1_0_new.npy", planned_traj1)
 planned_traj2 = planned_trajs[1] * std + mean
-np.save("samples/planned_traj2_2.npy", planned_traj2)
+np.save("samples/planned_traj2_0_new.npy", planned_traj2)
