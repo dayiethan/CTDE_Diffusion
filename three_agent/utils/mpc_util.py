@@ -506,7 +506,7 @@ def reactive_mpc_plan(ode_model, env, initial_states, fixed_goals, model_i, segm
     return np.array(full_traj)
 
 
-def reactive_mpc_plan_smallcond(ode_model, env, initial_states, fixed_goals, model_i, segment_length=25, total_steps=100, n_implement=5):
+def reactive_mpc_plan_smallcond(ode_model, env, initial_states, fixed_goals, segment_length=25, total_steps=100, n_implement=5):
     """
     Plans a full trajectory (total_steps long) by iteratively planning
     segment_length-steps using the diffusion model and replanning at every timestep.
@@ -548,9 +548,6 @@ def reactive_mpc_plan_smallcond(ode_model, env, initial_states, fixed_goals, mod
 
             else:
                 cond = [current_states[i], fixed_goals[i]]
-                # for j in range(len(current_states)):
-                #     if j != i and j != 0:
-                #         cond.append(current_states[j])
                 cond.append(current_states[0])
                 cond = np.hstack(cond)
                 cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
