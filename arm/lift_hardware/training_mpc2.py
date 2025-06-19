@@ -41,11 +41,11 @@ print(device)
 n_gradient_steps = 100_000
 batch_size = 16
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
-H = 500 # horizon, length of each trajectory
-T = 5000 # total time steps
+H = 50 # horizon, length of each trajectory
+T = 500 # total time steps
 
 # Load expert data
-expert_data = np.load("data/expert_actions_rotvec.npy")
+expert_data = np.load("data/expert_actions_rotvec_sparse.npy")
 expert_data1 = expert_data[:, :, :7]
 expert_data2 = expert_data[:, :, 7:14]
 expert_data1 = create_mpc_dataset(expert_data1, planning_horizon=H)
@@ -83,7 +83,7 @@ obs_init1 = expert_data1[:, 0, :3]
 obs_init2 = expert_data2[:, 0, :3]
 obs_init1_cond = expert_data1[:, 1, :3]
 obs = np.repeat(obs, repeats=T, axis=0)
-obs1 = np.hstack([obs_init1, obs])
+obs1 = np.hstack([obs_init1, obs_init2, obs])
 obs2 = np.hstack([obs_init2, obs_init1_cond, obs])
 obs1 = torch.FloatTensor(obs1).to(device)
 obs2 = torch.FloatTensor(obs2).to(device)
@@ -94,9 +94,9 @@ attr_dim2 = attr2.shape[1]
 
 # Training
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_lift_mpc_P500E2_100ksteps", endpoint_loss=False)
-action_cond_ode.save(extra="_lift_mpc_P500E2_100ksteps")
-action_cond_ode.load(extra="_lift_mpc_P500E2_100ksteps")
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_lift_mpc_P50E2_crosscond_sparsedata", endpoint_loss=False)
+action_cond_ode.save(extra="_lift_mpc_P50E2_crosscond_sparsedata")
+action_cond_ode.load(extra="_lift_mpc_P50E2_crosscond_sparsedata")
 
 # Sampling
 def reactive_mpc_plan(ode_model, env, initial_states, obs, segment_length=25, total_steps=250, n_implement=5):
@@ -122,7 +122,10 @@ def reactive_mpc_plan(ode_model, env, initial_states, obs, segment_length=25, to
         segments = []
         for i in range(len(current_states)):
             if i == 0:
-                cond = [current_states[0], obs]
+                cond = [current_states[0]]
+                for j in range(1, len(current_states)):
+                    cond.append(current_states[j])
+                cond.append(obs)
                 cond = np.hstack(cond)
                 cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
                 sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=0)
@@ -160,6 +163,6 @@ def reactive_mpc_plan(ode_model, env, initial_states, obs, segment_length=25, to
 cond_idx = 0
 planned_trajs = reactive_mpc_plan(action_cond_ode, env, [expert_data1[cond_idx, 0, :3], expert_data2[cond_idx, 0, :3]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=2)
 planned_traj1 =  planned_trajs[0] * std + mean
-np.save("samples/500H/planned_traj1_0.npy", planned_traj1)
+np.save("samples/50H_crosscond_sparsedata/planned_traj1_0.npy", planned_traj1)
 planned_traj2 = planned_trajs[1] * std + mean
-np.save("samples/500H/planned_traj2_0.npy", planned_traj2)
+np.save("samples/50H_crosscond_sparsedata/planned_traj2_0.npy", planned_traj2)
