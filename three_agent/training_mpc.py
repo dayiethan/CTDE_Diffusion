@@ -151,35 +151,11 @@ sigma_data3 = actions3.std().item()
 sig = np.array([sigma_data1, sigma_data2, sigma_data3])
 
 # Training
+end = "_P25E5_3"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2, attr_dim3], [sigma_data1, sigma_data2, sigma_data3], device=device, N=100, n_models = 3, **model_size)
-action_cond_ode.train([actions1, actions2, actions3], [attr1, attr2, attr3], int(5*n_gradient_steps), batch_size, extra="_P25E5_2")
-action_cond_ode.save(extra="_P25E5_2")
-action_cond_ode.load(extra="_P25E5_2")
-
-
-# # Sampling preparation
-# noise_std = 0.
-# noise1 = np.ones(np.shape(obs_temp1))
-# noise2 = np.ones(np.shape(obs_temp2))
-# noise3 = np.ones(np.shape(obs_temp3))
-# obs_temp1 = obs_temp1 + noise_std * noise1
-# obs_temp2 = obs_temp2 + noise_std * noise2
-# obs_temp3 = obs_temp3 + noise_std * noise3
-# obs_temp_tensor1 = torch.FloatTensor(obs_temp1).to(device)
-# obs_temp_tensor2 = torch.FloatTensor(obs_temp2).to(device)
-# obs_temp_tensor3 = torch.FloatTensor(obs_temp3).to(device)
-# attr_test1 = obs_temp_tensor1
-# attr_test2 = obs_temp_tensor2
-# attr_test3 = obs_temp_tensor3
-# expert_data1 = expert_data1 * std + mean
-# expert_data2 = expert_data2 * std + mean
-# expert_data3 = expert_data3 * std + mean
-# ref1 = np.mean(expert_data1, axis=0)
-# ref2 = np.mean(expert_data2, axis=0)
-# ref3 = np.mean(expert_data3, axis=0)
-# ref_agent1 = ref1[:, :]
-# ref_agent2 = ref2[:, :]
-# ref_agent3 = ref3[:, :]
+# action_cond_ode.train([actions1, actions2, actions3], [attr1, attr2, attr3], int(5*n_gradient_steps), batch_size, extra=end)
+# action_cond_ode.save(extra=end)
+action_cond_ode.load(extra=end)
 
 # Sampling
 for i in range(100):
@@ -201,11 +177,11 @@ for i in range(100):
     planned_trajs = reactive_mpc_plan_smallcond(action_cond_ode, env, [initial1, initial2, initial3], [final1, final2, final3], segment_length=H, total_steps=T, n_implement=5)
 
     planned_traj1 =  planned_trajs[0] * std + mean
-    np.save("sampled_trajs/mpc_P25E5_2/traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_P25E5_3/traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
-    np.save("sampled_trajs/mpc_P25E5_2/traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_P25E5_3/traj2_%s.npy" % i, planned_traj2)
 
     planned_traj3 = planned_trajs[2] * std + mean
-    np.save("sampled_trajs/mpc_P25E5_2/traj3_%s.npy" % i, planned_traj3)
+    np.save("sampled_trajs/mpc_P25E5_3/traj3_%s.npy" % i, planned_traj3)
 

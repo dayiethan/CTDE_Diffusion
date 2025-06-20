@@ -238,6 +238,8 @@ class Conditional_ODE():
         self.optim = torch.optim.AdamW(all_params, lr=lr, weight_decay=1e-4)
         
         self.set_N(N)  # number of noise scales
+
+        self.loss_history = []
         
         total_params = sum(p.numel() for p in all_params)
         print(f'Initialized {self.n_models} Diffusion Transformer(s) with total parameters: {total_params}')
@@ -348,6 +350,8 @@ class Conditional_ODE():
                 loss = loss + 2.0 * endpoint_loss
                 
                 loss_total += loss
+
+            self.loss_history.append(loss_total.item())
             
             self.optim.zero_grad()
             loss_total.backward()
@@ -367,6 +371,13 @@ class Conditional_ODE():
                 if time_limit is not None and time.time() - t0 > time_limit:
                     print(f"Time limit reached at {time.time() - t0:.0f}s")
                     break
+        np.save("loss/npy/loss_history" + extra + ".npy", np.array(self.loss_history))
+        plt.figure(figsize=(10, 5))
+        plt.plot(self.loss_history, label='Training Loss')
+        plt.xlabel('Training Steps')
+        plt.ylabel('Loss')
+        plt.title('Training Loss Over Steps')
+        plt.savefig("loss/plots/loss_plot" + extra + ".png")
         print('\nTraining completed!')
         
     @torch.no_grad()

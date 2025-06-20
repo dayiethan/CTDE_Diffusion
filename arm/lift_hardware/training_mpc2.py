@@ -55,6 +55,8 @@ expert_data2 = create_mpc_dataset(expert_data2, planning_horizon=H)
 combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
 mean = np.mean(combined_data, axis=(0,1))
 std = np.std(combined_data, axis=(0,1))
+np.save("data/mean.npy", mean)
+np.save("data/std.npy", std)
 
 # Normalize data
 expert_data1 = (expert_data1 - mean) / std
