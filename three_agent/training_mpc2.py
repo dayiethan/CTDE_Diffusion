@@ -35,7 +35,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
 # Parameters
-n_gradient_steps = 300_000
+n_gradient_steps = 100_000
 batch_size = 64
 # model_size = {
 #     "d_model": 512,      # twice the transformer width
@@ -56,9 +56,9 @@ initial_point_3 = np.array([-0.25, 0.75])
 final_point_3 = np.array([1.75, 0.75])
 
 # Loading training trajectories
-expert_data_1 = np.load('data/expert_data1_100_traj.npy')
-expert_data_2 = np.load('data/expert_data2_100_traj.npy')
-expert_data_3 = np.load('data/expert_data3_100_traj.npy')
+expert_data_1 = np.load('data/expert_data1_200_traj_06_noise.npy')
+expert_data_2 = np.load('data/expert_data2_200_traj_06_noise.npy')
+expert_data_3 = np.load('data/expert_data3_200_traj_06_noise.npy')
 
 orig1 = expert_data_1
 orig2 = expert_data_2
@@ -85,6 +85,8 @@ print(expert_data3.shape)
 combined_data = np.concatenate((expert_data1, expert_data2, expert_data3), axis=0)
 mean = np.mean(combined_data, axis=(0,1))
 std = np.std(combined_data, axis=(0,1))
+np.save("data/mean_200demos_06noise.npy", mean)
+np.save("data/std_200demos_06noise.npy", std)
 expert_data1 = (expert_data1 - mean) / std
 expert_data2 = (expert_data2 - mean) / std
 expert_data3 = (expert_data3 - mean) / std
@@ -137,37 +139,37 @@ sigma_data3 = actions3.std().item()
 sig = np.array([sigma_data1, sigma_data2, sigma_data3])
 
 # Training
-end = "_P25E5_4"
-action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2, attr_dim3], [sigma_data1, sigma_data2, sigma_data3], device=device, N=100, n_models = 3, **model_size)
-action_cond_ode.train([actions1, actions2, actions3], [attr1, attr2, attr3], int(5*n_gradient_steps), batch_size, extra=end)
-action_cond_ode.save(extra=end)
+end = "_P25E5_200demos_06noise_actual"
+action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2, attr_dim3], [sigma_data1, sigma_data2, sigma_data3], device=device, N=1500, n_models = 3, **model_size)
+# action_cond_ode.train([actions1, actions2, actions3], [attr1, attr2, attr3], int(5*n_gradient_steps), batch_size, extra=end)
+# action_cond_ode.save(extra=end)
 action_cond_ode.load(extra=end)
 
 # Sampling
 for i in range(100):
     print("Planning Sample %s" % i)
     noise_std = 0.4
-    initial1 = initial_point_1 + noise_std * np.random.randn(*np.shape(initial_point_1))
+    initial1 = initial_point_1 + np.random.uniform(-noise_std, noise_std, size=(2,))
     initial1 = (initial1 - mean) / std
-    final1 = final_point_1 + noise_std * np.random.randn(*np.shape(final_point_1))
+    final1 = final_point_1 + np.random.uniform(-noise_std, noise_std, size=(2,))
     final1 = (final1 - mean) / std
-    initial2 = initial_point_2 + noise_std * np.random.randn(*np.shape(initial_point_2))
+    initial2 = initial_point_2 + np.random.uniform(-noise_std, noise_std, size=(2,))
     initial2 = (initial2 - mean) / std
-    final2 = final_point_2 + noise_std * np.random.randn(*np.shape(final_point_2))
+    final2 = final_point_2 + np.random.uniform(-noise_std, noise_std, size=(2,))
     final2 = (final2 - mean) / std
-    initial3 = initial_point_3 + noise_std * np.random.randn(*np.shape(initial_point_3))
+    initial3 = initial_point_3 + np.random.uniform(-noise_std, noise_std, size=(2,))
     initial3 = (initial3 - mean) / std
-    final3 = final_point_3 + noise_std * np.random.randn(*np.shape(final_point_3))
+    final3 = final_point_3 + np.random.uniform(-noise_std, noise_std, size=(2,))
     final3 = (final3 - mean) / std
 
     planned_trajs = reactive_mpc_plan_smallcond(action_cond_ode, env, [initial1, initial2, initial3], [final1, final2, final3], segment_length=H, total_steps=T, n_implement=5)
 
     planned_traj1 =  planned_trajs[0] * std + mean
-    np.save("sampled_trajs/mpc_P25E5_4/traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_P25E5_200demos_06demonoise_04samplenoise_1500N/traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
-    np.save("sampled_trajs/mpc_P25E5_4/traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_P25E5_200demos_06demonoise_04samplenoise_1500N/traj2_%s.npy" % i, planned_traj2)
 
     planned_traj3 = planned_trajs[2] * std + mean
-    np.save("sampled_trajs/mpc_P25E5_4/traj3_%s.npy" % i, planned_traj3)
+    np.save("sampled_trajs/mpc_P25E5_200demos_06demonoise_04samplenoise_1500N/traj3_%s.npy" % i, planned_traj3)
 

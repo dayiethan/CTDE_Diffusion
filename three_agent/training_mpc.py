@@ -56,9 +56,9 @@ initial_point_3 = np.array([-0.25, 0.75])
 final_point_3 = np.array([1.75, 0.75])
 
 # Loading training trajectories
-expert_data_1 = np.load('data/expert_data1_100_traj.npy')
-expert_data_2 = np.load('data/expert_data2_100_traj.npy')
-expert_data_3 = np.load('data/expert_data3_100_traj.npy')
+expert_data_1 = np.load('data/expert_data1_200_traj_06_noise.npy')
+expert_data_2 = np.load('data/expert_data2_200_traj_06_noise.npy')
+expert_data_3 = np.load('data/expert_data3_200_traj_06_noise.npy')
 
 orig1 = expert_data_1
 orig2 = expert_data_2
@@ -85,6 +85,8 @@ print(expert_data3.shape)
 combined_data = np.concatenate((expert_data1, expert_data2, expert_data3), axis=0)
 mean = np.mean(combined_data, axis=(0,1))
 std = np.std(combined_data, axis=(0,1))
+# np.save("data/mean_200demos_06noise.npy", mean)
+# np.save("data/std_200demos_06noise.npy", std)
 expert_data1 = (expert_data1 - mean) / std
 expert_data2 = (expert_data2 - mean) / std
 expert_data3 = (expert_data3 - mean) / std
@@ -146,7 +148,7 @@ action_cond_ode.load(extra=end)
 # Sampling
 for i in range(100):
     print("Planning Sample %s" % i)
-    noise_std = 0.2
+    noise_std = 0.6
     initial1 = initial_point_1 + np.random.uniform(-noise_std, noise_std, size=(2,))
     initial1 = (initial1 - mean) / std
     final1 = final_point_1 + np.random.uniform(-noise_std, noise_std, size=(2,))
@@ -163,11 +165,11 @@ for i in range(100):
     planned_trajs = reactive_mpc_plan_smallcond(action_cond_ode, env, [initial1, initial2, initial3], [final1, final2, final3], segment_length=H, total_steps=T, n_implement=5)
 
     planned_traj1 =  planned_trajs[0] * std + mean
-    np.save("sampled_trajs/mpc_P25E5_200demos_06demonoise_02samplenoise_1500N/traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_P25E5_200demos_06demonoise_06samplenoise_1500N/traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
-    np.save("sampled_trajs/mpc_P25E5_200demos_06demonoise_02samplenoise_1500N/traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_P25E5_200demos_06demonoise_06samplenoise_1500N/traj2_%s.npy" % i, planned_traj2)
 
     planned_traj3 = planned_trajs[2] * std + mean
-    np.save("sampled_trajs/mpc_P25E5_200demos_06demonoise_02samplenoise_1500N/traj3_%s.npy" % i, planned_traj3)
+    np.save("sampled_trajs/mpc_P25E5_200demos_06demonoise_06samplenoise_1500N/traj3_%s.npy" % i, planned_traj3)
 
