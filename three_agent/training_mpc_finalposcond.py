@@ -6,7 +6,7 @@ from utils.discrete import *
 import sys
 import pdb
 import csv
-from utils.mpc_util import reactive_mpc_plan, reactive_mpc_plan_smallcond, reactive_mpc_plan_smallcond_guidesample
+from utils.mpc_util import reactive_mpc_plan_hierarchicalfinaposcond
 
 def create_mpc_dataset(expert_data, planning_horizon=25):
     n_traj, horizon, state_dim = expert_data.shape
@@ -83,10 +83,12 @@ print(expert_data3.shape)
 
 
 combined_data = np.concatenate((expert_data1, expert_data2, expert_data3), axis=0)
-mean = np.mean(combined_data, axis=(0,1))
-std = np.std(combined_data, axis=(0,1))
-np.save("data/mean_200demos_06noise.npy", mean)
-np.save("data/std_200demos_06noise.npy", std)
+# mean = np.mean(combined_data, axis=(0,1))
+# std = np.std(combined_data, axis=(0,1))
+# np.save("data/mean_200demos_06noise.npy", mean)
+# np.save("data/std_200demos_06noise.npy", std)
+mean = np.load("data/mean_200demos_06noise.npy")
+std = np.load("data/std_200demos_06noise.npy")
 expert_data1 = (expert_data1 - mean) / std
 expert_data2 = (expert_data2 - mean) / std
 expert_data3 = (expert_data3 - mean) / std
@@ -107,12 +109,13 @@ obs_init1 = expert_data1[:, 0, :]
 obs_init2 = expert_data2[:, 0, :]
 obs_init3 = expert_data3[:, 0, :]
 obs_init1_cond = expert_data1[:, 4, :]
+obs_init2_cond = expert_data2[:, 4, :]
 obs_final1 = np.repeat(orig1[:, -1, :], repeats=100, axis=0)
 obs_final2 = np.repeat(orig2[:, -1, :], repeats=100, axis=0)
 obs_final3 = np.repeat(orig3[:, -1, :], repeats=100, axis=0)
-obs1 = np.hstack([obs_init1, obs_final1, obs_init2, obs_init3])
-obs2 = np.hstack([obs_init2, obs_final2, obs_init1_cond])
-obs3 = np.hstack([obs_init3, obs_final3, obs_init1_cond])
+obs1 = np.hstack([obs_init1, obs_final1, obs_init2, obs_final2, obs_init3, obs_final3])
+obs2 = np.hstack([obs_init2, obs_final2, obs_init1_cond, obs_final1, obs_init3, obs_final3])
+obs3 = np.hstack([obs_init3, obs_final3, obs_init1_cond, obs_final1, obs_init2_cond, obs_final2])
 obs_temp1 = obs1
 obs_temp2 = obs2
 obs_temp3 = obs3
@@ -139,16 +142,16 @@ sigma_data3 = actions3.std().item()
 sig = np.array([sigma_data1, sigma_data2, sigma_data3])
 
 # Training
-end = "_P25E5_200demos_06noise_actual"
+end = "_P25E5_200demos_06noise_hierarchicalfinaposcond"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2, attr_dim3], [sigma_data1, sigma_data2, sigma_data3], device=device, N=1500, n_models = 3, **model_size)
-# action_cond_ode.train([actions1, actions2, actions3], [attr1, attr2, attr3], int(5*n_gradient_steps), batch_size, extra=end)
-# action_cond_ode.save(extra=end)
+action_cond_ode.train([actions1, actions2, actions3], [attr1, attr2, attr3], int(5*n_gradient_steps), batch_size, extra=end)
+action_cond_ode.save(extra=end)
 action_cond_ode.load(extra=end)
 
 # Sampling
 for i in range(100):
     print("Planning Sample %s" % i)
-    noise_std = 0.4
+    noise_std = 0.6
     initial1 = initial_point_1 + np.random.uniform(-noise_std, noise_std, size=(2,))
     initial1 = (initial1 - mean) / std
     final1 = final_point_1 + np.random.uniform(-noise_std, noise_std, size=(2,))
@@ -162,14 +165,14 @@ for i in range(100):
     final3 = final_point_3 + np.random.uniform(-noise_std, noise_std, size=(2,))
     final3 = (final3 - mean) / std
 
-    planned_trajs = reactive_mpc_plan_smallcond(action_cond_ode, env, [initial1, initial2, initial3], [final1, final2, final3], segment_length=H, total_steps=T, n_implement=5)
+    planned_trajs = reactive_mpc_plan_hierarchicalfinaposcond(action_cond_ode, [initial1, initial2, initial3], [final1, final2, final3], segment_length=H, total_steps=T, n_implement=5)
 
     planned_traj1 =  planned_trajs[0] * std + mean
-    np.save("sampled_trajs/mpc_P25E5_200demos_06demonoise_04samplenoise_1500N/traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_P25E5_200demos_06demonoise_finalposcond_06samplenoise_1500N/traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
-    np.save("sampled_trajs/mpc_P25E5_200demos_06demonoise_04samplenoise_1500N/traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_P25E5_200demos_06demonoise_finalposcond_06samplenoise_1500N/traj2_%s.npy" % i, planned_traj2)
 
     planned_traj3 = planned_trajs[2] * std + mean
-    np.save("sampled_trajs/mpc_P25E5_200demos_06demonoise_04samplenoise_1500N/traj3_%s.npy" % i, planned_traj3)
+    np.save("sampled_trajs/mpc_P25E5_200demos_06demonoise_finalposcond_06samplenoise_1500N/traj3_%s.npy" % i, planned_traj3)
 
