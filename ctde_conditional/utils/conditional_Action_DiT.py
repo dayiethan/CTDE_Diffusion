@@ -187,7 +187,7 @@ class SinusoidalPosEmb(nn.Module):
 
 class Conditional_ODE():
     def __init__(self, env, attr_dim: list, sigma_data: list, sigma_min: float = 0.001, sigma_max: float = 50,
-                 rho: float = 7, p_mean: float = -1.2, p_std: float = 1.2, S_churn=0, S_min=0, S_max=float('inf'), S_noise=1,
+                 rho: float = 7, p_mean: float = -1.2, p_std: float = 1.2, 
                  d_model: int = 384, n_heads: int = 6, depth: int = 12,
                  device: str = "cpu", N: int = 5, lr: float = 2e-4, lin_scale = 128,
                  n_models: int = 2):
@@ -218,8 +218,6 @@ class Conditional_ODE():
         
         self.sigma_min, self.sigma_max = sigma_min, sigma_max
         self.rho, self.p_mean, self.p_std = rho, p_mean, p_std
-        self.S_churn, self.S_tmin, self.S_tmax, self.S_noise = S_churn, S_tmin, S_tmax, S_noise
-
         self.device = device
         
         # Create n_models diffusion transformers and their EMA copies.
@@ -262,11 +260,7 @@ class Conditional_ODE():
         if self.t_s is not None:
             self.coeff1 = (self.dot_sigma_s / self.sigma_s + self.dot_scale_s / self.scale_s)
             self.coeff2 = self.dot_sigma_s / self.sigma_s * self.scale_s
-        
-        alpha = min(self.S_churn/2, 2**0.5 - 1)
-        mask = ((self.t_s >= S_min) & (self.t_s <= S_max)).float()
-        self.gamma_s = alpha*mask
-        
+            
     # The following helper functions now use the per-model sigma_data.
     def c_skip(self, sigma, model_index=0):
         sigma_data = self.sigma_data_list[model_index]
@@ -408,52 +402,6 @@ class Conditional_ODE():
                 D_out = w * D_out[:n_samples] + (1 - w) * D_out[n_samples:]
             delta = self.coeff1[i] * x - self.coeff2[i] * D_out
             dt = self.t_s[i] - self.t_s[i+1] if i != self.N - 1 else self.t_s[i]
-            x = x - delta * dt
-            x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
-            # x[:, -1, :self.state_size] = original_attr[:, self.state_size:]
-        return x
-
-    @torch.no_grad()
-    def sample_stochastic(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0):
-        """
-        Samples a trajectory using the EMA copy of the specified transformer.
-        
-        attr: attribute tensor of shape (n_samples, attr_dim)
-        traj_len: trajectory length.
-        model_index: which transformer to use.
-        """
-        if N is not None and N != self.N:
-            self.set_N(N)
-        
-        x = torch.randn((n_samples, traj_len, self.action_size), device=self.device) * self.sigma_s[0] * self.scale_s[0]
-        x[:, 0, :self.state_size] = attr[:, :self.state_size]
-        # x[:, -1, :self.state_size] = attr[:, self.state_size:]
-        original_attr = attr.clone()
-        
-        attr_mask = torch.ones_like(attr)
-        attr_cat = attr.repeat(2, 1)
-        attr_mask_cat = attr_mask.repeat(2, 1)
-        attr_mask_cat[n_samples:] = 0
-        
-        for i in range(self.N):
-            with torch.no_grad():
-                
-                eps = torch.randn((n_samples, traj_len, self.action_size), device=self.device)*self.S_noise
-
-                t_hat = self.t_s[i]*(1 + self.gamma_s[i])
-
-                x_hat = x + ((t_hat**2 - self.t_s[i]**2).sqrt())*eps
-
-
-                D_out = self.D(x_hat.repeat(2, 1, 1) / self.scale_s[i],
-                               torch.ones((2 * n_samples, 1, 1), device=self.device) * t_hat,
-                               condition=attr_cat,
-                               mask=attr_mask_cat,
-                               use_ema=True,
-                               model_index=model_index)
-                D_out = w * D_out[:n_samples] + (1 - w) * D_out[n_samples:]
-            delta = (x - self.coeff2[i])/t_hat
-            dt = t_hat - self.t_s[i+1] if i != self.N - 1 else t_hat
             x = x - delta * dt
             x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
             # x[:, -1, :self.state_size] = original_attr[:, self.state_size:]
