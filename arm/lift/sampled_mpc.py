@@ -182,7 +182,7 @@ class PolicyPlayer:
             segments = []
             for i in range(len(current_states)):
                 if i == 0:
-                    breakpoint()
+                    # breakpoint()
                     cond = [current_states[0], obs]
                     cond = np.hstack(cond)
                     cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)

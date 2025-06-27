@@ -81,10 +81,9 @@ with open("data/pot_states.npy", "rb") as f:
     obs = np.load(f)
 obs_init1 = expert_data1[:, 0, :3]
 obs_init2 = expert_data2[:, 0, :3]
-obs_init1_cond = expert_data1[:, 1, :3]
 obs = np.repeat(obs, repeats=T, axis=0)
 obs1 = np.hstack([obs_init1, obs_init2, obs])
-obs2 = np.hstack([obs_init2, obs_init1_cond, obs])
+obs2 = np.hstack([obs_init2, obs_init1, obs])
 obs1 = torch.FloatTensor(obs1).to(device)
 obs2 = torch.FloatTensor(obs2).to(device)
 attr1 = obs1
@@ -93,77 +92,70 @@ attr_dim1 = attr1.shape[1]
 attr_dim2 = attr2.shape[1]
 
 # Training
-end = "_lift_mpc_P50E5_500T_crosscond"
+end = "_lift_mpc_P50E1_500T_crosscond_nolf"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
 # action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, endpoint_loss=False)
 # action_cond_ode.save(extra=end)
 action_cond_ode.load(extra=end)
 
 # Sampling
-def reactive_mpc_plan(ode_model, env, initial_states, obs, segment_length=25, total_steps=250, n_implement=5):
+def reactive_mpc_plan(
+        ode_model,
+        initial_states,
+        obs,
+        segment_length=25,
+        total_steps=100,
+        n_implement=5):
     """
-    Plans a full trajectory (total_steps long) by iteratively planning
-    segment_length-steps using the diffusion model and replanning at every timestep.
-    
-    Parameters:
-    - ode_model: the Conditional_ODE (diffusion model) instance.
-    - env: your environment, which must implement reset_to() and step().
-    - initial_states: a numpy array of shape (n_agents, state_size) that represent the starting states for the robots.
-    - obs: a numpy array of shape (6,) representing the eef positions of the two pot handles.
-    - total_steps: total length of the planned trajectory.
-    - n_implement: number of steps to implement at each iteration.
-    
-    Returns:
-    - full_traj: a numpy array of shape (n_agents, total_steps, state_size)
+    Plans a full trajectory by repeatedly sampling segments of length `segment_length`,
+    but ensures every agent’s conditioning in each segment uses the same snapshot of
+    all other agents at that segment’s start.
     """
     full_traj = []
-    current_states = initial_states.copy()
+    current_states = initial_states.copy()      # shape: (n_agents, state_size)
+    n_agents = len(current_states)
 
     for seg in range(total_steps // n_implement):
+
+        base_states = current_states.copy()     
         segments = []
-        for i in range(len(current_states)):
-            if i == 0:
-                cond = [current_states[0]]
-                for j in range(1, len(current_states)):
-                    cond.append(current_states[j])
-                cond.append(obs)
-                cond = np.hstack(cond)
-                cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
-                sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=0)
-                seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
 
-                if seg == 0:
-                    segments.append(seg_i[0:n_implement,:])
-                    current_states[i] = seg_i[n_implement-1,:3]
-                else:
-                    segments.append(seg_i[1:n_implement+1,:])
-                    current_states[i] = seg_i[n_implement,:3]
+        for i in range(n_agents):
+            cond = [base_states[i]]
+            for j in range(n_agents):
+                if j != i:
+                    cond.append(base_states[j])
+            cond.append(obs)
+            cond = np.hstack(cond)
+            cond_tensor = torch.tensor(cond, dtype=torch.float32, device=ode_model.device).unsqueeze(0)
+            sampled = ode_model.sample(
+                attr=cond_tensor,
+                traj_len=segment_length,
+                n_samples=1,
+                w=1.0,
+                model_index=i
+            )
+            seg_i = sampled.cpu().numpy()[0]  # (segment_length, action_size)
 
+            if seg == 0:
+                take = seg_i[0:n_implement]
+                new_state = seg_i[n_implement-1, :3]
             else:
-                cond = [current_states[i], current_states[0], obs]
-                cond = np.hstack(cond)
-                cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
-                sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)
-                seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
+                take = seg_i[1:n_implement+1]
+                new_state = seg_i[n_implement, :3]
+            segments.append(take)
+            current_states[i] = new_state
 
-                if seg == 0:
-                    segments.append(seg_i[0:n_implement,:])
-                    current_states[i] = seg_i[n_implement-1,:3]
-                else:
-                    segments.append(seg_i[1:n_implement+1,:])
-                    current_states[i] = seg_i[n_implement,:3]
-        
-        seg_array = np.stack(segments, axis=0)
-        full_traj.append(seg_array)
+        full_traj.append(np.stack(segments, axis=0))  # (n_agents, n_implement, action_size)
 
-    full_traj = np.concatenate(full_traj, axis=1) 
-    print("Full trajectory shape: ", np.shape(full_traj))
-    return np.array(full_traj)
+    # concat all segments along the time dimension
+    full_traj = np.concatenate(full_traj, axis=1)     # (n_agents, total_steps, action_size)
+    return full_traj
 
 
-cond_idx = 1
-planned_trajs = reactive_mpc_plan(action_cond_ode, env, [expert_data1[cond_idx, 0, :3], expert_data2[cond_idx, 0, :3]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=5)
+cond_idx = 0
+planned_trajs = reactive_mpc_plan(action_cond_ode, [expert_data1[cond_idx, 0, :3], expert_data2[cond_idx, 0, :3]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=1)
 planned_traj1 =  planned_trajs[0] * std + mean
-np.save("samples/P50E5_500T_crosscond/planned_traj1_1.npy", planned_traj1)
+np.save("samples/P50E1_500T_crosscond_nolf/planned_traj1_" + str(cond_idx) + ".npy", planned_traj1)
 planned_traj2 = planned_trajs[1] * std + mean
-np.save("samples/P50E5_500T_crosscond/planned_traj2_1.npy", planned_traj2)
+np.save("samples/P50E1_500T_crosscond_nolf/planned_traj2_" + str(cond_idx) + ".npy", planned_traj2)

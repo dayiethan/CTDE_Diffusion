@@ -34,7 +34,7 @@ P#E# means that it is trained for a certain number of planning timesteps and a c
 - **`env.py`**: Sets up the handover environment for getting demonstrations
 - **`parse_data.ipynb`**: Generates the useable datasets for training from the rollout expert demonstrations
 - **`sampled_mpc.py`**: Samples models in MPC fashion
-- **`salmpled_rot6d.py`**: Samples models that use 6d rotation matrix
+- **`sampled_rot6d.py`**: Samples models that use 6d rotation matrix
 - **`sampled_rotvec.py`**: Samples models that use 3d rotation vector
 - **`training_mpc.py`**: Trains models in MPC fashion
 - **`transform_utils.py`**: Transforming between rotation representations

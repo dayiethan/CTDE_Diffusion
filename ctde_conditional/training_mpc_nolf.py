@@ -57,6 +57,7 @@ obstacle = (10, 0, 4.0)
 # Loading training trajectories
 expert_data_1 = np.load('data/expert_data1_100_traj.npy')
 expert_data_2 = np.load('data/expert_data2_100_traj.npy')
+breakpoint()
 
 orig1 = expert_data_1
 orig2 = expert_data_2
@@ -163,9 +164,9 @@ for i in range(100):
 
     planned_traj1 =  planned_trajs[0] * std + mean
 
-    np.save("sampled_trajs/mpc_P25E1_nolf/mpc_traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_P25E1_nolf_revisedsampling/mpc_traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
 
-    np.save("sampled_trajs/mpc_P25E1_nolf/mpc_traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_P25E1_nolf_revisedsampling/mpc_traj2_%s.npy" % i, planned_traj2)
 

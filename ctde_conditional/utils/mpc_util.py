@@ -570,71 +570,76 @@ def reactive_mpc_plan_smallcond(ode_model, env, initial_states, fixed_goals, mod
     full_traj = np.concatenate(full_traj, axis=1) 
     return np.array(full_traj)
 
-
-def reactive_mpc_plan_nolf(ode_model, initial_states, fixed_goals, segment_length=25, total_steps=100, n_implement=5):
+def reactive_mpc_plan_nolf(
+        ode_model,
+        initial_states,
+        fixed_goals,
+        segment_length=25,
+        total_steps=100,
+        n_implement=5):
     """
     Plans a full trajectory (total_steps long) by iteratively planning
-    segment_length-steps using the diffusion model and replanning at every timestep.
+    segment_length-steps using the diffusion model and replanning at every timestep,
+    but ensures each agent conditions on its peers at the same timestep.
     
     Parameters:
-      - ode_model: the Conditional_ODE (diffusion model) instance.
-      - env: your environment, which must implement reset_to() and step().
-      - initial_state: a numpy array of shape (state_size,) (the current state).
-      - fixed_goal: a numpy array of shape (state_size,) representing the final goal.
-      - model_i: the index of the agent/model being planned for.
+      - ode_model: the Conditional_ODE instance.
+      - initial_states: list or array of shape (n_agents, state_size).
+      - fixed_goals:    list or array of shape (n_agents, state_size).
       - segment_length: number of timesteps to plan in each segment.
-      - total_steps: total length of the planned trajectory.
+      - total_steps:    total length of the planned trajectory.
+      - n_implement:    number of steps to execute before replanning each segment.
     
     Returns:
-      - full_traj: a numpy array of shape (total_steps, state_size)
+      - full_traj: np.ndarray of shape (n_agents, total_steps, action_size)
     """
     full_traj = []
-    current_states = initial_states.copy()
+    current_states = initial_states.copy()      # shape: (n_agents, state_size)
+    n_agents = len(current_states)
 
     for seg in range(total_steps // n_implement):
+        # snapshot everyone's state at the start of this segment
+        base_states = current_states.copy()     
+
         segments = []
-        for i in range(len(current_states)):
-            if i == 0:
-                cond = [current_states[i], fixed_goals[i]]
-                for j in range(len(current_states)):
-                    if j != i:
-                        cond.append(current_states[j])
-                        cond.append(fixed_goals[j])
-                cond = np.hstack(cond)
-                cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
-                sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=0)
-                seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
+        for i in range(n_agents):
+            # build conditioning vector from base_states
+            cond = [ base_states[i], fixed_goals[i] ]
+            for j in range(n_agents):
+                if j != i:
+                    cond.append(base_states[j])
+                    cond.append(fixed_goals[j])
+            cond = np.hstack(cond)  # shape: (attr_dim,)
+            cond_tensor = torch.tensor(cond, dtype=torch.float32,
+                                       device=ode_model.device).unsqueeze(0)
 
-                if seg == 0:
-                    segments.append(seg_i[0:n_implement,:])
-                    current_states[i] = seg_i[n_implement-1,:]
-                else:
-                    segments.append(seg_i[1:n_implement+1,:])
-                    current_states[i] = seg_i[n_implement,:]
+            # sample this agent’s segment
+            sampled = ode_model.sample(
+                attr=cond_tensor,
+                traj_len=segment_length,
+                n_samples=1,
+                w=1.0,
+                model_index=i
+            )
+            seg_i = sampled.cpu().detach().numpy()[0]  # (segment_length, action_size)
 
+            # select which slice to execute and update current_states
+            if seg == 0:
+                to_take   = seg_i[0:n_implement]
+                new_state = seg_i[n_implement-1]
             else:
-                cond = [current_states[i], fixed_goals[i]]
-                for j in range(len(current_states)):
-                    if j != i:
-                        cond.append(current_states[j])
-                        cond.append(fixed_goals[j])
-                cond = np.hstack(cond)
-                cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
-                sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)
-                seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
+                to_take   = seg_i[1:n_implement+1]
+                new_state = seg_i[n_implement]
+            segments.append(to_take)
+            current_states[i] = new_state
 
-                if seg == 0:
-                    segments.append(seg_i[0:n_implement,:])
-                    current_states[i] = seg_i[n_implement-1,:]
-                else:
-                    segments.append(seg_i[1:n_implement+1,:])
-                    current_states[i] = seg_i[n_implement,:]
-        
-        seg_array = np.stack(segments, axis=0)
-        full_traj.append(seg_array)
+        # stack across agents: shape (n_agents, n_implement, action_size)
+        full_traj.append(np.stack(segments, axis=0))
 
-    full_traj = np.concatenate(full_traj, axis=1) 
-    return np.array(full_traj)
+    # concat all segments along time: shape (n_agents, total_steps, action_size)
+    full_traj = np.concatenate(full_traj, axis=1)
+    return full_traj
+
 
 
 def reactive_mpc_plan_vanilla(ode_model, env, initial_states, fixed_goals, model_i, segment_length=25, total_steps=100, n_implement=5):
