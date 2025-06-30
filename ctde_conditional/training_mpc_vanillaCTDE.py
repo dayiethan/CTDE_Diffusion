@@ -122,10 +122,11 @@ sigma_data2 = actions2.std().item()
 sig = np.array([sigma_data1, sigma_data2])
 
 # Training
+end = "_P25E1_vanillaCTDE"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_P25E5_vanillaCTDE")
-# action_cond_ode.save(subdirect="mpc/", extra="_P25E5_vanillaCTDE")
-action_cond_ode.load(subdirect="mpc/", extra="_P25E5_vanillaCTDE")
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end)
+action_cond_ode.save(subdirect="mpc/", extra=end)
+action_cond_ode.load(subdirect="mpc/", extra=end)
 
 
 
@@ -161,8 +162,8 @@ for i in range(100):
     planned_trajs = reactive_mpc_plan_vanilla(action_cond_ode, env, [initial1, initial2], [final1, final2], 0, segment_length=H, total_steps=T, n_implement=5)
 
     planned_traj1 =  planned_trajs[0] * std + mean
-    np.save("sampled_trajs/mpc_P25E5_vanillaCTDE/mpc_traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_P25E1_vanillaCTDE/mpc_traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
-    np.save("sampled_trajs/mpc_P25E5_vanillaCTDE/mpc_traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_P25E1_vanillaCTDE/mpc_traj2_%s.npy" % i, planned_traj2)
 

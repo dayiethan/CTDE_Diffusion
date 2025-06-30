@@ -142,35 +142,50 @@ sig = np.array([sigma_data1, sigma_data2, sigma_data3])
 # Training
 end = "_P25E1_400demos_06noise_hierarchicalfinaposcond"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2, attr_dim3], [sigma_data1, sigma_data2, sigma_data3], device=device, N=1500, n_models = 3, **model_size)
-action_cond_ode.train([actions1, actions2, actions3], [attr1, attr2, attr3], int(5*n_gradient_steps), batch_size, extra=end)
-action_cond_ode.save(extra=end)
+# action_cond_ode.train([actions1, actions2, actions3], [attr1, attr2, attr3], int(5*n_gradient_steps), batch_size, extra=end)
+# action_cond_ode.save(extra=end)
 action_cond_ode.load(extra=end)
 
 # Sampling
 for i in range(100):
     print("Planning Sample %s" % i)
     noise_std = 0.6
-    initial1 = initial_point_1 + np.random.uniform(-noise_std, noise_std, size=(2,))
+    threshold = 0.75
+
+    while True:
+        initial1 = initial_point_1 + np.random.uniform(-noise_std, noise_std, size=(2,))    
+        final1 = final_point_1 + np.random.uniform(-noise_std, noise_std, size=(2,))
+        initial2 = initial_point_2 + np.random.uniform(-noise_std, noise_std, size=(2,))
+        final2 = final_point_2 + np.random.uniform(-noise_std, noise_std, size=(2,))
+        initial3 = initial_point_3 + np.random.uniform(-noise_std, noise_std, size=(2,))
+        final3 = final_point_3 + np.random.uniform(-noise_std, noise_std, size=(2,))
+
+        d_init12 = np.linalg.norm(initial1 - initial2)
+        d_init13 = np.linalg.norm(initial1 - initial3)
+        d_init23 = np.linalg.norm(initial2 - initial3)
+        d_fin12 = np.linalg.norm(final1 - final2)
+        d_fin13 = np.linalg.norm(final1 - final3)
+        d_fin23 = np.linalg.norm(final2 - final3)
+
+        if (d_init12 > threshold and d_init13 > threshold and d_init23 > threshold and
+            d_fin12  > threshold and d_fin13  > threshold and d_fin23  > threshold):
+            break
+
     initial1 = (initial1 - mean) / std
-    final1 = final_point_1 + np.random.uniform(-noise_std, noise_std, size=(2,))
     final1 = (final1 - mean) / std
-    initial2 = initial_point_2 + np.random.uniform(-noise_std, noise_std, size=(2,))
     initial2 = (initial2 - mean) / std
-    final2 = final_point_2 + np.random.uniform(-noise_std, noise_std, size=(2,))
     final2 = (final2 - mean) / std
-    initial3 = initial_point_3 + np.random.uniform(-noise_std, noise_std, size=(2,))
     initial3 = (initial3 - mean) / std
-    final3 = final_point_3 + np.random.uniform(-noise_std, noise_std, size=(2,))
     final3 = (final3 - mean) / std
 
     planned_trajs = reactive_mpc_plan_hierarchicalfinaposcond(action_cond_ode, [initial1, initial2, initial3], [final1, final2, final3], segment_length=H, total_steps=T, n_implement=1)
 
     planned_traj1 =  planned_trajs[0] * std + mean
-    np.save("sampled_trajs/mpc_P25E1_400demos_06demonoise_finalposcond_06samplenoise_1500N/traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_P25E1_400demos_06demonoise_finalposcond_06samplenoise_1500N_vettedinitfinal/traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
-    np.save("sampled_trajs/mpc_P25E1_400demos_06demonoise_finalposcond_06samplenoise_1500N/traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_P25E1_400demos_06demonoise_finalposcond_06samplenoise_1500N_vettedinitfinal/traj2_%s.npy" % i, planned_traj2)
 
     planned_traj3 = planned_trajs[2] * std + mean
-    np.save("sampled_trajs/mpc_P25E1_400demos_06demonoise_finalposcond_06samplenoise_1500N/traj3_%s.npy" % i, planned_traj3)
+    np.save("sampled_trajs/mpc_P25E1_400demos_06demonoise_finalposcond_06samplenoise_1500N_vettedinitfinal/traj3_%s.npy" % i, planned_traj3)
 

@@ -152,7 +152,7 @@ class PolicyPlayer:
         sigma_data2 = actions2.std().item()
 
         # Load the model
-        action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
+        action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=200, n_models = 2, **model_size)
         action_cond_ode.load(extra=extra)
 
         return action_cond_ode
@@ -229,7 +229,7 @@ class PolicyPlayer:
 
         model = self.load_model(extra=extra, state_dim = 7, action_dim = 7)
 
-        with open("data/pot_states_rot6d_20.npy", "rb") as f:
+        with open("data/pot_states_rotvec_20.npy", "rb") as f:
             obs = np.load(f)
             
         # Sampling

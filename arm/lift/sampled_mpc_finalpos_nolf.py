@@ -161,7 +161,7 @@ class PolicyPlayer:
         sigma_data2 = actions2.std().item()
 
         # Load the model
-        action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
+        action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=200, n_models = 2, **model_size)
         action_cond_ode.load(extra=extra)
 
         return action_cond_ode
@@ -246,7 +246,7 @@ class PolicyPlayer:
         traj_len = 250
         n_samples = 1
         # breakpoint()
-        planned_trajs = self.reactive_mpc_plan(model, [expert_data1[cond_idx, 0, :3], expert_data2[cond_idx, 0, :3]], [expert_data1[cond_idx, -1, :3], expert_data2[cond_idx, -1, :3]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=1)
+        planned_trajs = self.reactive_mpc_plan(model, [expert_data1[cond_idx, 0, :3], expert_data2[cond_idx, 0, :3]], [expert_data1[cond_idx, -1, :3], expert_data2[cond_idx, -1, :3]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=5)
         planned_traj1 =  planned_trajs[0] * std + mean
         # np.save("samples/lift_mpc_P25E2_50ksteps/mpc_traj1_1.npy", planned_traj1)
         planned_traj2 = planned_trajs[1] * std + mean
