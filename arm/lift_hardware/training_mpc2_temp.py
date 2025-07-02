@@ -108,8 +108,8 @@ attr_dim2 = attr2.shape[1]
 # Training
 end = "_lift_mpc_P50E1_330T_crosscondfinalpos_nolf_newzyxdata"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, endpoint_loss=False)
-action_cond_ode.save(extra=end)
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, endpoint_loss=False)
+# action_cond_ode.save(extra=end)
 action_cond_ode.load(extra=end)
 
 # Sampling
@@ -170,9 +170,10 @@ def reactive_mpc_plan(
     return full_traj
 
 
-cond_idx = 0
-planned_trajs = reactive_mpc_plan(action_cond_ode, [expert_data1[cond_idx, 0, :3], expert_data2[cond_idx, 0, :3]], [obs_final1[cond_idx], obs_final2[cond_idx]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=1)
-planned_traj1 =  planned_trajs[0] * std + mean
-np.save("samples/P50E1_330T_crosscondfinalpos_nolf_newzyxdata/planned_traj1_" + str(cond_idx) + ".npy", planned_traj1)
-planned_traj2 = planned_trajs[1] * std + mean
-np.save("samples/P50E1_330T_crosscondfinalpos_nolf_newzyxdata/planned_traj2_" + str(cond_idx) + ".npy", planned_traj2)
+for i in range(10):
+    cond_idx = i
+    planned_trajs = reactive_mpc_plan(action_cond_ode, [expert_data1[cond_idx, 0, :3], expert_data2[cond_idx, 0, :3]], [obs_final1[cond_idx], obs_final2[cond_idx]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=1)
+    planned_traj1 =  planned_trajs[0] * std + mean
+    np.save("samples/P50E1_330T_crosscondfinalpos_nolf_newzyxdata/planned_traj1_" + str(cond_idx) + ".npy", planned_traj1)
+    planned_traj2 = planned_trajs[1] * std + mean
+    np.save("samples/P50E1_330T_crosscondfinalpos_nolf_newzyxdata/planned_traj2_" + str(cond_idx) + ".npy", planned_traj2)

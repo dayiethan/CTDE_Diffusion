@@ -1,6 +1,6 @@
-# Handover
+# Lift
 
-This directory contains the implementation of a conditional diffusion model for multi-agent systems using the Centralized Training with Decentralized Execution (CTDE) paradigm.
+This directory contains the implementation of a conditional diffusion model for multi-agent systems using the Centralized Training with Decentralized Execution (CTDE) paradigm for the Robosuite two arm pot lift task.
 
 ## Subdirectories
 

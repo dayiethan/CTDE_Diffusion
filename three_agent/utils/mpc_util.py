@@ -623,6 +623,57 @@ def reactive_mpc_plan_hierarchicalfinaposcond(
     return full_traj
 
 
+def reactive_mpc_plan_vanillaCTDE(
+        ode_model,
+        initial_states,
+        fixed_goals,
+        segment_length=25,
+        total_steps=100,
+        n_implement=5):
+    """
+    Plans a full trajectory by repeatedly sampling segments of length `segment_length`,
+    but ensures every agent’s conditioning in each segment uses the same snapshot of
+    all other agents at that segment’s start.
+    """
+    full_traj = []
+    current_states = initial_states.copy()      # shape: (n_agents, state_size)
+    n_agents = len(current_states)
+
+    for seg in range(total_steps // n_implement):
+
+        base_states = current_states.copy()     
+        segments = []
+
+        for i in range(n_agents):
+            cond = [ base_states[i], fixed_goals[i] ]
+            cond = np.hstack(cond)
+            cond_tensor = torch.tensor(cond, dtype=torch.float32, device=ode_model.device).unsqueeze(0)
+
+            sampled = ode_model.sample(
+                attr=cond_tensor,
+                traj_len=segment_length,
+                n_samples=1,
+                w=1.0,
+                model_index=i
+            )
+            seg_i = sampled.cpu().numpy()[0]  # (segment_length, action_size)
+
+            if seg == 0:
+                take = seg_i[0:n_implement]
+                new_state = seg_i[n_implement-1]
+            else:
+                take = seg_i[1:n_implement+1]
+                new_state = seg_i[n_implement]
+            segments.append(take)
+            current_states[i] = new_state
+
+        full_traj.append(np.stack(segments, axis=0))  # (n_agents, n_implement, action_size)
+
+    # concat all segments along the time dimension
+    full_traj = np.concatenate(full_traj, axis=1)     # (n_agents, total_steps, action_size)
+    return full_traj
+
+
 
 def reactive_mpc_plan_guidesample(ode_model, env, initial_states, fixed_goals, model_i, segment_length=25, total_steps=100, n_implement=5):
     """
