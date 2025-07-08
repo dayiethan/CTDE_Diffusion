@@ -13,6 +13,7 @@ madiff/checkpoints/
 ctde_conditional/trained_models/
 arm/lift/rollouts_pot/
 arm/lift/trained_models/
+arm/lift(bad)/trained_models/
 arm/lift_hardware/trained_models/
 arm/handover/rollouts/
 arm/handover/rollouts_pickup_pos/

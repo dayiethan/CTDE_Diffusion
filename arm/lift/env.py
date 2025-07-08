@@ -338,7 +338,7 @@ class TwoArmLiftRole(TwoArmEnv):
 
         # initialize objects of interest
         self.pot = PotWithHandlesObject(name="pot")
-        self.obs = Box(name="obs", size=[0.1, 0.1, 0.175], rgba=[1, 0, 0, 1])
+        self.obs = Box(name="obs", size=[0.07, 0.07, 0.175], rgba=[1, 0, 0, 1])
 
         # Create placement initializer
         if self.placement_initializer is not None:

@@ -48,6 +48,8 @@ T = 250 # total time steps
 expert_data = np.load("data/expert_actions_rotvec_20.npy")
 expert_data1 = expert_data[:, :, :7]
 expert_data2 = expert_data[:, :, 7:14]
+orig1 = expert_data1.copy()
+orig2 = expert_data2.copy()
 expert_data1 = create_mpc_dataset(expert_data1, planning_horizon=H)
 expert_data2 = create_mpc_dataset(expert_data2, planning_horizon=H)
 
@@ -59,6 +61,8 @@ std = np.std(combined_data, axis=(0,1))
 # Normalize data
 expert_data1 = (expert_data1 - mean) / std
 expert_data2 = (expert_data2 - mean) / std
+orig1 = (orig1 - mean) / std
+orig2 = (orig2 - mean) / std
 
 # Define an enviornment objcet which has attrubutess like name, state_size, action_size etc
 class TwoArmLift():
@@ -81,10 +85,12 @@ with open("data/pot_states_rotvec_20.npy", "rb") as f:
     obs = np.load(f)
 obs_init1 = expert_data1[:, 0, :3]
 obs_init2 = expert_data2[:, 0, :3]
-obs_init1_cond = expert_data1[:, 1, :3]
+obs_final1 = np.repeat(orig1[:, -1, :3], repeats=T, axis=0)
+obs_final2 = np.repeat(orig2[:, -1, :3], repeats=T, axis=0)
+# obs_init1_cond = expert_data1[:, 1, :3]
 obs = np.repeat(obs, repeats=T, axis=0)
-obs1 = np.hstack([obs_init1, obs])
-obs2 = np.hstack([obs_init2, obs_init1_cond, obs])
+obs1 = np.hstack([obs_init1, obs_final1, obs_init2, obs_final2, obs])
+obs2 = np.hstack([obs_init2, obs_final2, obs_init1, obs_final1, obs])
 obs1 = torch.FloatTensor(obs1).to(device)
 obs2 = torch.FloatTensor(obs2).to(device)
 attr1 = obs1
@@ -93,7 +99,8 @@ attr_dim1 = attr1.shape[1]
 attr_dim2 = attr2.shape[1]
 
 # Training
+end="_lift_mpc_P25E1_crosscond_finalpos_nolf"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra="_lift_mpc_P25E2_50ksteps", endpoint_loss=False)
-action_cond_ode.save(extra="_lift_mpc_P25E2_50ksteps")
-action_cond_ode.load(extra="_lift_mpc_P25E2_50ksteps")
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, endpoint_loss=False)
+action_cond_ode.save(extra=end)
+action_cond_ode.load(extra=end)
