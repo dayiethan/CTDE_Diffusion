@@ -368,6 +368,107 @@ class Conditional_ODE():
                     print(f"Time limit reached at {time.time() - t0:.0f}s")
                     break
         print('\nTraining completed!')
+
+    def train_mask(self,
+               x_normalized_list: list,
+               attributes_list: list,
+               n_gradient_steps: int,
+               batch_size: int = 32,
+               extra: str = "",
+               time_limit=None,
+               endpoint_loss: bool = False,
+               pad_masks: list = None,
+               wait_masks: list = None):
+        """
+        A training loop that ignores padded and “wait” frames when computing loss.
+
+        pad_masks & wait_masks: each a list of length self.n_models, where
+        pad_masks[i]  is an np.ndarray of shape (N_i, H), dtype=bool
+        wait_masks[i] is an np.ndarray of shape (N_i, H), dtype=bool
+        """
+        assert pad_masks is not None and wait_masks is not None, "Must pass pad_masks & wait_masks"
+        assert len(pad_masks) == self.n_models and len(wait_masks) == self.n_models
+
+        print(f'Begins training of {self.n_models} models: {self.filename + extra}')
+        if time_limit is not None:
+            t0 = time.time()
+            print(f"Training limited to {time_limit:.0f}s")
+
+        N_list = [x.shape[0] for x in x_normalized_list]
+        pbar = tqdm(range(n_gradient_steps))
+        for step in range(n_gradient_steps):
+            loss_total = 0.0
+
+            for i in range(self.n_models):
+                # 1) sample a minibatch of data + masks
+                idx = np.random.randint(0, N_list[i], batch_size)
+                x_batch    = x_normalized_list[i][idx]           # (B, H, D)
+                attr_batch = attributes_list[i][idx]             # (B, attr_dim)
+
+                pad_mask_i  = pad_masks[i][idx]                  # (B, H), bool
+                wait_mask_i = wait_masks[i][idx]                 # (B, H), bool
+
+                # 2) convert to torch
+                x    = torch.tensor(x_batch,    device=self.device)
+                attr = torch.tensor(attr_batch, device=self.device)
+                # combined learn‐mask: only real & moving frames
+                learn_mask = torch.tensor(
+                    pad_mask_i & wait_mask_i,
+                    device=self.device,
+                    dtype=torch.float32
+                ).unsqueeze(-1)  # (B, H, 1)
+
+                # 3) sample noise & model output
+                sigma = self.sample_noise_distribution(x.shape[0])
+                eps   = torch.randn_like(x) * sigma
+                cond_mask = (torch.rand(*attr.shape, device=self.device) > 0.2).int()
+                pred = self.D(
+                    x + eps,
+                    sigma,
+                    condition=attr,
+                    mask=cond_mask,
+                    model_index=i
+                )
+
+                # 4) compute masked diff‐MSE
+                # loss_weighting returns shape (B, 1, 1), broadcastable to x
+                w = self.loss_weighting(sigma, model_index=i)
+                se = (pred - x)**2 * w
+                masked_se = se * learn_mask
+                loss_i = masked_se.sum() / learn_mask.sum()
+
+                # 5) optional endpoint‐start anchoring
+                if endpoint_loss:
+                    pred_s  = pred[:, 0, :self.state_size]
+                    cond_s  = attr[:, :self.state_size]
+                    end_l   = ((pred_s - cond_s)**2).mean()
+                    loss_i += 2.0 * end_l
+
+                loss_total += loss_i
+
+            # 6) backward & step
+            self.optim.zero_grad()
+            loss_total.backward()
+            # gradient clipping
+            all_params = []
+            for model in self.F_list:
+                all_params += list(model.parameters())
+            grad_norm = torch.nn.utils.clip_grad_norm_(all_params, 10.0)
+            self.optim.step()
+            self.ema_update()
+
+            # 7) logging & checkpointing
+            if (step + 1) % 10 == 0:
+                avg = (loss_total.item() / self.n_models)
+                pbar.set_description(f'step {step+1} | loss/model: {avg:.4f} | grad: {grad_norm:.4f}')
+                pbar.update(10)
+                self.save(extra)
+                if time_limit is not None and (time.time() - t0) > time_limit:
+                    print("Time limit reached")
+                    break
+
+        print("Training completed!")
+
         
     @torch.no_grad()
     def sample(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0):
