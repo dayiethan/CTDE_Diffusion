@@ -101,8 +101,8 @@ obs_init2 = expert_data2[:, 0, :]
 obs_final1 = np.repeat(orig1[:, -1, :], repeats=T, axis=0)
 obs_final2 = np.repeat(orig2[:, -1, :], repeats=T, axis=0)
 obs = np.repeat(obs, repeats=T, axis=0)
-obs1 = np.hstack([obs_init1, obs_final1, obs_init2, obs_final2, obs])
-obs2 = np.hstack([obs_init2, obs_final2, obs_init1, obs_final1, obs])
+obs1 = np.hstack([obs_init1, obs_init2, obs])
+obs2 = np.hstack([obs_init2, obs_init1, obs])
 obs1 = torch.FloatTensor(obs1).to(device)
 obs2 = torch.FloatTensor(obs2).to(device)
 attr1 = obs1
@@ -111,7 +111,7 @@ attr_dim1 = attr1.shape[1]
 attr_dim2 = attr2.shape[1]
 
 # Training
-end = "_lift_mpc_P200E1_1000T_fullstate"
+end = "_lift_mpc_P200E1_1000T_fullstate_nofinalpos"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
 # action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, endpoint_loss=False)
 # action_cond_ode.save(extra=end)
@@ -144,11 +144,10 @@ def reactive_mpc_plan(ode_model, initial_states, final_states, obs, segment_leng
         segments = []
 
         for i in range(n_agents):
-            cond = [base_states[i], final_states[i]]  # start with the current state and the final state for this agent
+            cond = [base_states[i]]  # start with the current state and the final state for this agent
             for j in range(n_agents):
                 if j != i:
                     cond.append(base_states[j])
-                    cond.append(final_states[j])
             cond.append(obs)
             cond = np.hstack(cond)
             cond_tensor = torch.tensor(cond, dtype=torch.float32, device=ode_model.device).unsqueeze(0)
@@ -180,8 +179,8 @@ def reactive_mpc_plan(ode_model, initial_states, final_states, obs, segment_leng
 
 for i in range(10):
     cond_idx = i
-    planned_trajs = reactive_mpc_plan(action_cond_ode, [obs_init1[cond_idx], obs_init2[cond_idx]], [obs_final1[cond_idx], obs_final2[cond_idx]], obs[cond_idx], segment_length=H, total_steps=T+2000, n_implement=2)
+    planned_trajs = reactive_mpc_plan(action_cond_ode, [obs_init1[cond_idx], obs_init2[cond_idx]], [obs_final1[cond_idx], obs_final2[cond_idx]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=10)
     planned_traj1 =  planned_trajs[0] * std + mean
-    np.save("samples/P200E1_1000T_fullstate_contplan/planned_traj1_%s_new.npy" % cond_idx, planned_traj1)
+    np.save("samples/P200E1_1000T_fullstate_nofinalpos/planned_traj1_%s_new.npy" % cond_idx, planned_traj1)
     planned_traj2 = planned_trajs[1] * std + mean
-    np.save("samples/P200E1_1000T_fullstate_contplan/planned_traj2_%s_new.npy" % cond_idx, planned_traj2)
+    np.save("samples/P200E1_1000T_fullstate_nofinalpos/planned_traj2_%s_new.npy" % cond_idx, planned_traj2)
