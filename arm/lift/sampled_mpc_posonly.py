@@ -159,10 +159,10 @@ class PolicyPlayer:
 
         # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_lift_mpc_P25E1_crosscond_finalpos_nolf")
+        action_cond_ode.load(extra="_lift_mpc_P25E1_crosscond_finalpos_posonly_nolf")
 
         return action_cond_ode
-
+    
     
     def reactive_mpc_plan(self, ode_model, initial_states, final_states, obs, segment_length=25, total_steps=250, n_implement=5):
         """
@@ -197,7 +197,7 @@ class PolicyPlayer:
                 cond = np.hstack(cond)
                 cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
                 sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)
-                seg_i = sampled.cpu().detach().numpy()[0]
+                seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
 
                 if seg == 0:
                     segments.append(seg_i[0:n_implement,:])
@@ -206,84 +206,6 @@ class PolicyPlayer:
                     segments.append(seg_i[1:n_implement+1,:])
                     current_states[i] = seg_i[n_implement,:3]
 
-                # if i == 0:
-                #     cond = [base_states[0], obs]
-                #     cond = np.hstack(cond)
-                #     cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
-                #     sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=0)
-                #     seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
-
-                #     if seg == 0:
-                #         segments.append(seg_i[0:n_implement,:])
-                #         current_states[i] = seg_i[n_implement-1,:3]
-                #     else:
-                #         segments.append(seg_i[1:n_implement+1,:])
-                #         current_states[i] = seg_i[n_implement,:3]
-
-                # else:
-                #     cond = [base_states[i], base_states[0], obs]
-                #     cond = np.hstack(cond)
-                #     cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
-                #     sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)
-                #     seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
-
-                #     if seg == 0:
-                #         segments.append(seg_i[0:n_implement,:])
-                #         current_states[i] = seg_i[n_implement-1,:3]
-                #     else:
-                #         segments.append(seg_i[1:n_implement+1,:])
-                #         current_states[i] = seg_i[n_implement,:3]
-            
-            seg_array = np.stack(segments, axis=0)
-            full_traj.append(seg_array)
-
-        full_traj = np.concatenate(full_traj, axis=1) 
-        print("Full trajectory shape: ", np.shape(full_traj))
-        return np.array(full_traj)
-    
-
-    def reactive_mpc_plan_new(self, ode_model, initial_states, final_states, obs, segment_length=25, total_steps=250, n_implement=5):
-        """
-        Plans a full trajectory (total_steps long) by iteratively planning
-        segment_length-steps using the diffusion model and replanning at every timestep.
-        
-        Parameters:
-        - ode_model: the Conditional_ODE (diffusion model) instance.
-        - env: your environment, which must implement reset_to() and step().
-        - initial_state: a numpy array of shape (state_size,) (the current state).
-        - fixed_goal: a numpy array of shape (state_size,) representing the final goal.
-        - model_i: the index of the agent/model being planned for.
-        - segment_length: number of timesteps to plan in each segment.
-        - total_steps: total length of the planned trajectory.
-        
-        Returns:
-        - full_traj: a numpy array of shape (total_steps, state_size)
-        """
-        full_traj = []
-        current_states = initial_states.copy()
-
-        for seg in range(total_steps // n_implement):
-            segments = []
-            base_states = current_states.copy()
-            for i in range(len(current_states)):
-                cond = [base_states[i], final_states[i]]
-                for j in range(len(current_states)):
-                    if j != i:
-                        cond.append(base_states[j])
-                        cond.append(final_states[j])
-                cond.append(obs)
-                cond = np.hstack(cond)
-                cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
-                sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)
-                seg_i = sampled.cpu().detach().numpy()[0]
-
-                if seg == 0:
-                    segments.append(seg_i[0:n_implement,:])
-                    current_states[i] = seg_i[n_implement-1,:3]
-                else:
-                    segments.append(seg_i[1:n_implement+1,:])
-                    current_states[i] = seg_i[n_implement,:3]
-            
             seg_array = np.stack(segments, axis=0)
             full_traj.append(seg_array)
 
@@ -298,7 +220,7 @@ class PolicyPlayer:
         """
         obs = self.reset(seed)
 
-        # Load expert data
+        # Loading
         expert_data = np.load("data/expert_actions_rotvec_20.npy")
         expert_data1 = expert_data[:, :, :7]
         expert_data2 = expert_data[:, :, 7:14]
@@ -306,8 +228,6 @@ class PolicyPlayer:
         orig2 = expert_data2.copy()
         expert_data1 = create_mpc_dataset(expert_data1, planning_horizon=H)
         expert_data2 = create_mpc_dataset(expert_data2, planning_horizon=H)
-
-        # Compute mean and standard deviation
         combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
         mean = np.mean(combined_data, axis=(0,1))
         std = np.std(combined_data, axis=(0,1))
@@ -318,21 +238,17 @@ class PolicyPlayer:
         orig1 = (orig1 - mean) / std
         orig2 = (orig2 - mean) / std
 
-        model = self.load_model(type = "rotvec", state_dim = 7, action_dim = 7)
-
-        with open("data/pot_states_rot6d_20.npy", "rb") as f:
-            obs = np.load(f)
-        obs1 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0) # The index of the condition you want from pot_states, this should correlate to the seed and mode that are being sampled
-        obs2 = torch.FloatTensor(obs[cond_idx]).to(device).unsqueeze(0) # The index of the condition you want from pot_states, this should correlate to the seed and mode that are being sampled
-
-        # Sampling
-        traj_len = 250
-        n_samples = 1
-
+        obs_init1 = expert_data1[:, 0, :3]
+        obs_init2 = expert_data2[:, 0, :3]
         obs_final1 = np.repeat(orig1[:, -1, :3], repeats=T, axis=0)
         obs_final2 = np.repeat(orig2[:, -1, :3], repeats=T, axis=0)
 
-        planned_trajs = self.reactive_mpc_plan_new(model, [expert_data1[cond_idx, 0, :3], expert_data2[cond_idx, 0, :3]], [obs_final1[cond_idx], obs_final2[cond_idx]],obs[cond_idx], segment_length=H, total_steps=T, n_implement=2)
+        model = self.load_model(type = "rotvec", state_dim = 7, action_dim = 7)
+
+        with open("data/pot_states_rotvec_20.npy", "rb") as f:
+            obs = np.load(f)
+
+        planned_trajs = self.reactive_mpc_plan(model, [obs_init1[cond_idx], obs_init2[cond_idx]], [obs_final1[cond_idx], obs_final2[cond_idx]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=1)
         planned_traj1 =  planned_trajs[0] * std + mean
         # np.save("sampled_trajs/mpc_P34E5/mpc_traj1_%s.npy" % i, planned_traj1)
         planned_traj2 = planned_trajs[1] * std + mean
