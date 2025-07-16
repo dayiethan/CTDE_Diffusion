@@ -10,10 +10,10 @@ import pickle as pkl
 import copy
 import robosuite as suite
 from robosuite.controllers import load_composite_controller_config
-from utils.conditional_Action_DiT import Conditional_ODE
-from utils.env import TwoArmLiftRole
+from conditional_Action_DiT import Conditional_ODE
+from env import TwoArmLiftRole
 from scipy.spatial.transform import Rotation as R
-from utils.transform_utils import SE3_log_map, SE3_exp_map, quat_to_rot6d, rotvec_to_rot6d, rot6d_to_quat, rot6d_to_rotvec
+from transform_utils import SE3_log_map, SE3_exp_map, quat_to_rot6d, rotvec_to_rot6d, rot6d_to_quat, rot6d_to_rotvec
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -399,7 +399,7 @@ class PolicyPlayer:
     
         
 if __name__ == "__main__":
-    controller_config = load_composite_controller_config(robot="Kinova3", controller="utils/kinova.json")
+    controller_config = load_composite_controller_config(robot="Kinova3", controller="kinova.json")
 
     env = TwoArmLiftRole(
     robots=["Kinova3", "Kinova3"],
@@ -412,5 +412,5 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = False)
-    cond_idx = 1
+    cond_idx = 0
     player.get_demo(seed = cond_idx*10, cond_idx = cond_idx, H=25, T=250)

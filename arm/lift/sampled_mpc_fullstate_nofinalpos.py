@@ -110,7 +110,7 @@ class PolicyPlayer:
         T = 250 # total time steps
 
         # Load expert data
-        expert_data = np.load("data/expert_actions_rotvec_20.npy")
+        expert_data = np.load("data/expert_actions_rotvec_site_20.npy")
         expert_data1 = expert_data[:, :, :7]
         expert_data2 = expert_data[:, :, 7:14]
         orig1 = expert_data1.copy()
@@ -159,7 +159,7 @@ class PolicyPlayer:
 
         # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_nolf")
+        action_cond_ode.load(extra="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_nolf_sitedata")
 
         return action_cond_ode
     
@@ -220,7 +220,7 @@ class PolicyPlayer:
         obs = self.reset(seed)
 
         # Loading
-        expert_data = np.load("data/expert_actions_rotvec_20.npy")
+        expert_data = np.load("data/expert_actions_rotvec_site_20.npy")
         expert_data1 = expert_data[:, :, :7]
         expert_data2 = expert_data[:, :, 7:14]
         orig1 = expert_data1.copy()
