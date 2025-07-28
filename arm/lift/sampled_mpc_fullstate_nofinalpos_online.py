@@ -309,5 +309,5 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = False)
-    cond_idx = 1
+    cond_idx = 2
     player.get_demo(seed = cond_idx*10, cond_idx = cond_idx, H=25, T=250)

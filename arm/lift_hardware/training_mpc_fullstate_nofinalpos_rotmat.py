@@ -59,10 +59,11 @@ T = 1000 # total time steps
 
 # Load expert data
 expert_data = np.load("data/expert_actions_rotmat_sparse_1000.npy")
-expert_data1 = expert_data[:, :, :10]
-expert_data2 = expert_data[:, :, 10:20]
-expert_data1 = create_mpc_dataset(expert_data1, planning_horizon=H)
-expert_data2 = create_mpc_dataset(expert_data2, planning_horizon=H)
+expert_data1_temp = expert_data[:, :, :10]
+expert_data2_temp = expert_data[:, :, 10:20]
+expert_data1 = create_mpc_dataset(expert_data1_temp, planning_horizon=H)
+expert_data2 = create_mpc_dataset(expert_data2_temp, planning_horizon=H)
+breakpoint()
 
 # Compute mean and standard deviation
 combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
@@ -76,6 +77,8 @@ except FileNotFoundError:
     np.save("data/std_rotmat_1000.npy", std)
 
 # Normalize data
+expert_data1_temp = (expert_data1_temp - mean) / std
+expert_data2_temp = (expert_data2_temp - mean) / std
 expert_data1 = (expert_data1 - mean) / std
 expert_data2 = (expert_data2 - mean) / std
 
@@ -113,8 +116,8 @@ attr_dim2 = attr2.shape[1]
 # Training
 end = "_lift_mpc_P200E1_1000T_fullstate_nofinalpos_rotmat"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, endpoint_loss=False)
-action_cond_ode.save(extra=end)
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, endpoint_loss=False)
+# action_cond_ode.save(extra=end)
 action_cond_ode.load(extra=end)
 
 # Sampling
@@ -135,12 +138,12 @@ def reactive_mpc_plan(ode_model, initial_states, obs, segment_length=100, total_
     - full_traj: a numpy array of shape (n_agents, total_steps, state_size)
     """
     full_traj = []
-    initial_states = [np.array([-0.83898655,  1.39477865,  0.24218132,
-                                2.08176365,  0.7110728 , -0.95662697, -0.59402534]), np.array([-0.37961092,  1.40740813, -2.30580383, -0.8449774 , -0.28674541,
-                                1.43522927,  1.72807314])]
+    # initial_states = [np.array([-0.83898655,  1.39477865,  0.24218132,
+    #                             2.08176365,  0.7110728 , -0.95662697, -0.59402534]), np.array([-0.37961092,  1.40740813, -2.30580383, -0.8449774 , -0.28674541,
+    #                             1.43522927,  1.72807314])]
     current_states = initial_states.copy()      # shape: (n_agents, state_size)
     n_agents = len(current_states)
-    breakpoint()
+    # breakpoint()
 
     for seg in range(total_steps // n_implement):
 
@@ -186,10 +189,10 @@ def reactive_mpc_plan(ode_model, initial_states, obs, segment_length=100, total_
 
 
 for i in range(10):
-    cond_idx = i
+    cond_idx = i + 10
     # breakpoint()
-    planned_trajs = reactive_mpc_plan(action_cond_ode, [obs_init1[cond_idx], obs_init2[cond_idx]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=10)
+    planned_trajs = reactive_mpc_plan(action_cond_ode, [expert_data1_temp[cond_idx][0], expert_data2_temp[cond_idx][0]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=10)
     planned_traj1 =  planned_trajs[0] * std + mean
-    np.save("samples/P200E10_1000T_fullstate_nofinalpos_hardwarestate_rotmat/planned_traj1_%s_new.npy" % cond_idx, planned_traj1)
+    np.save("samples/P200E10_1000T_fullstate_nofinalpos_hardwarestate_rotmat2/planned_traj1_%s_new.npy" % cond_idx, planned_traj1)
     planned_traj2 = planned_trajs[1] * std + mean
-    np.save("samples/P200E10_1000T_fullstate_nofinalpos_hardwarestate_rotmat/planned_traj2_%s_new.npy" % cond_idx, planned_traj2)
+    np.save("samples/P200E10_1000T_fullstate_nofinalpos_hardwarestate_rotmat2/planned_traj2_%s_new.npy" % cond_idx, planned_traj2)
