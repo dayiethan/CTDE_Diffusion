@@ -253,7 +253,7 @@ class PolicyPlayer:
         obs = self.reset(seed, mode)
 
         max_step_move = int(15 * self.control_freq) # 15 seconds
-        max_step_grip = int(0.9 * self.control_freq)
+        max_step_grip = int(4 * self.control_freq)
 
         robot0_arrived = False
         robot1_arrived = False
@@ -469,9 +469,9 @@ if __name__ == "__main__":
     for i in range(200):   
         rollout = player.get_demo(seed = i*10, mode = 2)
         rollout['pot_pos'] = [player.pot_handle0_pos, player.pot_handle1_pos]
-        with open("rollouts_pot/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
+        with open("rollouts_grippause/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
             pkl.dump(rollout, f)
         rollout = player.get_demo(seed = i*10, mode = 3)
         rollout['pot_pos'] = [player.pot_handle0_pos, player.pot_handle1_pos]
-        with open("rollouts_pot/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
+        with open("rollouts_grippause/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
             pkl.dump(rollout, f)

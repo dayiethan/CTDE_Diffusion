@@ -42,14 +42,12 @@ n_gradient_steps = 50_000
 batch_size = 16
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 25 # horizon, length of each trajectory
-T = 250 # total time steps
+T = 400 # total time steps
 
 # Load expert data
-expert_data = np.load("data/expert_actions_rotvec_site_20.npy")
-expert_data1 = expert_data[:, :, :7]
-expert_data2 = expert_data[:, :, 7:14]
-orig1 = expert_data1.copy()
-orig2 = expert_data2.copy()
+expert_data = np.load("data/expert_actions_rot6d_site_grippause_20.npy")
+expert_data1 = expert_data[:, :, :10]
+expert_data2 = expert_data[:, :, 10:20]
 expert_data1 = create_mpc_dataset(expert_data1, planning_horizon=H)
 expert_data2 = create_mpc_dataset(expert_data2, planning_horizon=H)
 
@@ -61,12 +59,10 @@ std = np.std(combined_data, axis=(0,1))
 # Normalize data
 expert_data1 = (expert_data1 - mean) / std
 expert_data2 = (expert_data2 - mean) / std
-orig1 = (orig1 - mean) / std
-orig2 = (orig2 - mean) / std
 
 # Define an enviornment objcet which has attrubutess like name, state_size, action_size etc
 class TwoArmLift():
-    def __init__(self, state_size=7, action_size=7):
+    def __init__(self, state_size=10, action_size=10):
         self.state_size = state_size
         self.action_size = action_size
         self.name = "TwoArmLift"
@@ -81,13 +77,10 @@ sigma_data1 = actions1.std().item()
 sigma_data2 = actions2.std().item()
 
 # Prepare conditional vectors for training
-with open("data/pot_states_rotvec_20.npy", "rb") as f:
+with open("data/pot_states_rot6d_site_grippause_20.npy", "rb") as f:
     obs = np.load(f)
 obs_init1 = expert_data1[:, 0, :]
 obs_init2 = expert_data2[:, 0, :]
-obs_final1 = np.repeat(orig1[:, -1, :], repeats=T, axis=0)
-obs_final2 = np.repeat(orig2[:, -1, :], repeats=T, axis=0)
-# obs_init1_cond = expert_data1[:, 1, :3]
 obs = np.repeat(obs, repeats=T, axis=0)
 obs1 = np.hstack([obs_init1, obs_init2, obs])
 obs2 = np.hstack([obs_init2, obs_init1, obs])
@@ -99,7 +92,7 @@ attr_dim1 = attr1.shape[1]
 attr_dim2 = attr2.shape[1]
 
 # Training
-end="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_nolf_sitedata"
+end="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_nolf_sitedata_grippause"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
 action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, endpoint_loss=False)
 action_cond_ode.save(extra=end)

@@ -104,17 +104,15 @@ class PolicyPlayer:
 
         return obs
         
-    def load_model(self, type = "rotvec", state_dim = 7, action_dim = 7):
+    def load_model(self, state_dim = 7, action_dim = 7):
         model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
         H = 25 # horizon, length of each trajectory
-        T = 250 # total time steps
+        T = 400 # total time steps
 
         # Load expert data
-        expert_data = np.load("data/expert_actions_rotvec_site_20.npy")
+        expert_data = np.load("data/expert_actions_rotvec_site_grippause_20.npy")
         expert_data1 = expert_data[:, :, :7]
         expert_data2 = expert_data[:, :, 7:14]
-        orig1 = expert_data1.copy()
-        orig2 = expert_data2.copy()
         expert_data1 = create_mpc_dataset(expert_data1, planning_horizon=H)
         expert_data2 = create_mpc_dataset(expert_data2, planning_horizon=H)
 
@@ -126,19 +124,14 @@ class PolicyPlayer:
         # Normalize data
         expert_data1 = (expert_data1 - mean) / std
         expert_data2 = (expert_data2 - mean) / std
-        orig1 = (orig1 - mean) / std
-        orig2 = (orig2 - mean) / std
 
         env = TwoArmLift(state_size=state_dim, action_size=action_dim)
 
         # Prepare conditional vectors for training
-        with open("data/pot_states_rotvec_20.npy", "rb") as f:
+        with open("data/pot_states_rotvec_site_grippause_20.npy", "rb") as f:
             obs = np.load(f)
         obs_init1 = expert_data1[:, 0, :]
         obs_init2 = expert_data2[:, 0, :]
-        obs_final1 = np.repeat(orig1[:, -1, :], repeats=T, axis=0)
-        obs_final2 = np.repeat(orig2[:, -1, :], repeats=T, axis=0)
-        # obs_init1_cond = expert_data1[:, 1, :3]
         obs = np.repeat(obs, repeats=T, axis=0)
         obs1 = np.hstack([obs_init1, obs_init2, obs])
         obs2 = np.hstack([obs_init2, obs_init1, obs])
@@ -159,12 +152,12 @@ class PolicyPlayer:
 
         # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_nolf_sitedata")
+        action_cond_ode.load(extra="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_nolf_sitedata_grippause_rotvec")
 
         return action_cond_ode
     
     
-    def reactive_mpc_plan(self, ode_model, initial_states, final_states, obs, segment_length=25, total_steps=250, n_implement=5):
+    def reactive_mpc_plan(self, ode_model, initial_states, obs, segment_length=25, total_steps=400, n_implement=5):
         """
         Plans a full trajectory (total_steps long) by iteratively planning
         segment_length-steps using the diffusion model and replanning at every timestep.
@@ -195,6 +188,7 @@ class PolicyPlayer:
                 cond.append(obs)
                 cond = np.hstack(cond)
                 cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
+                # breakpoint()
                 sampled = ode_model.sample(attr=cond_tensor, traj_len=segment_length, n_samples=1, w=1., model_index=i)
                 seg_i = sampled.cpu().detach().numpy()[0]  # shape: (segment_length, action_size)
 
@@ -213,18 +207,16 @@ class PolicyPlayer:
         return np.array(full_traj)
 
     
-    def get_demo(self, seed, cond_idx, H=25, T=250):
+    def get_demo(self, seed, cond_idx, H=25, T=400):
         """
         Main file to get the demonstration data
         """
         obs = self.reset(seed)
 
         # Loading
-        expert_data = np.load("data/expert_actions_rotvec_site_20.npy")
+        expert_data = np.load("data/expert_actions_rotvec_20.npy")
         expert_data1 = expert_data[:, :, :7]
         expert_data2 = expert_data[:, :, 7:14]
-        orig1 = expert_data1.copy()
-        orig2 = expert_data2.copy()
         expert_data1 = create_mpc_dataset(expert_data1, planning_horizon=H)
         expert_data2 = create_mpc_dataset(expert_data2, planning_horizon=H)
         combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
@@ -234,20 +226,18 @@ class PolicyPlayer:
         # Normalize data
         expert_data1 = (expert_data1 - mean) / std
         expert_data2 = (expert_data2 - mean) / std
-        orig1 = (orig1 - mean) / std
-        orig2 = (orig2 - mean) / std
 
         obs_init1 = expert_data1[:, 0, :]
         obs_init2 = expert_data2[:, 0, :]
-        obs_final1 = np.repeat(orig1[:, -1, :], repeats=T, axis=0)
-        obs_final2 = np.repeat(orig2[:, -1, :], repeats=T, axis=0)
 
-        model = self.load_model(type = "rotvec", state_dim = 7, action_dim = 7)
+        model = self.load_model(state_dim = 7, action_dim = 7)
 
-        with open("data/pot_states_rotvec_20.npy", "rb") as f:
+        with open("data/pot_states_rotvec_site_grippause_20.npy", "rb") as f:
             obs = np.load(f)
 
-        planned_trajs = self.reactive_mpc_plan(model, [obs_init1[cond_idx], obs_init2[cond_idx]], [obs_final1[cond_idx], obs_final2[cond_idx]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=1)
+        # breakpoint()
+
+        planned_trajs = self.reactive_mpc_plan(model, [obs_init1[cond_idx], obs_init2[cond_idx]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=1)
         planned_traj1 =  planned_trajs[0] * std + mean
         # np.save("sampled_trajs/mpc_P34E5/mpc_traj1_%s.npy" % i, planned_traj1)
         planned_traj2 = planned_trajs[1] * std + mean
@@ -278,4 +268,4 @@ if __name__ == "__main__":
 
     player = PolicyPlayer(env, render = False)
     cond_idx = 0
-    player.get_demo(seed = cond_idx*10, cond_idx = cond_idx, H=25, T=250)
+    player.get_demo(seed = cond_idx*10, cond_idx = cond_idx, H=25, T=400)
