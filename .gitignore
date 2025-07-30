@@ -11,8 +11,7 @@ old/random/data/full_traj_rand_10000.csv
 madiff/diffuser/datasets/data/mpe/
 madiff/checkpoints/
 ctde_conditional/trained_models/
-arm/lift/rollouts_pot/
-arm/lift/rollouts_grippause/
+arm/lift/rollouts/
 arm/lift/trained_models/
 arm/lift_bad/trained_models/
 arm/lift_hardware/trained_models/

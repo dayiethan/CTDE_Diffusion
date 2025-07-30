@@ -107,7 +107,7 @@ class PolicyPlayer:
     def load_model(self, expert_data1, expert_data2, obs_init1, obs_init2, obs, state_dim = 7, action_dim = 7):
         model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
         H = 25 # horizon, length of each trajectory
-        T = 400 # total time steps
+        T = 325 # total time steps
 
         obs = np.repeat(obs, repeats=T, axis=0)
         obs1 = np.hstack([obs_init1, obs_init2, obs])
@@ -131,7 +131,7 @@ class PolicyPlayer:
 
         # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_nolf_sitedata_grippause_rotvec")
+        action_cond_ode.load(extra="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_nolf_sitedata_grippauseshort_addpoints_rotvec")
 
         return action_cond_ode
 
@@ -175,7 +175,7 @@ class PolicyPlayer:
         return state0, state1
     
     
-    def reactive_mpc_plan(self, ode_model, initial_states, pot, segment_length=25, total_steps=400, n_implement=5):
+    def reactive_mpc_plan(self, ode_model, initial_states, pot, segment_length=25, total_steps=325, n_implement=5):
         """
         Plans a full trajectory (total_steps long) by iteratively planning
         segment_length-steps using the diffusion model and replanning at every timestep.
@@ -251,14 +251,14 @@ class PolicyPlayer:
         return np.array(full_traj)
 
     
-    def get_demo(self, seed, cond_idx, H=25, T=400):
+    def get_demo(self, seed, cond_idx, H=25, T=325):
         """
         Main file to get the demonstration data
         """
         obs = self.reset(seed)
 
         # Loading
-        expert_data = np.load("data/expert_actions_rotvec_site_grippause_20.npy")
+        expert_data = np.load("data/expert_actions_rotvec_site_grippauseshort_addpoints_20.npy")
         expert_data1 = expert_data[:, :, :7]
         expert_data2 = expert_data[:, :, 7:14]
         expert_data1 = create_mpc_dataset(expert_data1, planning_horizon=H)
@@ -274,7 +274,7 @@ class PolicyPlayer:
         obs_init1 = expert_data1[:, 0, :]
         obs_init2 = expert_data2[:, 0, :]
 
-        with open("data/pot_states_rotvec_site_grippause_20.npy", "rb") as f:
+        with open("data/pot_states_rotvec_site_grippauseshort_addpoints_20.npy", "rb") as f:
             obs = np.load(f)
 
         model = self.load_model(expert_data1, expert_data2, obs_init1, obs_init2, obs, state_dim = 7, action_dim = 7)
@@ -302,4 +302,4 @@ if __name__ == "__main__":
 
     player = PolicyPlayer(env, render = False)
     cond_idx = 0
-    player.get_demo(seed = cond_idx*10, cond_idx = cond_idx, H=25, T=400)
+    player.get_demo(seed = cond_idx*10, cond_idx = cond_idx, H=25, T=325)
