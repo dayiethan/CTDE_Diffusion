@@ -46,8 +46,8 @@ print(device)
 
 
 # Parameters
-n_gradient_steps = 50_000
-batch_size = 16
+n_gradient_steps = 100_000
+batch_size = 32
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 # model_size = {
 #     "d_model": 512,      # twice the transformer width
@@ -58,9 +58,9 @@ H = 200 # horizon, length of each trajectory
 T = 1000 # total time steps
 
 # Load expert data
-expert_data = np.load("data/expert_actions_rotmat_sparse_1000.npy")
-expert_data1_temp = expert_data[9:, :, :10]
-expert_data2_temp = expert_data[9:, :, 10:20]
+expert_data = np.load("data/expert_actions_rotmat_sparse_1100.npy")
+expert_data1_temp = expert_data[:, :, :10]
+expert_data2_temp = expert_data[:, :, 10:20]
 expert_data1 = create_mpc_dataset(expert_data1_temp, planning_horizon=H)
 expert_data2 = create_mpc_dataset(expert_data2_temp, planning_horizon=H)
 # breakpoint()
@@ -68,13 +68,13 @@ expert_data2 = create_mpc_dataset(expert_data2_temp, planning_horizon=H)
 # Compute mean and standard deviation
 combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
 try:
-    mean = np.load("data/mean_rotmat_1000.npy")
-    std = np.load("data/std_rotmat_1000.npy")
+    mean = np.load("data/mean_rotmat_1100.npy")
+    std = np.load("data/std_rotmat_1100.npy")
 except FileNotFoundError:
     mean = np.mean(combined_data, axis=(0,1))
     std = np.std(combined_data, axis=(0,1))
-    np.save("data/mean_rotmat_1000.npy", mean)
-    np.save("data/std_rotmat_1000.npy", std)
+    np.save("data/mean_rotmat_1100.npy", mean)
+    np.save("data/std_rotmat_1100.npy", std)
 
 # Normalize data
 expert_data1_temp = (expert_data1_temp - mean) / std
@@ -99,11 +99,8 @@ sigma_data1 = actions1.std().item()
 sigma_data2 = actions2.std().item()
 
 # Prepare conditional vectors for training
-with open("data/pot_states_1000.npy", "rb") as f:
-    obs = np.load(f)
 obs_init1 = expert_data1[:, 0, :]
 obs_init2 = expert_data2[:, 0, :]
-obs = np.repeat(obs, repeats=T, axis=0)
 obs1 = np.hstack([obs_init1, obs_init2])
 obs2 = np.hstack([obs_init2, obs_init1])
 obs1 = torch.FloatTensor(obs1).to(device)
@@ -114,14 +111,14 @@ attr_dim1 = attr1.shape[1]
 attr_dim2 = attr2.shape[1]
 
 # Training
-end = "_lift_mpc_P200E1_1000T_fullstate_nofinalpos_nopot_skewexpert_rotmat"
+end = "_lift_mpc_P200E1_1100T_fullstate_nofinalpos_nopot_rotmat_fixkinova_fulltrain"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, endpoint_loss=False)
-# action_cond_ode.save(extra=end)
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, endpoint_loss=False)
+action_cond_ode.save(extra=end)
 action_cond_ode.load(extra=end)
 
 # Sampling
-def reactive_mpc_plan(ode_model, initial_states, obs, segment_length=100, total_steps=2000, n_implement=1):
+def reactive_mpc_plan(ode_model, initial_states, segment_length=100, total_steps=2000, n_implement=1):
     """
     Plans a full trajectory (total_steps long) by iteratively planning
     segment_length-steps using the diffusion model and replanning at every timestep.
@@ -189,10 +186,10 @@ def reactive_mpc_plan(ode_model, initial_states, obs, segment_length=100, total_
 
 
 for i in range(10):
-    cond_idx = i
+    cond_idx = i + 10
     # breakpoint()
-    planned_trajs = reactive_mpc_plan(action_cond_ode, [expert_data1_temp[cond_idx][0], expert_data2_temp[cond_idx][0]], obs[cond_idx], segment_length=H, total_steps=T, n_implement=10)
+    planned_trajs = reactive_mpc_plan(action_cond_ode, [expert_data1_temp[cond_idx][0], expert_data2_temp[cond_idx][0]], segment_length=H, total_steps=T, n_implement=10)
     planned_traj1 =  planned_trajs[0] * std + mean
-    np.save("samples/P200E10_1000T_fullstate_nofinalpos_nopot_skewexpert_rotmat/planned_traj1_%s_new.npy" % cond_idx, planned_traj1)
+    np.save("samples/P200E10_1100T_fullstate_nofinalpos_nopot_rotmat_fixkinova_fulltrain/planned_traj1_%s_new.npy" % cond_idx, planned_traj1)
     planned_traj2 = planned_trajs[1] * std + mean
-    np.save("samples/P200E10_1000T_fullstate_nofinalpos_nopot_skewexpert_rotmat/planned_traj2_%s_new.npy" % cond_idx, planned_traj2)
+    np.save("samples/P200E10_1100T_fullstate_nofinalpos_nopot_rotmat_fixkinova_fulltrain/planned_traj2_%s_new.npy" % cond_idx, planned_traj2)
