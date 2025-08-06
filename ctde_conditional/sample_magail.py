@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
+import pdb
 
 # 1) Device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -69,13 +70,15 @@ num_samples = 100
 T = expert1.shape[1]
 
 plt.figure(figsize=(8, 8))
-for _ in range(num_samples):
+for i in range(num_samples):
     idx = np.random.randint(len(expert1))
     init1, goal1 = expert1[idx, 0], expert1[idx, -1]
     init2, goal2 = expert2[idx, 0], expert2[idx, -1]
 
     traj1 = sample_trajectory(G1, init1, goal1, T)
+    np.save(f"sampled_trajs/magail/vary_init/mpc_traj1_{i}.npy", traj1)
     traj2 = sample_trajectory(G2, init2, goal2, T)
+    np.save(f"sampled_trajs/magail/vary_init/mpc_traj2_{i}.npy", traj2)
 
     plt.plot(traj1[:,0], traj1[:,1], color='blue', alpha=0.7)
     plt.plot(traj2[:,0], traj2[:,1], color='orange', alpha=0.7)
@@ -106,21 +109,24 @@ T        = expert1.shape[1]
 N = 100
 rollouts1 = [sample_trajectory(G1, init1, goal1, T) for _ in range(N)]
 rollouts2 = [sample_trajectory(G2, init2, goal2, T) for _ in range(N)]
+for i in range(N):
+    np.save(f"sampled_trajs/magail/static_init/mpc_traj1_{i}.npy", rollouts1[i])
+    np.save(f"sampled_trajs/magail/static_init/mpc_traj2_{i}.npy", rollouts2[i])
 
-# --- compute diversity metric -------------------
-# pairwise L2 distance between trajectories
-def traj_dist(a, b):
-    return np.linalg.norm(a - b)
+# # --- compute diversity metric -------------------
+# # pairwise L2 distance between trajectories
+# def traj_dist(a, b):
+#     return np.linalg.norm(a - b)
 
-dists1 = [traj_dist(r1, r2) 
-          for i, r1 in enumerate(rollouts1) 
-          for r2 in rollouts1[i+1:]]
-dists2 = [traj_dist(r1, r2) 
-          for i, r1 in enumerate(rollouts2) 
-          for r2 in rollouts2[i+1:]]
+# dists1 = [traj_dist(r1, r2) 
+#           for i, r1 in enumerate(rollouts1) 
+#           for r2 in rollouts1[i+1:]]
+# dists2 = [traj_dist(r1, r2) 
+#           for i, r1 in enumerate(rollouts2) 
+#           for r2 in rollouts2[i+1:]]
 
-print(f"Agent 1 pairwise mean‒std‒dev: {np.std(dists1):.3e}")
-print(f"Agent 2 pairwise mean‒std‒dev: {np.std(dists2):.3e}")
+# print(f"Agent 1 pairwise mean‒std‒dev: {np.std(dists1):.3e}")
+# print(f"Agent 2 pairwise mean‒std‒dev: {np.std(dists2):.3e}")
 
 # --- plot all rollouts --------------------------------
 plt.figure(figsize=(6,6))

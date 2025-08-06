@@ -175,7 +175,7 @@ class PolicyPlayer:
         return state0, state1
     
     
-    def reactive_mpc_plan(self, ode_model, initial_states, pot, segment_length=25, total_steps=325, n_implement=5):
+    def reactive_mpc_plan(self, ode_model, initial_states, pot, segment_length=25, total_steps=325, n_implement=2):
         """
         Plans a full trajectory (total_steps long) by iteratively planning
         segment_length-steps using the diffusion model and replanning at every timestep.
