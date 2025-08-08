@@ -164,9 +164,9 @@ for i in range(100):
             state2 = torch.tensor(np.hstack([next_state2, final2]), dtype=torch.float32).unsqueeze(0)
 
     generated_trajectories1.append(np.array(traj1))
-    np.save(f"sampled_trajs/bc/mpc_traj1_{i}.npy", np.array(traj1))
+    # np.save(f"sampled_trajs/bc/mpc_traj1_{i}.npy", np.array(traj1))
     generated_trajectories2.append(np.array(traj2))
-    np.save(f"sampled_trajs/bc/mpc_traj2_{i}.npy", np.array(traj2))
+    # np.save(f"sampled_trajs/bc/mpc_traj2_{i}.npy", np.array(traj2))
 
 
 # Plotting

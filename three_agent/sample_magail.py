@@ -24,9 +24,9 @@ class GenNet(nn.Module):
 G1 = GenNet().to(device)
 G2 = GenNet().to(device)
 G3 = GenNet().to(device)
-G1.load_state_dict(torch.load("trained_models/magail/G1.pth", map_location=device))
-G2.load_state_dict(torch.load("trained_models/magail/G2.pth", map_location=device))
-G3.load_state_dict(torch.load("trained_models/magail/G3.pth", map_location=device))
+G1.load_state_dict(torch.load("trained_models/magail_ctde/G1.pth", map_location=device))
+G2.load_state_dict(torch.load("trained_models/magail_ctde/G2.pth", map_location=device))
+G3.load_state_dict(torch.load("trained_models/magail_ctde/G3.pth", map_location=device))
 G1.eval(); G2.eval(); G3.eval()
 
 # 4) Load expert trajectories for normalization & conditioning
@@ -81,11 +81,11 @@ for i in range(num_samples):
     init3, goal3 = expert_data3[idx, 0], expert_data3[idx, -1]
 
     traj1 = sample_trajectory(G1, init1, goal1, T)
-    np.save(f"sampled_trajs/magail/vary_init/traj1_{i}.npy", traj1)
+    np.save(f"sampled_trajs/magail_ctde/vary_init/traj1_{i}.npy", traj1)
     traj2 = sample_trajectory(G2, init2, goal2, T)
-    np.save(f"sampled_trajs/magail/vary_init/traj2_{i}.npy", traj2)
+    np.save(f"sampled_trajs/magail_ctde/vary_init/traj2_{i}.npy", traj2)
     traj3 = sample_trajectory(G3, init3, goal3, T)
-    np.save(f"sampled_trajs/magail/vary_init/traj3_{i}.npy", traj3)
+    np.save(f"sampled_trajs/magail_ctde/vary_init/traj3_{i}.npy", traj3)
 
     plt.plot(traj1[:,0], traj1[:,1], color='blue', alpha=0.7)
     plt.plot(traj2[:,0], traj2[:,1], color='orange', alpha=0.7)
@@ -122,9 +122,9 @@ rollouts1 = [sample_trajectory(G1, init1, goal1, T) for _ in range(N)]
 rollouts2 = [sample_trajectory(G2, init2, goal2, T) for _ in range(N)]
 rollouts3 = [sample_trajectory(G3, init3, goal3, T) for _ in range(N)]
 for i in range(N):
-    np.save(f"sampled_trajs/magail/static_init/traj1_{i}.npy", rollouts1[i])
-    np.save(f"sampled_trajs/magail/static_init/traj2_{i}.npy", rollouts2[i])
-    np.save(f"sampled_trajs/magail/static_init/traj3_{i}.npy", rollouts3[i])
+    np.save(f"sampled_trajs/magail_ctde/static_init/traj1_{i}.npy", rollouts1[i])
+    np.save(f"sampled_trajs/magail_ctde/static_init/traj2_{i}.npy", rollouts2[i])
+    np.save(f"sampled_trajs/magail_ctde/static_init/traj3_{i}.npy", rollouts3[i])
 
 # # --- compute diversity metric -------------------
 # # pairwise L2 distance between trajectories
