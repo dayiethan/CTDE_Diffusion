@@ -35,15 +35,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
 # Parameters
-n_gradient_steps = 200_000
-batch_size = 64
-model_size = {
-    "d_model": 512,      # twice the transformer width
-    "n_heads": 8,        # more attention heads
-    "depth":   6,        # twice the number of layers
-    "lin_scale": 256,    # larger conditional embedder
-}
-# model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
+n_gradient_steps = 100_000
+batch_size = 32
+# model_size = {
+#     "d_model": 512,      # twice the transformer width
+#     "n_heads": 8,        # more attention heads
+#     "depth":   6,        # twice the number of layers
+#     "lin_scale": 256,    # larger conditional embedder
+# }
+model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 25 # horizon, length of each trajectory
 T = 100 # total time steps
 
@@ -123,29 +123,11 @@ sigma_data2 = actions2.std().item()
 sig = np.array([sigma_data1, sigma_data2])
 
 # Training
-end = "_P25E1_nolf_final"
+end = "_P25E1_nolf"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, subdirect="mpc/")
-action_cond_ode.save(subdirect="mpc/", extra=end)
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, subdirect="mpc/")
+# action_cond_ode.save(subdirect="mpc/", extra=end)
 action_cond_ode.load(subdirect="mpc/", extra=end)
-
-
-
-# Sampling preparation
-noise_std = 0.
-noise = np.ones(np.shape(obs_temp1))
-obs_temp1 = obs_temp1 + noise_std * noise
-obs_temp2 = obs_temp2 + noise_std * noise
-obs_temp_tensor1 = torch.FloatTensor(obs_temp1).to(device)
-obs_temp_tensor2 = torch.FloatTensor(obs_temp2).to(device)
-attr_test1 = obs_temp_tensor1
-attr_test2 = obs_temp_tensor2
-expert_data1 = expert_data1 * std + mean
-expert_data2 = expert_data2 * std + mean
-ref1 = np.mean(expert_data1, axis=0)
-ref2 = np.mean(expert_data2, axis=0)
-ref_agent1 = ref1[:, :]
-ref_agent2 = ref2[:, :]
 
 # Sampling
 for i in range(100):
@@ -164,9 +146,9 @@ for i in range(100):
 
     planned_traj1 =  planned_trajs[0] * std + mean
 
-    np.save("sampled_trajs/mpc_P25E1_nolf_final/mpc_traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_P25E1_nolf_redo2/mpc_traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std + mean
 
-    np.save("sampled_trajs/mpc_P25E1_nolf_final/mpc_traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_P25E1_nolf_redo2/mpc_traj2_%s.npy" % i, planned_traj2)
 
