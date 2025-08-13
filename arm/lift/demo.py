@@ -71,9 +71,30 @@ class PolicyPlayer:
         self.rollout = {}
         self.rollout["observations"] = []
         self.rollout["actions"] = []
+        self.rollout["pot_states1"] = []   # per-step pot/handle state (6,)
+        self.rollout["pot_states2"] = []   # per-step pot/handle state (6,)
+
 
         return obs
+    
+    def get_pot_state_local(self):
+        """
+        Return current pot handle positions expressed in each robot's base frame,
+        stacked as [h0_local (3), h1_local (3)].
+        """
+        # World-frame handle positions from the env
+        h0_w = self.env._handle0_xpos
+        h1_w = self.env._handle1_xpos
 
+        # Express in each robot's base frame and apply the same small handle offset
+        h0_robot0 = self.robot0_base_ori_rotm.T @ (h0_w - self.robot0_base_pos) + self.pot_handle_offset
+        h0_robot1 = self.robot1_base_ori_rotm.T @ (h0_w - self.robot1_base_pos) + self.pot_handle_offset
+        h1_robot0 = self.robot0_base_ori_rotm.T @ (h1_w - self.robot0_base_pos) + self.pot_handle_offset
+        h1_robot1 = self.robot1_base_ori_rotm.T @ (h1_w - self.robot1_base_pos) + self.pot_handle_offset
+
+        return h0_robot0, h1_robot1
+        return np.hstack([h0_robot0, h1_robot0]).astype(np.float32), np.hstack([h0_robot1, h1_robot1]).astype(np.float32)
+    
     def setup_waypoints(self, mode = 1):
         self.waypoints_robot0 = []
         self.waypoints_robot1 = []
@@ -302,6 +323,9 @@ class PolicyPlayer:
             obs, reward, done, info = self.env.step(action)
             self.rollout["observations"].append(self.process_obs(obs))
             self.rollout["actions"].append(action)
+            self.rollout["pot_states1"].append(self.get_pot_state_local()[0])
+            self.rollout["pot_states2"].append(self.get_pot_state_local()[1])
+
 
             time.sleep(sleeptime)
 
@@ -333,6 +357,9 @@ class PolicyPlayer:
             obs, reward, done, info = self.env.step(action)
             self.rollout["observations"].append(self.process_obs(obs))
             self.rollout["actions"].append(action)
+            self.rollout["pot_states1"].append(self.get_pot_state_local()[0])
+            self.rollout["pot_states2"].append(self.get_pot_state_local()[1])
+
 
             time.sleep(sleeptime)
 
@@ -362,6 +389,9 @@ class PolicyPlayer:
             obs, reward, done, info = self.env.step(action)
             self.rollout["observations"].append(self.process_obs(obs))
             self.rollout["actions"].append(action)
+            self.rollout["pot_states1"].append(self.get_pot_state_local()[0])
+            self.rollout["pot_states2"].append(self.get_pot_state_local()[1])
+
 
             time.sleep(sleeptime)
 
@@ -394,6 +424,9 @@ class PolicyPlayer:
             obs, reward, done, info = self.env.step(action)
             self.rollout["observations"].append(self.process_obs(obs))
             self.rollout["actions"].append(action)
+            self.rollout["pot_states1"].append(self.get_pot_state_local()[0])
+            self.rollout["pot_states2"].append(self.get_pot_state_local()[1])
+
 
             time.sleep(sleeptime)
 
@@ -426,6 +459,9 @@ class PolicyPlayer:
             obs, reward, done, info = self.env.step(action)
             self.rollout["observations"].append(self.process_obs(obs))
             self.rollout["actions"].append(action)
+            self.rollout["pot_states1"].append(self.get_pot_state_local()[0])
+            self.rollout["pot_states2"].append(self.get_pot_state_local()[1])
+
 
             time.sleep(sleeptime)
 
@@ -458,6 +494,9 @@ class PolicyPlayer:
             obs, reward, done, info = self.env.step(action)
             self.rollout["observations"].append(self.process_obs(obs))
             self.rollout["actions"].append(action)
+            self.rollout["pot_states1"].append(self.get_pot_state_local()[0])
+            self.rollout["pot_states2"].append(self.get_pot_state_local()[1])
+
 
             time.sleep(sleeptime)
 
@@ -490,6 +529,9 @@ class PolicyPlayer:
             obs, reward, done, info = self.env.step(action)
             self.rollout["observations"].append(self.process_obs(obs))
             self.rollout["actions"].append(action)
+            self.rollout["pot_states1"].append(self.get_pot_state_local()[0])
+            self.rollout["pot_states2"].append(self.get_pot_state_local()[1])
+
 
             time.sleep(sleeptime)
 
@@ -521,6 +563,9 @@ class PolicyPlayer:
             obs, reward, done, info = self.env.step(action)
             self.rollout["observations"].append(self.process_obs(obs))
             self.rollout["actions"].append(action)
+            self.rollout["pot_states1"].append(self.get_pot_state_local()[0])
+            self.rollout["pot_states2"].append(self.get_pot_state_local()[1])
+
 
             time.sleep(sleeptime)
 
@@ -550,7 +595,6 @@ class PolicyPlayer:
     
         
 if __name__ == "__main__":
-    CAMERA_NAMES = ['frontview', 'birdview', 'agentview', 'sideview', 'robot0_robotview', 'robot0_eye_in_hand', 'robot1_robotview', 'robot1_eye_in_hand']
     controller_config = load_composite_controller_config(robot="Kinova3", controller="kinova.json")
 
     env = TwoArmLiftRole(
@@ -560,17 +604,15 @@ if __name__ == "__main__":
     has_renderer=False,
     has_offscreen_renderer=False,
     use_camera_obs=False,
-    #/ render_camera=None,
+    # render_camera=None,
     )
 
     player = PolicyPlayer(env, render = False)
     # rollout = player.get_demo(seed = 100, mode = 3)
     for i in range(200):   
         rollout = player.get_demo(seed = i*10, mode = 2)
-        rollout['pot_pos'] = [player.pot_handle0_pos, player.pot_handle1_pos]
-        with open("rollouts/grippauseshort_addpoints/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
+        with open("rollouts/grippauseshort_addpoints_currpotpos/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
             pkl.dump(rollout, f)
         rollout = player.get_demo(seed = i*10, mode = 3)
-        rollout['pot_pos'] = [player.pot_handle0_pos, player.pot_handle1_pos]
-        with open("rollouts/grippauseshort_addpoints/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
+        with open("rollouts/grippauseshort_addpoints_currpotpos/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
             pkl.dump(rollout, f)

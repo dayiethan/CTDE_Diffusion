@@ -67,20 +67,27 @@ expert_data2 = create_mpc_dataset(expert_data2_temp, planning_horizon=H)
 
 # Compute mean and standard deviation
 combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
+# breakpoint()
 try:
-    mean = np.load("data/mean_rotmat_1100.npy")
-    std = np.load("data/std_rotmat_1100.npy")
+    kinova_mean = np.load("data/mean_kinova_rotmat_1100.npy")
+    kinova_std = np.load("data/std_kinova_rotmat_1100.npy")
+    xarm_mean = np.load("data/mean_xarm_rotmat_1100.npy")
+    xarm_std = np.load("data/std_xarm_rotmat_1100.npy")
 except FileNotFoundError:
-    mean = np.mean(combined_data, axis=(0,1))
-    std = np.std(combined_data, axis=(0,1))
-    np.save("data/mean_rotmat_1100.npy", mean)
-    np.save("data/std_rotmat_1100.npy", std)
+    kinova_mean = np.mean(expert_data1, axis=(0, 1))
+    kinova_std = np.std(expert_data1, axis=(0, 1))
+    xarm_mean = np.mean(expert_data2, axis=(0, 1))
+    xarm_std = np.std(expert_data2, axis=(0, 1))
+    np.save("data/mean_kinova_rotmat_1100.npy", kinova_mean)
+    np.save("data/std_kinova_rotmat_1100.npy", kinova_std)
+    np.save("data/mean_xarm_rotmat_1100.npy", xarm_mean)
+    np.save("data/std_xarm_rotmat_1100.npy", xarm_std)
 
 # Normalize data
-expert_data1_temp = (expert_data1_temp - mean) / std
-expert_data2_temp = (expert_data2_temp - mean) / std
-expert_data1 = (expert_data1 - mean) / std
-expert_data2 = (expert_data2 - mean) / std
+expert_data1_temp = (expert_data1_temp - kinova_mean) / kinova_std
+expert_data2_temp = (expert_data2_temp - xarm_mean) / xarm_std
+expert_data1 = (expert_data1 - kinova_mean) / kinova_std
+expert_data2 = (expert_data2 - xarm_mean) / xarm_std
 
 # Define an enviornment objcet which has attrubutess like name, state_size, action_size etc
 class TwoArmLift():
@@ -109,13 +116,12 @@ attr1 = obs1
 attr2 = obs2
 attr_dim1 = attr1.shape[1]
 attr_dim2 = attr2.shape[1]
-breakpoint()
 
 # Training
-end = "_lift_mpc_P200E1_1100T_fullstate_nofinalpos_nopot_rotmat_fixkinova"
+end = "_lift_mpc_P200E1_1100T_fullstate_nofinalpos_nopot_rotmat_fixkinova_separatenorm"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=10, n_models = 2, **model_size)
-# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, endpoint_loss=False)
-# action_cond_ode.save(extra=end)
+action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, endpoint_loss=False)
+action_cond_ode.save(extra=end)
 action_cond_ode.load(extra=end)
 
 # Sampling
@@ -190,7 +196,7 @@ for i in range(10):
     cond_idx = i
     # breakpoint()
     planned_trajs = reactive_mpc_plan(action_cond_ode, [expert_data1_temp[cond_idx][0], expert_data2_temp[cond_idx][0]], segment_length=H, total_steps=T, n_implement=10)
-    planned_traj1 =  planned_trajs[0] * std + mean
-    np.save("samples/P200E10_1100T_fullstate_nofinalpos_nopot_rotmat_fixkinova_denoise10/planned_traj1_%s_new.npy" % cond_idx, planned_traj1)
-    planned_traj2 = planned_trajs[1] * std + mean
-    np.save("samples/P200E10_1100T_fullstate_nofinalpos_nopot_rotmat_fixkinova_denoise10/planned_traj2_%s_new.npy" % cond_idx, planned_traj2)
+    planned_traj1 =  planned_trajs[0] * kinova_std + kinova_mean
+    np.save("samples/P200E10_1100T_fullstate_nofinalpos_nopot_rotmat_fixkinova_separatenorm_denoise10/planned_traj1_%s_new.npy" % cond_idx, planned_traj1)
+    planned_traj2 = planned_trajs[1] * xarm_std + xarm_mean
+    np.save("samples/P200E10_1100T_fullstate_nofinalpos_nopot_rotmat_fixkinova_separatenorm_denoise10/planned_traj2_%s_new.npy" % cond_idx, planned_traj2)
