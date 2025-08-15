@@ -1,0 +1,372 @@
+# This script is used to sample the Conditional ODE model for the Two Arm Lift task and execute the demo.
+# It uses the 3-dimensional rotation vector of the arm's state and action.
+
+import time
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+import pdb
+import pickle as pkl
+import copy
+import robosuite as suite
+from robosuite.controllers import load_composite_controller_config
+from conditional_Action_DiT import Conditional_ODE
+from env import TwoArmLiftRole
+from scipy.spatial.transform import Rotation as R
+from transform_utils import SE3_log_map, SE3_exp_map, quat_to_rot6d, rotvec_to_rot6d, rot6d_to_quat, rot6d_to_rotvec
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+class TwoArmLift():
+    def __init__(self, state_size=7, action_size=7):
+        self.state_size = state_size
+        self.action_size = action_size
+        self.name = "TwoArmLift"
+
+def create_mpc_dataset(expert_data, planning_horizon=25):
+    n_traj, horizon, state_dim = expert_data.shape
+    n_subtraj = horizon  # we'll create one sub-trajectory starting at each time step
+
+    # Resulting array shape: (n_traj * n_subtraj, planning_horizon, state_dim)
+    result = []
+
+    for traj in expert_data:
+        for start_idx in range(n_subtraj):
+            # If not enough steps, pad with the last step
+            end_idx = start_idx + planning_horizon
+            if end_idx <= horizon:
+                sub_traj = traj[start_idx:end_idx]
+            else:
+                # Need padding
+                sub_traj = traj[start_idx:]
+                padding = np.repeat(traj[-1][np.newaxis, :], end_idx - horizon, axis=0)
+                sub_traj = np.concatenate([sub_traj, padding], axis=0)
+            result.append(sub_traj)
+
+    result = np.stack(result, axis=0)
+    return result
+
+class PolicyPlayer:
+    def __init__ (self, env, render = False):
+        self.env = env
+
+        self.control_freq = env.control_freq
+        self.dt = 1.0 / self.control_freq
+        self.max_time = 10
+        self.max_steps = int(self.max_time / self.dt)
+
+        self.render = render
+
+        # Extract the base position and orientation (quaternion) from the simulation data
+        robot0_base_body_id = self.env.sim.model.body_name2id("robot0_base")
+        self.robot0_base_pos = self.env.sim.data.body_xpos[robot0_base_body_id]
+        self.robot0_base_ori_rotm = self.env.sim.data.body_xmat[robot0_base_body_id].reshape((3,3))
+
+        robot1_base_body_id = self.env.sim.model.body_name2id("robot1_base")
+        self.robot1_base_pos = self.env.sim.data.body_xpos[robot1_base_body_id]
+        self.robot1_base_ori_rotm = self.env.sim.data.body_xmat[robot1_base_body_id].reshape((3,3))
+
+        # Rotation matrix of robots for the home position, both in their own base frame
+        self.R_be_home = np.array([[0, 1, 0],
+                                  [1, 0, 0],
+                                  [0, 0, -1]])
+
+        self.n_action = self.env.action_spec[0].shape[0]
+
+        # Setting up constants
+        self.pot_handle_offset_z = 0.012
+        self.pot_handle_offset_x = 0.015
+        self.pot_handle_offset = np.array([self.pot_handle_offset_x, 0, self.pot_handle_offset_z])
+        self.pot_handle0_pos = self.robot0_base_ori_rotm.T @ (self.env._handle0_xpos - self.robot0_base_pos) + self.pot_handle_offset
+        self.pot_handle1_pos = self.robot1_base_ori_rotm.T @ (self.env._handle1_xpos - self.robot1_base_pos) + self.pot_handle_offset
+
+    def reset(self, seed = 0):
+        """
+        Resetting environment. Re-initializing the waypoints too.
+        """
+        np.random.seed(seed)
+        obs = self.env.reset()
+
+        # Setting up constants
+        self.pot_handle_offset_z = 0.012
+        self.pot_handle_offset_x = 0.015
+        self.pot_handle_offset = np.array([self.pot_handle_offset_x, 0, self.pot_handle_offset_z])
+        self.pot_handle0_pos = self.robot0_base_ori_rotm.T @ (self.env._handle0_xpos - self.robot0_base_pos) + self.pot_handle_offset
+        self.pot_handle1_pos = self.robot1_base_ori_rotm.T @ (self.env._handle1_xpos - self.robot1_base_pos) + self.pot_handle_offset
+        jnt_id_0 = self.env.sim.model.joint_name2id("gripper0_right_finger_joint") #gripper0_right_finger_joint, gripper0_right_right_outer_knuckle_joint
+        self.qpos_index_0 = self.env.sim.model.jnt_qposadr[jnt_id_0]
+        jnt_id_1 = self.env.sim.model.joint_name2id("gripper1_right_finger_joint") #gripper0_right_finger_joint, gripper0_right_right_outer_knuckle_joint
+        self.qpos_index_1 = self.env.sim.model.jnt_qposadr[jnt_id_1]
+
+        self.rollout = {}
+        self.rollout["observations"] = []
+        self.rollout["actions"] = []
+
+        return obs
+    
+    def get_pot_state_local(self):
+        """
+        Return current pot handle positions expressed in each robot's base frame,
+        stacked as [h0_local (3), h1_local (3)].
+        """
+        # World-frame handle positions from the env
+        h0_w = self.env._handle0_xpos
+        h1_w = self.env._handle1_xpos
+
+        # Express in each robot's base frame and apply the same small handle offset
+        h0_robot0 = self.robot0_base_ori_rotm.T @ (h0_w - self.robot0_base_pos) + self.pot_handle_offset
+        h0_robot1 = self.robot1_base_ori_rotm.T @ (h0_w - self.robot1_base_pos) + self.pot_handle_offset
+        h1_robot0 = self.robot0_base_ori_rotm.T @ (h1_w - self.robot0_base_pos) + self.pot_handle_offset
+        h1_robot1 = self.robot1_base_ori_rotm.T @ (h1_w - self.robot1_base_pos) + self.pot_handle_offset
+
+        return h0_robot0, h1_robot1
+
+    def load_model(self, expert_data1, expert_data2, obs_init1, obs_init2, pot1, pot2, state_dim=7, action_dim=7):
+        model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
+        H = 25  # horizon used during training
+        # Infer pot feature dimension from the array you pass in (N, T, D_pot) or (T, D_pot)
+        pot_dim = int(pot1.shape[-1])
+
+        # Attribute dimensions that MATCH TRAINING:
+        #   leader:   7 (self) + D_pot
+        #   follower: 7 (self) + 7 (leader) + D_pot + 1 (dist)
+        attr_dim1 = 7 + pot_dim
+        attr_dim2 = 7 + 7 + pot_dim + 1
+
+        # sigma_data from actions (unchanged)
+        actions1 = torch.as_tensor(expert_data1[:, :H, :], dtype=torch.float32, device=device)
+        actions2 = torch.as_tensor(expert_data2[:, :H, :], dtype=torch.float32, device=device)
+        sigma_data1 = actions1.std().item()
+        sigma_data2 = actions2.std().item()
+
+        env = TwoArmLift(state_size=state_dim, action_size=action_dim)
+
+        action_cond_ode = Conditional_ODE(
+            env,
+            [attr_dim1, attr_dim2],
+            [sigma_data1, sigma_data2],
+            device=device,
+            N=100,
+            n_models=2,
+            **model_size,
+        )
+
+        action_cond_ode.load(
+            extra="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_lf_sitedata_grippauseshort_addpoints_rotvec_separatenorm_dist_currpotpos"
+        )
+        return action_cond_ode
+
+    
+    def obs_to_state(self, obs):
+        """
+        Read the two arms’ current 7D states (local pos, rotation-vector, gripper)
+        using the correct end-effector SITE frame for rotation.
+        """
+
+        # --- Robot 0 ---
+        # 1) World->local for position
+        world_pos0 = obs["robot0_eef_pos"]
+        local_pos0 = self.robot0_base_ori_rotm.T @ (world_pos0 - self.robot0_base_pos)
+        
+        # 2) Get rotation vector from the SITE quaternion
+        quat0_site = obs["robot0_eef_quat_site"]
+        R_world_to_site0 = R.from_quat(quat0_site).as_matrix()
+        R_base_to_site0 = self.robot0_base_ori_rotm.T @ R_world_to_site0
+        rotvec0 = R.from_matrix(R_base_to_site0).as_rotvec()
+
+        # 3) Gripper joint position
+        grip0 = self.env.sim.data.qpos[self.qpos_index_0]
+        state0 = np.hstack([local_pos0, rotvec0, grip0])
+
+        # --- Robot 1 ---
+        # 1) World->local for position
+        world_pos1 = obs["robot1_eef_pos"]
+        local_pos1 = self.robot1_base_ori_rotm.T @ (world_pos1 - self.robot1_base_pos)
+
+        # 2) Get rotation vector from the SITE quaternion
+        quat1_site = obs["robot1_eef_quat_site"]
+        R_world_to_site1 = R.from_quat(quat1_site).as_matrix()
+        R_base_to_site1 = self.robot1_base_ori_rotm.T @ R_world_to_site1
+        rotvec1 = R.from_matrix(R_base_to_site1).as_rotvec()
+
+        # 3) Gripper joint position
+        grip1 = self.env.sim.data.qpos[self.qpos_index_1]
+        state1 = np.hstack([local_pos1, rotvec1, grip1])
+
+        return state0, state1
+    
+    
+    def reactive_mpc_plan(self, ode_model, initial_states, pots,
+                      segment_length=25, total_steps=325, n_implement=2):
+        """
+        Matches training attrs:
+        Leader:   [ self_norm, pot_raw ]
+        Follower: [ self_norm, leader_norm, pot_raw, dist_norm ]
+        """
+        eps = 1e-6
+
+        def _pot_vec(p):
+            """Return 1-D pot in raw units; handles (T,D) or (D,)."""
+            p = np.asarray(p)
+            if p.ndim == 2:   # window: take current-time slice for this replan
+                p = p[0]
+            assert p.ndim == 1, f"Expected pot 1-D, got {p.shape}"
+            return p.astype(np.float32)
+
+        def _denorm_pos(norm_state, mean_arm, std_arm):
+            """De-normalize first 3 dims (EEF pos) to meters."""
+            return norm_state[:3] * std_arm[:3] + mean_arm[:3]
+
+        full_traj = []
+        current_states = [s.copy() for s in initial_states]  # each (7,) normalized per arm
+        current_pot1 = _pot_vec(pots[0])  # (D_pot,) raw units
+        current_pot2 = _pot_vec(pots[1])  # (D_pot,) raw units
+
+        for seg in range(total_steps // n_implement):
+            segments = []
+            base_states = [s.copy() for s in current_states]  # snapshot for this replan
+
+            # pot at start of this replan (raw units, 1-D)
+            base_pot1 = current_pot1.copy()  # (D_pot,)
+            base_pot2 = current_pot2.copy()  # (D_pot,
+
+            # distance (meters) from de-normalized positions, then z-score
+            p0 = _denorm_pos(base_states[0], self.mean_arm1, self.std_arm1)
+            p1 = _denorm_pos(base_states[1], self.mean_arm2, self.std_arm2)
+            dist_curr = float(np.linalg.norm(p0 - p1))
+            dist_n = np.array([(dist_curr - float(self.dist_mean)) / (float(self.dist_std) + eps)],
+                            dtype=np.float32)  # shape (1,)
+
+            # 1) sample a normalized-action segment for each arm
+            for i in range(len(base_states)):
+                if i == 0:
+                    # Leader: [self_norm, pot_raw]
+                    cond_parts = [base_states[i], base_pot1]
+                else:
+                    # Follower: [self_norm, leader_norm, pot_raw, dist_norm]
+                    cond_parts = [base_states[i], base_states[0], base_pot2, dist_n]
+
+                cond = np.hstack(cond_parts).astype(np.float32)
+                cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
+
+                sampled = ode_model.sample(
+                    attr=cond_tensor,
+                    traj_len=segment_length,
+                    n_samples=1,
+                    w=1.,
+                    model_index=i
+                )
+                seg_i = sampled[0].cpu().detach().numpy()  # (segment_length, 7) (arm-normalized)
+
+                # choose the n_implement actions to execute now and the "next" state
+                if seg == 0:
+                    step_block = seg_i[0:n_implement, :]
+                    next_norm  = seg_i[n_implement - 1, :]
+                else:
+                    step_block = seg_i[1:n_implement + 1, :]
+                    next_norm  = seg_i[n_implement, :]
+
+                segments.append(step_block)
+                current_states[i] = next_norm
+
+            # 2) execute those n_implement actions on the real robot (per-arm denorm)
+            for t in range(n_implement):
+                action1 = segments[0][t] * self.std_arm1 + self.mean_arm1
+                action2 = segments[1][t] * self.std_arm2 + self.mean_arm2
+                action = np.hstack([action1, action2])
+                obs_env, reward, done, info = self.env.step(action)
+                if self.render:
+                    self.env.render()
+
+                current_pot1, current_pot2 = self.get_pot_state_local()
+                current_pot1 = (current_pot1 - self.mean_pot1) / self.std_pot1
+                current_pot2 = (current_pot2 - self.mean_pot2) / self.std_pot2
+
+                # 3) re-condition on true state (per-arm renorm)
+                state1, state2 = self.obs_to_state(obs_env)
+                current_states = [
+                    (state1 - self.mean_arm1) / self.std_arm1,
+                    (state2 - self.mean_arm2) / self.std_arm2,
+                ]
+
+            full_traj.append(np.stack([s for s in segments], axis=0))
+
+        full_traj = np.concatenate(full_traj, axis=1)
+        print("Full trajectory shape:", np.shape(full_traj))
+        return np.array(full_traj)
+
+
+    
+    def get_demo(self, seed, cond_idx, H=25, T=325):
+        """
+        Main file to get the demonstration data
+        """
+        obs = self.reset(seed)
+
+        # Loading
+        expert_data = np.load("data/expert_actions_rotvec_site_grippauseshort_addpoints_currpotpos_100.npy")
+        pot1_raw = np.load("data/pot_states1_rotvec_site_grippauseshort_addpoints_currpotpos_100.npy")
+        pot2_raw = np.load("data/pot_states2_rotvec_site_grippauseshort_addpoints_currpotpos_100.npy")
+        expert_data1 = expert_data[:, :, :7]
+        expert_data2 = expert_data[:, :, 7:14]
+        expert_data1 = create_mpc_dataset(expert_data1, planning_horizon=H)
+        expert_data2 = create_mpc_dataset(expert_data2, planning_horizon=H)
+        pot1 = create_mpc_dataset(pot1_raw, planning_horizon=H)
+        pot2 = create_mpc_dataset(pot2_raw, planning_horizon=H)
+        dist_seq = np.linalg.norm(expert_data1[:, 0, :3] - expert_data2[:, 0, :3], axis=1)
+        # combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
+        # self.mean = np.mean(combined_data, axis=(0,1))
+        # self.std = np.std(combined_data, axis=(0,1))
+        # self.mean_arm1 = np.mean(expert_data1, axis=(0,1))
+        # self.std_arm1 = np.std(expert_data1, axis=(0,1))
+        # self.mean_arm2 = np.mean(expert_data2, axis=(0,1))
+        # self.std_arm2 = np.std(expert_data2, axis=(0,1))
+        self.mean_arm1 = np.load("data/mean_100_separatenorm_dist_arm1.npy")
+        self.std_arm1 = np.load("data/std_100_separatenorm_dist_arm1.npy")
+        self.mean_arm2 = np.load("data/mean_100_separatenorm_dist_arm2.npy")
+        self.std_arm2 = np.load("data/std_100_separatenorm_dist_arm2.npy")
+        self.dist_mean = np.load("data/mean_100_separatenorm_dist_eefdist.npy")
+        self.dist_std = np.load("data/std_100_separatenorm_dist_eefdist.npy")
+        self.mean_pot1 = np.load("data/mean_100_separatenorm_dist_pot1.npy")
+        self.std_pot1 = np.load("data/std_100_separatenorm_dist_pot1.npy")
+        self.mean_pot2 = np.load("data/mean_100_separatenorm_dist_pot2.npy")
+        self.std_pot2 = np.load("data/std_100_separatenorm_dist_pot2.npy")
+
+        # Normalize data
+        expert_data1 = (expert_data1 - self.mean_arm1) / self.std_arm1
+        expert_data2 = (expert_data2 - self.mean_arm2) / self.std_arm2
+        pot1 = (pot1 - self.mean_pot1) / self.std_pot1
+        pot2 = (pot2 - self.mean_pot2) / self.std_pot2
+        dist0 = ((dist_seq - self.dist_mean) / self.dist_std).reshape(-1, 1).astype(np.float32)
+
+        obs_init1 = expert_data1[:, 0, :]
+        obs_init2 = expert_data2[:, 0, :]
+        pot_init1 = pot1[:, 0, :]
+        pot_init2 = pot2[:, 0, :]
+
+        model = self.load_model(expert_data1, expert_data2, obs_init1, obs_init2, pot1, pot2, state_dim = 7, action_dim = 7)
+
+        planned_trajs = self.reactive_mpc_plan(model, [obs_init1[cond_idx], obs_init2[cond_idx]], [pot_init1[cond_idx], pot_init2[cond_idx]], segment_length=H, total_steps=T*2, n_implement=8)
+        planned_traj1 =  planned_trajs[0] * self.std_arm1 + self.mean_arm1
+        # np.save("sampled_trajs/mpc_P34E5/mpc_traj1_%s.npy" % i, planned_traj1)
+        planned_traj2 = planned_trajs[1] * self.std_arm2 + self.mean_arm2
+        # np.save("sampled_trajs/mpc_P34E5/mpc_traj2_%s.npy" % i, planned_traj2)
+
+    
+        
+if __name__ == "__main__":
+    controller_config = load_composite_controller_config(robot="Kinova3", controller="kinova.json")
+
+    env = TwoArmLiftRole(
+    robots=["Kinova3", "Kinova3"],
+    gripper_types="default",
+    controller_configs=controller_config,
+    has_renderer=True,
+    has_offscreen_renderer=True,
+    use_camera_obs=False,
+    render_camera=None,
+    )
+
+    player = PolicyPlayer(env, render = False)
+    cond_idx = 0
+    player.get_demo(seed = cond_idx*10, cond_idx = cond_idx, H=25, T=325)
