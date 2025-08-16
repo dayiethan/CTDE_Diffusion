@@ -19,3 +19,5 @@ arm/handover/rollouts/
 arm/handover/rollouts_pickup_pos/
 arm/handover/trained_models
 three_agent/trained_models
+
+**/__pycache__/

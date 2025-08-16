@@ -50,11 +50,6 @@ def rot6d_to_rotvec(rot6d):
     
     return rotvec
 
-def SE3_log_map(g):
-    p, R = g[:3,3], g[:3,:3]
-    r = R.as_rotvec()
-
-
 def hat_map(w):
     return np.array([[0, -w[2], w[1]],
                         [w[2], 0, -w[0]],
