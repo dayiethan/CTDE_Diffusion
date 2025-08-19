@@ -107,7 +107,7 @@ class PolicyPlayer:
     def load_model(self, expert_data1, expert_data2, obs_init1, obs_init2, obs, state_dim = 7, action_dim = 7):
         model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
         H = 25 # horizon, length of each trajectory
-        T = 600 # total time steps
+        T = 700 # total time steps
 
         obs = np.repeat(obs, repeats=T, axis=0)
         obs1 = np.hstack([obs_init1, obs])
@@ -131,7 +131,7 @@ class PolicyPlayer:
 
         # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_lf_sitedata_newslow_rotvec_separatenorm")
+        action_cond_ode.load(extra="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_lf_sitedata_newslower_rotvec_separatenorm")
 
         return action_cond_ode
 
@@ -253,14 +253,14 @@ class PolicyPlayer:
         return np.array(full_traj)
 
     
-    def get_demo(self, seed, cond_idx, H=25, T=325):
+    def get_demo(self, seed, cond_idx, H=25, T=700):
         """
         Main file to get the demonstration data
         """
         obs = self.reset(seed)
 
         # Loading
-        expert_data = np.load("data/expert_actions_new_slow_20.npy")
+        expert_data = np.load("data/expert_actions_newslower_20.npy")
         expert_data1 = expert_data[:, :, :7]
         expert_data2 = expert_data[:, :, 7:14]
         expert_data1 = create_mpc_dataset(expert_data1, planning_horizon=H)
@@ -280,12 +280,12 @@ class PolicyPlayer:
         obs_init1 = expert_data1[:, 0, :]
         obs_init2 = expert_data2[:, 0, :]
 
-        with open("data/pot_start_new_slow_20.npy", "rb") as f:
+        with open("data/pot_start_newslower_20.npy", "rb") as f:
             obs = np.load(f)
 
         model = self.load_model(expert_data1, expert_data2, obs_init1, obs_init2, obs, state_dim = 7, action_dim = 7)
 
-        planned_trajs = self.reactive_mpc_plan(model, [obs_init1[cond_idx], obs_init2[cond_idx]], obs[cond_idx], segment_length=H, total_steps=T*2, n_implement=10)
+        planned_trajs = self.reactive_mpc_plan(model, [obs_init1[cond_idx], obs_init2[cond_idx]], obs[cond_idx], segment_length=H, total_steps=T*5, n_implement=10)
         planned_traj1 =  planned_trajs[0] * self.std_arm1 + self.mean_arm1
         # np.save("sampled_trajs/mpc_P34E5/mpc_traj1_%s.npy" % i, planned_traj1)
         planned_traj2 = planned_trajs[1] * self.std_arm2 + self.mean_arm2
@@ -308,4 +308,4 @@ if __name__ == "__main__":
 
     player = PolicyPlayer(env, render = False)
     cond_idx = 0
-    player.get_demo(seed = cond_idx*10, cond_idx = cond_idx, H=25, T=600)
+    player.get_demo(seed = cond_idx*10, cond_idx = cond_idx, H=25, T=700)

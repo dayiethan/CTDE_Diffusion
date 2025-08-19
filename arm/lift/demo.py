@@ -158,11 +158,17 @@ class PolicyPlayer:
         self.waypoint_properties.append("grasp")
 
         #wp2: go up
-        waypoint = {"goal_pos": np.array([robot0_x_init, robot0_y_pass, robot0_z_pass]),
-                     "goal_rotm": rotm0,
-                     "gripper": 1}
-        self.waypoints_robot0.append(waypoint)
-        self.waypoint_properties.append("move")
+        # waypoint = {"goal_pos": np.array([robot0_x_init, robot0_y_pass, robot0_z_pass]),
+        #              "goal_rotm": rotm0,
+        #              "gripper": 1}
+        # self.waypoints_robot0.append(waypoint)
+        # self.waypoint_properties.append("move")
+        for i in range(5):
+            waypoint = {"goal_pos": np.array([robot0_x_init, robot0_y_pass, robot0_z_init  + (i+1)*(robot0_z_pass - robot0_z_init)/5]),
+                         "goal_rotm": rotm0,
+                         "gripper": 1}
+            self.waypoints_robot0.append(waypoint)
+            self.waypoint_properties.append("move")
 
         #wp: first move w.r.t. mode 
         for i in range(10):
@@ -178,6 +184,12 @@ class PolicyPlayer:
                      "gripper": 1}
         self.waypoints_robot0.append(waypoint)
         self.waypoint_properties.append("move")
+        # for i in range(5):
+        #     waypoint = {"goal_pos": np.array([robot0_x_pass, robot0_y_pass + (i+1)*(-robot0_y_pass - robot0_y_pass)/5, robot0_z_pass]),
+        #                  "goal_rotm": rotm0,
+        #                  "gripper": 1}
+        #     self.waypoints_robot0.append(waypoint)
+        #     self.waypoint_properties.append("move")
 
         #wp: third move w.r.t. mode (move back to middle)
         # waypoint = {"goal_pos": np.array([robot0_x_init, -robot0_y_pass, robot0_z_pass]),
@@ -193,11 +205,17 @@ class PolicyPlayer:
             self.waypoint_properties.append("move")
 
         #wp: lower pot
-        waypoint = {"goal_pos": np.array([robot0_x_init, -robot0_y_pass, robot0_z_init]),
-                     "goal_rotm": rotm0,
-                     "gripper": 1}
-        self.waypoints_robot0.append(waypoint)
-        self.waypoint_properties.append("move")
+        # waypoint = {"goal_pos": np.array([robot0_x_init, -robot0_y_pass, robot0_z_init]),
+        #              "goal_rotm": rotm0,
+        #              "gripper": 1}
+        # self.waypoints_robot0.append(waypoint)
+        # self.waypoint_properties.append("move")
+        for i in range(5):
+            waypoint = {"goal_pos": np.array([robot0_x_init, -robot0_y_pass, robot0_z_pass + (i+1)*(robot0_z_init - robot0_z_pass)/5]),
+                         "goal_rotm": rotm0,
+                         "gripper": 1}
+            self.waypoints_robot0.append(waypoint)
+            self.waypoint_properties.append("move")
 
         #wp: open gripper
         waypoint = {"goal_pos": np.array([robot0_x_init, -robot0_y_pass, robot0_z_init]),
@@ -223,10 +241,15 @@ class PolicyPlayer:
         self.waypoints_robot1.append(waypoint)
 
         #wp2: go up
-        waypoint = {"goal_pos": np.array([robot1_x_init, robot1_y_pass, robot1_z_pass]),
-                     "goal_rotm": rotm1,
-                     "gripper": 1}
-        self.waypoints_robot1.append(waypoint)
+        # waypoint = {"goal_pos": np.array([robot1_x_init, robot1_y_pass, robot1_z_pass]),
+        #              "goal_rotm": rotm1,
+        #              "gripper": 1}
+        # self.waypoints_robot1.append(waypoint)
+        for i in range(5):
+            waypoint = {"goal_pos": np.array([robot1_x_init, robot1_y_pass, robot1_z_init + (i+1)*(robot1_z_pass - robot1_z_init)/5]),
+                         "goal_rotm": rotm1,
+                         "gripper": 1}
+            self.waypoints_robot1.append(waypoint)
 
         #wp: first move w.r.t. mode
         for i in range(10):
@@ -240,6 +263,11 @@ class PolicyPlayer:
                      "goal_rotm": rotm1,
                      "gripper": 1}
         self.waypoints_robot1.append(waypoint)
+        # for i in range(5):
+        #     waypoint = {"goal_pos": np.array([robot1_x_pass, robot1_y_pass + (i+1)*(-robot1_y_pass - robot1_y_pass)/5, robot1_z_pass]),
+        #                  "goal_rotm": rotm1,
+        #                  "gripper": 1}
+        #     self.waypoints_robot1.append(waypoint)
 
         #wp: third move w.r.t. mode (move back to middle)
         # waypoint = {"goal_pos": np.array([robot1_x_init, -robot1_y_pass, robot1_z_pass]),
@@ -253,10 +281,15 @@ class PolicyPlayer:
             self.waypoints_robot1.append(waypoint)
 
         #wp: lower pot
-        waypoint = {"goal_pos": np.array([robot1_x_init, -robot1_y_pass, robot1_z_init]),
-                     "goal_rotm": rotm1,
-                     "gripper": 1}
-        self.waypoints_robot1.append(waypoint)
+        # waypoint = {"goal_pos": np.array([robot1_x_init, -robot1_y_pass, robot1_z_init]),
+        #              "goal_rotm": rotm1,
+        #              "gripper": 1}
+        # self.waypoints_robot1.append(waypoint)
+        for i in range(5):
+            waypoint = {"goal_pos": np.array([robot1_x_init, -robot1_y_pass, robot1_z_pass + (i+1)*(robot1_z_init - robot1_z_pass)/5]),
+                         "goal_rotm": rotm1,
+                         "gripper": 1}
+            self.waypoints_robot1.append(waypoint)
 
         #wp: open gripper
         waypoint = {"goal_pos": np.array([robot1_x_init, -robot1_y_pass, robot1_z_init]),
@@ -401,9 +434,9 @@ if __name__ == "__main__":
     for i in range(200):   
         rollout = player.get_demo(seed = i*10, mode = 2)
         rollout['pot_start'] = [player.pot_handle0_pos, player.pot_handle1_pos]
-        with open("rollouts/new_slow/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
+        with open("rollouts/newslower/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
             pkl.dump(rollout, f)
         rollout = player.get_demo(seed = i*10, mode = 3)
         rollout['pot_start'] = [player.pot_handle0_pos, player.pot_handle1_pos]
-        with open("rollouts/new_slow/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
+        with open("rollouts/newslower/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
             pkl.dump(rollout, f)
