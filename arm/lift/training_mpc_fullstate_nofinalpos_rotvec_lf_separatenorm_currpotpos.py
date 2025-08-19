@@ -46,23 +46,39 @@ T = 600 # total time steps
 
 # Load expert data
 expert_data = np.load("data/expert_actions_new_slow_20.npy")
+pot1_raw = np.load("data/pot_states1_new_slow_20.npy")
+pot2_raw = np.load("data/pot_states2_new_slow_20.npy")
 expert_data1 = expert_data[:, :, :7]
 expert_data2 = expert_data[:, :, 7:14]
 expert_data1 = create_mpc_dataset(expert_data1, planning_horizon=H)
 expert_data2 = create_mpc_dataset(expert_data2, planning_horizon=H)
+pot1 = create_mpc_dataset(pot1_raw, planning_horizon=H)
+pot2 = create_mpc_dataset(pot2_raw, planning_horizon=H)
 
 # Compute mean and standard deviation
-combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
-mean = np.mean(combined_data, axis=(0,1))
-std = np.std(combined_data, axis=(0,1))
 mean_arm1 = np.mean(expert_data1, axis=(0,1))
+np.save("data/mean_20_newslow_arm1.npy", mean_arm1)
 std_arm1 = np.std(expert_data1, axis=(0,1))
+np.save("data/std_20_newslow_arm1.npy", std_arm1)
 mean_arm2 = np.mean(expert_data2, axis=(0,1))
+np.save("data/mean_20_newslow_arm2.npy", mean_arm2)
 std_arm2 = np.std(expert_data2, axis=(0,1))
+np.save("data/std_20_newslow_arm2.npy", std_arm2)
+
+mean_pot1 = np.mean(pot1, axis=(0, 1))
+mean_pot2 = np.mean(pot2, axis=(0, 1))
+np.save("data/mean_20_newslow_pot1.npy", mean_pot1)
+np.save("data/mean_20_newslow_pot2.npy", mean_pot2)
+std_pot1 = np.std(pot1, axis=(0, 1))
+std_pot2 = np.std(pot2, axis=(0, 1))
+np.save("data/std_20_newslow_pot1.npy", std_pot1)
+np.save("data/std_20_newslow_pot2.npy", std_pot2)
 
 # Normalize data
 expert_data1 = (expert_data1 - mean_arm1) / std_arm1
 expert_data2 = (expert_data2 - mean_arm2) / std_arm2
+pot1 = (pot1 - mean_pot1) / std_pot1
+pot2 = (pot2 - mean_pot2) / std_pot2
 
 # Define an enviornment objcet which has attrubutess like name, state_size, action_size etc
 class TwoArmLift():
@@ -81,13 +97,10 @@ sigma_data1 = actions1.std().item()
 sigma_data2 = actions2.std().item()
 
 # Prepare conditional vectors for training
-with open("data/pot_start_new_slow_20.npy", "rb") as f:
-    obs = np.load(f)
 obs_init1 = expert_data1[:, 0, :]
 obs_init2 = expert_data2[:, 0, :]
-obs = np.repeat(obs, repeats=T, axis=0)
-obs1 = np.hstack([obs_init1, obs])
-obs2 = np.hstack([obs_init2, obs_init1, obs])
+obs1 = np.hstack([obs_init1, pot1[:, 0, :]])
+obs2 = np.hstack([obs_init2, obs_init1, pot2[:, 0, :]])
 obs1 = torch.FloatTensor(obs1).to(device)
 obs2 = torch.FloatTensor(obs2).to(device)
 attr1 = obs1
@@ -96,7 +109,7 @@ attr_dim1 = attr1.shape[1]
 attr_dim2 = attr2.shape[1]
 
 # Training
-end="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_lf_sitedata_newslow_rotvec_separatenorm"
+end="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_lf_newslow_rotvec_separatenorm_currpotpos"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
 action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, endpoint_loss=False)
 action_cond_ode.save(extra=end)

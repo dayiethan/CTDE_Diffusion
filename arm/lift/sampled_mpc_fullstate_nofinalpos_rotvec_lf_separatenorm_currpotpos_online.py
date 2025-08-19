@@ -103,36 +103,57 @@ class PolicyPlayer:
         self.rollout["actions"] = []
 
         return obs
+    
+    def get_pot_state_local(self):
+        """
+        Return current pot handle positions expressed in each robot's base frame,
+        stacked as [h0_local (3), h1_local (3)].
+        """
+        # World-frame handle positions from the env
+        h0_w = self.env._handle0_xpos
+        h1_w = self.env._handle1_xpos
 
-    def load_model(self, expert_data1, expert_data2, obs_init1, obs_init2, obs, state_dim = 7, action_dim = 7):
+        # Express in each robot's base frame and apply the same small handle offset
+        h0_robot0 = self.robot0_base_ori_rotm.T @ (h0_w - self.robot0_base_pos) + self.pot_handle_offset
+        h0_robot1 = self.robot1_base_ori_rotm.T @ (h0_w - self.robot1_base_pos) + self.pot_handle_offset
+        h1_robot0 = self.robot0_base_ori_rotm.T @ (h1_w - self.robot0_base_pos) + self.pot_handle_offset
+        h1_robot1 = self.robot1_base_ori_rotm.T @ (h1_w - self.robot1_base_pos) + self.pot_handle_offset
+
+        return h0_robot0, h1_robot1
+
+    def load_model(self, expert_data1, expert_data2, obs_init1, obs_init2, pot1, pot2, state_dim=7, action_dim=7):
         model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
-        H = 25 # horizon, length of each trajectory
-        T = 600 # total time steps
+        H = 25  # horizon used during training
+        # Infer pot feature dimension from the array you pass in (N, T, D_pot) or (T, D_pot)
+        pot_dim = int(pot1.shape[-1])
 
-        obs = np.repeat(obs, repeats=T, axis=0)
-        obs1 = np.hstack([obs_init1, obs])
-        obs2 = np.hstack([obs_init2, obs_init1, obs])
-        obs1 = torch.FloatTensor(obs1).to(device)
-        obs2 = torch.FloatTensor(obs2).to(device)
-        attr1 = obs1
-        attr2 = obs2
-        attr_dim1 = attr1.shape[1]
-        attr_dim2 = attr2.shape[1]
+        # Attribute dimensions that MATCH TRAINING:
+        #   leader:   7 (self) + D_pot
+        #   follower: 7 (self) + 7 (leader) + D_pot + 1 (dist)
+        attr_dim1 = 7 + pot_dim
+        attr_dim2 = 7 + 7 + pot_dim
 
-        # Preparing expert data for training
-        actions1 = expert_data1[:, :H, :]
-        actions2 = expert_data2[:, :H, :]
-        actions1 = torch.FloatTensor(actions1).to(device)
-        actions2 = torch.FloatTensor(actions2).to(device)
+        # sigma_data from actions (unchanged)
+        actions1 = torch.as_tensor(expert_data1[:, :H, :], dtype=torch.float32, device=device)
+        actions2 = torch.as_tensor(expert_data2[:, :H, :], dtype=torch.float32, device=device)
         sigma_data1 = actions1.std().item()
         sigma_data2 = actions2.std().item()
 
         env = TwoArmLift(state_size=state_dim, action_size=action_dim)
 
-        # Load the model
-        action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_lf_sitedata_newslow_rotvec_separatenorm")
+        action_cond_ode = Conditional_ODE(
+            env,
+            [attr_dim1, attr_dim2],
+            [sigma_data1, sigma_data2],
+            device=device,
+            N=100,
+            n_models=2,
+            **model_size,
+        )
 
+        action_cond_ode.load(
+            extra="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_lf_newslow_rotvec_separatenorm_currpotpos"
+        )
         return action_cond_ode
 
     
@@ -175,38 +196,50 @@ class PolicyPlayer:
         return state0, state1
     
     
-    def reactive_mpc_plan(self, ode_model, initial_states, pot, segment_length=25, total_steps=325, n_implement=2):
+    def reactive_mpc_plan(self, ode_model, initial_states, pots,
+                      segment_length=25, total_steps=325, n_implement=2):
         """
-        Plans a full trajectory (total_steps long) by iteratively planning
-        segment_length-steps using the diffusion model and replanning at every timestep.
-        
-        Parameters:
-        - ode_model: the Conditional_ODE (diffusion model) instance.
-        - env: your environment, which must implement reset_to() and step().
-        - initial_state: a numpy array of shape (state_size,) (the current state).
-        - fixed_goal: a numpy array of shape (state_size,) representing the final goal.
-        - model_i: the index of the agent/model being planned for.
-        - segment_length: number of timesteps to plan in each segment.
-        - total_steps: total length of the planned trajectory.
-        
-        Returns:
-        - full_traj: a numpy array of shape (total_steps, state_size)
+        Matches training attrs:
+        Leader:   [ self_norm, pot_raw ]
+        Follower: [ self_norm, leader_norm, pot_raw, dist_norm ]
         """
+        eps = 1e-6
+
+        def _pot_vec(p):
+            """Return 1-D pot in raw units; handles (T,D) or (D,)."""
+            p = np.asarray(p)
+            if p.ndim == 2:   # window: take current-time slice for this replan
+                p = p[0]
+            assert p.ndim == 1, f"Expected pot 1-D, got {p.shape}"
+            return p.astype(np.float32)
+
+        def _denorm_pos(norm_state, mean_arm, std_arm):
+            """De-normalize first 3 dims (EEF pos) to meters."""
+            return norm_state[:3] * std_arm[:3] + mean_arm[:3]
+
         full_traj = []
-        current_states = initial_states.copy()
+        current_states = [s.copy() for s in initial_states]  # each (7,) normalized per arm
+        current_pot1 = _pot_vec(pots[0])  # (D_pot,) raw units
+        current_pot2 = _pot_vec(pots[1])  # (D_pot,) raw units
 
         for seg in range(total_steps // n_implement):
             segments = []
-            base_states = current_states.copy()
+            base_states = [s.copy() for s in current_states]  # snapshot for this replan
 
-            # 1) sample a full normalized‐action segment for each arm
+            # pot at start of this replan (raw units, 1-D)
+            base_pot1 = current_pot1.copy()  # (D_pot,)
+            base_pot2 = current_pot2.copy()  # (D_pot,
+
+            # 1) sample a normalized-action segment for each arm
             for i in range(len(base_states)):
-                # build conditioning vector exactly as in training
                 if i == 0:
-                    cond = [base_states[i], pot]
+                    # Leader: [self_norm, pot_raw]
+                    cond_parts = [base_states[i], base_pot1]
                 else:
-                    cond = [base_states[i]] + [base_states[j] for j in range(len(base_states)) if j!=i] + [pot]
-                cond = np.hstack(cond)
+                    # Follower: [self_norm, leader_norm, pot_raw, dist_norm]
+                    cond_parts = [base_states[i], base_states[0], base_pot2]
+
+                cond = np.hstack(cond_parts).astype(np.float32)
                 cond_tensor = torch.tensor(cond, dtype=torch.float32, device=device).unsqueeze(0)
 
                 sampled = ode_model.sample(
@@ -216,20 +249,20 @@ class PolicyPlayer:
                     w=1.,
                     model_index=i
                 )
-                seg_i = sampled[0].cpu().detach().numpy()  # (segment_length, 7)
+                seg_i = sampled[0].cpu().detach().numpy()  # (segment_length, 7) (arm-normalized)
 
-                # pick out the n_implement steps and the “next” state to re‐condition on
+                # choose the n_implement actions to execute now and the "next" state
                 if seg == 0:
-                    step_block    = seg_i[0:n_implement, :]        # shape (n_implement,7)
-                    next_norm     = seg_i[n_implement-1, :]        # shape (7,)
+                    step_block = seg_i[0:n_implement, :]
+                    next_norm  = seg_i[n_implement - 1, :]
                 else:
-                    step_block    = seg_i[1:n_implement+1, :]
-                    next_norm     = seg_i[n_implement, :]
+                    step_block = seg_i[1:n_implement + 1, :]
+                    next_norm  = seg_i[n_implement, :]
 
                 segments.append(step_block)
                 current_states[i] = next_norm
 
-            # 2) execute those n_implement actions on the real robot
+            # 2) execute those n_implement actions on the real robot (per-arm denorm)
             for t in range(n_implement):
                 action1 = segments[0][t] * self.std_arm1 + self.mean_arm1
                 action2 = segments[1][t] * self.std_arm2 + self.mean_arm2
@@ -238,19 +271,23 @@ class PolicyPlayer:
                 if self.render:
                     self.env.render()
 
-                # 3) (optional) re‐condition on true state instead of predicted:
+                current_pot1, current_pot2 = self.get_pot_state_local()
+                current_pot1 = (current_pot1 - self.mean_pot1) / self.std_pot1
+                current_pot2 = (current_pot2 - self.mean_pot2) / self.std_pot2
+
+                # 3) re-condition on true state (per-arm renorm)
                 state1, state2 = self.obs_to_state(obs_env)
                 current_states = [
-                    (state1 - self.mean_arm1)/self.std_arm1,
-                    (state2 - self.mean_arm2)/self.std_arm2,
+                    (state1 - self.mean_arm1) / self.std_arm1,
+                    (state2 - self.mean_arm2) / self.std_arm2,
                 ]
 
             full_traj.append(np.stack([s for s in segments], axis=0))
 
         full_traj = np.concatenate(full_traj, axis=1)
-
-        print("Full trajectory shape: ", np.shape(full_traj))
+        print("Full trajectory shape:", np.shape(full_traj))
         return np.array(full_traj)
+
 
     
     def get_demo(self, seed, cond_idx, H=25, T=325):
@@ -261,31 +298,44 @@ class PolicyPlayer:
 
         # Loading
         expert_data = np.load("data/expert_actions_new_slow_20.npy")
+        pot1_raw = np.load("data/pot_states1_new_slow_20.npy")
+        pot2_raw = np.load("data/pot_states2_new_slow_20.npy")
         expert_data1 = expert_data[:, :, :7]
         expert_data2 = expert_data[:, :, 7:14]
         expert_data1 = create_mpc_dataset(expert_data1, planning_horizon=H)
         expert_data2 = create_mpc_dataset(expert_data2, planning_horizon=H)
-        combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
-        self.mean = np.mean(combined_data, axis=(0,1))
-        self.std = np.std(combined_data, axis=(0,1))
-        self.mean_arm1 = np.mean(expert_data1, axis=(0,1))
-        self.std_arm1 = np.std(expert_data1, axis=(0,1))
-        self.mean_arm2 = np.mean(expert_data2, axis=(0,1))
-        self.std_arm2 = np.std(expert_data2, axis=(0,1))
+        pot1 = create_mpc_dataset(pot1_raw, planning_horizon=H)
+        pot2 = create_mpc_dataset(pot2_raw, planning_horizon=H)
+        # combined_data = np.concatenate((expert_data1, expert_data2), axis=0)
+        # self.mean = np.mean(combined_data, axis=(0,1))
+        # self.std = np.std(combined_data, axis=(0,1))
+        # self.mean_arm1 = np.mean(expert_data1, axis=(0,1))
+        # self.std_arm1 = np.std(expert_data1, axis=(0,1))
+        # self.mean_arm2 = np.mean(expert_data2, axis=(0,1))
+        # self.std_arm2 = np.std(expert_data2, axis=(0,1))
+        self.mean_arm1 = np.load("data/mean_20_newslow_arm1.npy")
+        self.std_arm1 = np.load("data/std_20_newslow_arm1.npy")
+        self.mean_arm2 = np.load("data/mean_20_newslow_arm2.npy")
+        self.std_arm2 = np.load("data/std_20_newslow_arm2.npy")
+        self.mean_pot1 = np.load("data/mean_20_newslow_pot1.npy")
+        self.std_pot1 = np.load("data/std_20_newslow_pot1.npy")
+        self.mean_pot2 = np.load("data/mean_20_newslow_pot2.npy")
+        self.std_pot2 = np.load("data/std_20_newslow_pot2.npy")
 
         # Normalize data
         expert_data1 = (expert_data1 - self.mean_arm1) / self.std_arm1
         expert_data2 = (expert_data2 - self.mean_arm2) / self.std_arm2
+        pot1 = (pot1 - self.mean_pot1) / self.std_pot1
+        pot2 = (pot2 - self.mean_pot2) / self.std_pot2
 
         obs_init1 = expert_data1[:, 0, :]
         obs_init2 = expert_data2[:, 0, :]
+        pot_init1 = pot1[:, 0, :]
+        pot_init2 = pot2[:, 0, :]
 
-        with open("data/pot_start_new_slow_20.npy", "rb") as f:
-            obs = np.load(f)
+        model = self.load_model(expert_data1, expert_data2, obs_init1, obs_init2, pot1, pot2, state_dim = 7, action_dim = 7)
 
-        model = self.load_model(expert_data1, expert_data2, obs_init1, obs_init2, obs, state_dim = 7, action_dim = 7)
-
-        planned_trajs = self.reactive_mpc_plan(model, [obs_init1[cond_idx], obs_init2[cond_idx]], obs[cond_idx], segment_length=H, total_steps=T*2, n_implement=10)
+        planned_trajs = self.reactive_mpc_plan(model, [obs_init1[cond_idx], obs_init2[cond_idx]], [pot_init1[cond_idx], pot_init2[cond_idx]], segment_length=H, total_steps=T*2, n_implement=8)
         planned_traj1 =  planned_trajs[0] * self.std_arm1 + self.mean_arm1
         # np.save("sampled_trajs/mpc_P34E5/mpc_traj1_%s.npy" % i, planned_traj1)
         planned_traj2 = planned_trajs[1] * self.std_arm2 + self.mean_arm2
