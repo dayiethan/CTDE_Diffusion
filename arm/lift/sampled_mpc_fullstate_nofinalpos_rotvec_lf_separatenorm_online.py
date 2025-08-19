@@ -285,7 +285,7 @@ class PolicyPlayer:
 
         model = self.load_model(expert_data1, expert_data2, obs_init1, obs_init2, obs, state_dim = 7, action_dim = 7)
 
-        planned_trajs = self.reactive_mpc_plan(model, [obs_init1[cond_idx], obs_init2[cond_idx]], obs[cond_idx], segment_length=H, total_steps=T*5, n_implement=10)
+        planned_trajs = self.reactive_mpc_plan(model, [obs_init1[cond_idx], obs_init2[cond_idx]], obs[cond_idx], segment_length=H, total_steps=T*4, n_implement=10)
         planned_traj1 =  planned_trajs[0] * self.std_arm1 + self.mean_arm1
         # np.save("sampled_trajs/mpc_P34E5/mpc_traj1_%s.npy" % i, planned_traj1)
         planned_traj2 = planned_trajs[1] * self.std_arm2 + self.mean_arm2
@@ -299,6 +299,7 @@ if __name__ == "__main__":
     env = TwoArmLiftRole(
     robots=["Kinova3", "Kinova3"],
     gripper_types="default",
+    horizon=2800,
     controller_configs=controller_config,
     has_renderer=True,
     has_offscreen_renderer=True,
