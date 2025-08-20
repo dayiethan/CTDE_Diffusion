@@ -420,23 +420,23 @@ if __name__ == "__main__":
     robots=["Kinova3", "Kinova3"],
     gripper_types="default",
     controller_configs=controller_config,
-    has_renderer=False,
+    has_renderer=True,
     render_camera=None,
     has_offscreen_renderer=False,
-    use_camera_obs=False,
+    use_camera_obs=True,
     )
 
     player = PolicyPlayer(env, render = False)
-    # rollout = player.get_demo(seed = 100, mode = 2)
-    # print("length of episode:", len(rollout["observations"]))
-    # rollout = player.get_demo(seed = 100, mode = 3)
-    # print("length of episode:", len(rollout["observations"]))
-    for i in range(200):   
-        rollout = player.get_demo(seed = i*10, mode = 2)
-        rollout['pot_start'] = [player.pot_handle0_pos, player.pot_handle1_pos]
-        with open("rollouts/newslower/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
-            pkl.dump(rollout, f)
-        rollout = player.get_demo(seed = i*10, mode = 3)
-        rollout['pot_start'] = [player.pot_handle0_pos, player.pot_handle1_pos]
-        with open("rollouts/newslower/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
-            pkl.dump(rollout, f)
+    rollout = player.get_demo(seed = 100, mode = 2)
+    print("length of episode:", len(rollout["observations"]))
+    rollout = player.get_demo(seed = 100, mode = 3)
+    print("length of episode:", len(rollout["observations"]))
+    # for i in range(200):   
+    #     rollout = player.get_demo(seed = i*10, mode = 2)
+    #     rollout['pot_start'] = [player.pot_handle0_pos, player.pot_handle1_pos]
+    #     with open("rollouts/newslower/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
+    #         pkl.dump(rollout, f)
+    #     rollout = player.get_demo(seed = i*10, mode = 3)
+    #     rollout['pot_start'] = [player.pot_handle0_pos, player.pot_handle1_pos]
+    #     with open("rollouts/newslower/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
+    #         pkl.dump(rollout, f)
