@@ -380,6 +380,44 @@ class Conditional_ODE():
         plt.savefig("loss/plots/loss_plot" + extra + ".png")
         print('\nTraining completed!')
         
+    # @torch.no_grad()
+    # def sample(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0):
+    #     """
+    #     Samples a trajectory using the EMA copy of the specified transformer.
+        
+    #     attr: attribute tensor of shape (n_samples, attr_dim)
+    #     traj_len: trajectory length.
+    #     model_index: which transformer to use.
+    #     """
+    #     if N is not None and N != self.N:
+    #         self.set_N(N)
+        
+    #     x = torch.randn((n_samples, traj_len, self.action_size), device=self.device) * self.sigma_s[0] * self.scale_s[0]
+    #     x[:, 0, :self.state_size] = attr[:, :self.state_size]
+    #     x[:, -1, :self.state_size] = attr[:, self.state_size:2*self.state_size]
+    #     original_attr = attr.clone()
+        
+    #     attr_mask = torch.ones_like(attr)
+    #     attr_cat = attr.repeat(2, 1)
+    #     attr_mask_cat = attr_mask.repeat(2, 1)
+    #     attr_mask_cat[n_samples:] = 0
+        
+    #     for i in range(self.N):
+    #         with torch.no_grad():
+    #             D_out = self.D(x.repeat(2, 1, 1) / self.scale_s[i],
+    #                            torch.ones((2 * n_samples, 1, 1), device=self.device) * self.sigma_s[i],
+    #                            condition=attr_cat,
+    #                            mask=attr_mask_cat,
+    #                            use_ema=True,
+    #                            model_index=model_index)
+    #             D_out = w * D_out[:n_samples] + (1 - w) * D_out[n_samples:]
+    #         delta = self.coeff1[i] * x - self.coeff2[i] * D_out
+    #         dt = self.t_s[i] - self.t_s[i+1] if i != self.N - 1 else self.t_s[i]
+    #         x = x - delta * dt
+    #         x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
+    #         x[:, -1, :self.state_size] = original_attr[:, self.state_size:2*self.state_size]
+    #     return x
+    
     @torch.no_grad()
     def sample(self, attr, traj_len, n_samples: int, w: float = 1.5, N: int = None, model_index: int = 0):
         """
@@ -394,7 +432,6 @@ class Conditional_ODE():
         
         x = torch.randn((n_samples, traj_len, self.action_size), device=self.device) * self.sigma_s[0] * self.scale_s[0]
         x[:, 0, :self.state_size] = attr[:, :self.state_size]
-        x[:, -1, :self.state_size] = attr[:, self.state_size:2*self.state_size]
         original_attr = attr.clone()
         
         attr_mask = torch.ones_like(attr)
@@ -415,7 +452,6 @@ class Conditional_ODE():
             dt = self.t_s[i] - self.t_s[i+1] if i != self.N - 1 else self.t_s[i]
             x = x - delta * dt
             x[:, 0, :self.state_size] = original_attr[:, :self.state_size]
-            x[:, -1, :self.state_size] = original_attr[:, self.state_size:2*self.state_size]
         return x
     
     @torch.no_grad()
