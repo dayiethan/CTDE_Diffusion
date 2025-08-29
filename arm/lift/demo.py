@@ -11,6 +11,7 @@ from robosuite.controllers import load_composite_controller_config
 from env import TwoArmLiftRole
 from scipy.spatial.transform import Rotation as R
 from transform_utils import SE3_log_map, SE3_exp_map
+import os
 
 class PolicyPlayer:
     def __init__ (self, env, render = False):
@@ -327,7 +328,7 @@ class PolicyPlayer:
 
         robot0_pos = self.robot0_base_ori_rotm.T @ (robot0_pos_world - self.robot0_base_pos)
         robot0_rotm = self.robot0_base_ori_rotm.T @ robot0_rotm_world
-
+  
         robot1_pos = self.robot1_base_ori_rotm.T @ (robot1_pos_world - self.robot1_base_pos)
         robot1_rotm = self.robot1_base_ori_rotm.T @ robot1_rotm_world
         
@@ -351,6 +352,10 @@ class PolicyPlayer:
         """
 
         obs = self.reset(seed, mode)
+
+        plt.ion()
+        fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(6, 3))
+        im0 = im1 = None
 
         max_step_move = int(20 * self.control_freq) # 15 seconds
         max_step_grip = int(1.5 * self.control_freq)
@@ -382,6 +387,24 @@ class PolicyPlayer:
                 self.rollout["actions"].append(action)
                 self.rollout["pot_states1"].append(self.get_pot_state_local()[0])
                 self.rollout["pot_states2"].append(self.get_pot_state_local()[1])
+                self.rollout["camera0_obs"].append(obs['robot0_camera_image']) if 'robot0_camera_image' in obs else None
+                self.rollout["camera1_obs"].append(obs['robot1_camera_image']) if 'robot1_camera_image' in obs else None
+                
+                img0 = obs.get('robot0_eye_in_hand_image', None)
+                img1 = obs.get('robot1_eye_in_hand_image', None)
+
+                if img0 is not None and img1 is not None:
+                    if im0 is None:
+                        im0 = ax0.imshow(img0)
+                        ax0.set_title("Robot0 Cam")
+                        ax0.axis('off')
+                        im1 = ax1.imshow(img1)
+                        ax1.set_title("Robot1 Cam")
+                        ax1.axis('off')
+                    else:
+                        im0.set_data(img0)
+                        im1.set_data(img1)
+                    plt.pause(0.001)   # 刷新
 
                 time.sleep(sleeptime)
 
@@ -414,6 +437,12 @@ class PolicyPlayer:
     
         
 if __name__ == "__main__":
+    
+    directory = f"rollouts/newslower"
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+
     controller_config = load_composite_controller_config(robot="Kinova3", controller="kinova.json")
 
     env = TwoArmLiftRole(
@@ -422,8 +451,12 @@ if __name__ == "__main__":
     controller_configs=controller_config,
     has_renderer=True,
     render_camera=None,
-    has_offscreen_renderer=False,
+    has_offscreen_renderer=True,
     use_camera_obs=True,
+    camera_names=["robot0_eye_in_hand", "robot1_eye_in_hand"],
+    camera_heights=[256, 256],
+    camera_widths=[256, 256],
+    camera_depths=[False, False] 
     )
 
     player = PolicyPlayer(env, render = False)
@@ -431,12 +464,18 @@ if __name__ == "__main__":
     print("length of episode:", len(rollout["observations"]))
     rollout = player.get_demo(seed = 100, mode = 3)
     print("length of episode:", len(rollout["observations"]))
-    # for i in range(200):   
-    #     rollout = player.get_demo(seed = i*10, mode = 2)
-    #     rollout['pot_start'] = [player.pot_handle0_pos, player.pot_handle1_pos]
-    #     with open("rollouts/newslower/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
-    #         pkl.dump(rollout, f)
-    #     rollout = player.get_demo(seed = i*10, mode = 3)
-    #     rollout['pot_start'] = [player.pot_handle0_pos, player.pot_handle1_pos]
-    #     with open("rollouts/newslower/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
-    #         pkl.dump(rollout, f)
+
+    for i in range(200):   
+        rollout = player.get_demo(seed = i*10, mode = 2)
+        rollout['pot_start'] = [player.pot_handle0_pos, player.pot_handle1_pos]
+        # Use os.path.join() to construct the file path
+        filepath_mode2 = os.path.join(directory, f"rollout_seed{i*10}_mode2.pkl")
+        with open(filepath_mode2, "wb") as f:
+            pkl.dump(rollout, f)
+
+        rollout = player.get_demo(seed = i*10, mode = 3)
+        rollout['pot_start'] = [player.pot_handle0_pos, player.pot_handle1_pos]
+        # Use os.path.join() for the second file as well
+        filepath_mode3 = os.path.join(directory, f"rollout_seed{i*10}_mode3.pkl")
+        with open(filepath_mode3, "wb") as f:
+            pkl.dump(rollout, f)
