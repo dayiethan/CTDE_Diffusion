@@ -75,6 +75,8 @@ class PolicyPlayer:
         self.rollout["pot_states1"] = []   # per-step pot/handle state (6,)
         self.rollout["pot_states2"] = []   # per-step pot/handle state (6,)
 
+        self.rollout["camera0_obs"] = []
+        self.rollout["camera1_obs"] = []
 
         return obs
     
@@ -387,8 +389,8 @@ class PolicyPlayer:
                 self.rollout["actions"].append(action)
                 self.rollout["pot_states1"].append(self.get_pot_state_local()[0])
                 self.rollout["pot_states2"].append(self.get_pot_state_local()[1])
-                self.rollout["camera0_obs"].append(obs['robot0_camera_image']) if 'robot0_camera_image' in obs else None
-                self.rollout["camera1_obs"].append(obs['robot1_camera_image']) if 'robot1_camera_image' in obs else None
+                self.rollout["camera0_obs"].append(obs['robot0_eye_in_hand_image']) if 'robot0_eye_in_hand_image' in obs else None
+                self.rollout["camera1_obs"].append(obs['robot1_eye_in_hand_image']) if 'robot1_eye_in_hand_image' in obs else None
                 
                 img0 = obs.get('robot0_eye_in_hand_image', None)
                 img1 = obs.get('robot1_eye_in_hand_image', None)
@@ -466,6 +468,7 @@ if __name__ == "__main__":
     print("length of episode:", len(rollout["observations"]))
 
     for i in range(200):   
+        print(f"seed{i*10} mode 2 and 3")
         rollout = player.get_demo(seed = i*10, mode = 2)
         rollout['pot_start'] = [player.pot_handle0_pos, player.pot_handle1_pos]
         # Use os.path.join() to construct the file path
