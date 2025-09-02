@@ -9,22 +9,24 @@ import pdb
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # 2) Generator network (must match training script)
+state_dim   = 4       # e.g. [x, y, goal_x, goal_y]
+action_dim  = 2       # e.g. next [x, y]
+gen_width, gen_depth = 688, 10   # ≈ 8.54M total across G1+G2
 class GenNet(nn.Module):
-    def __init__(self, state_dim=4, hidden_size=64, action_dim=2):
+    def __init__(self, state_dim=state_dim, action_dim=action_dim, width=688, depth=10):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(state_dim,   hidden_size), nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size), nn.ReLU(),
-            nn.Linear(hidden_size, action_dim)
-        )
-    def forward(self, x):
-        return self.net(x)
+        layers = [nn.Linear(state_dim, width), nn.ReLU()]
+        for _ in range(depth - 1):
+            layers += [nn.Linear(width, width), nn.ReLU()]
+        layers += [nn.Linear(width, action_dim)]
+        self.net = nn.Sequential(*layers)
+    def forward(self, x): return self.net(x)
 
 # 3) Instantiate & load weights
-G1 = GenNet().to(device)
-G2 = GenNet().to(device)
-G1.load_state_dict(torch.load("trained_models/magail_ctde/G1.pth", map_location=device))
-G2.load_state_dict(torch.load("trained_models/magail_ctde/G2.pth", map_location=device))
+G1 = GenNet(width=gen_width, depth=gen_depth).to(device)
+G2 = GenNet(width=gen_width, depth=gen_depth).to(device)
+G1.load_state_dict(torch.load("trained_models/magail/G1_big.pth", map_location=device))
+G2.load_state_dict(torch.load("trained_models/magail/G2_big.pth", map_location=device))
 G1.eval(); G2.eval()
 
 # 4) Load expert trajectories for normalization & conditioning
