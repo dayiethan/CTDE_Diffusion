@@ -229,12 +229,14 @@ bce_logits = nn.BCEWithLogitsLoss()
 steps_per_epoch = max(len(loader1), len(loader2))
 n_epochs = max(1, math.ceil(target_steps / max(1, steps_per_epoch)))
 
+print(steps_per_epoch, n_epochs)
+
 for epoch in range(1, n_epochs+1):
     G1.train(); G2.train(); D.train()
     it1 = iter(loader1); it2 = iter(loader2)
     lossD_sum = 0.0; lossG_sum = 0.0
 
-    for _ in range(steps_per_epoch):
+    for i in range(steps_per_epoch):
         try: a1_attrs, a1_true = next(it1)
         except StopIteration: it1 = iter(loader1); a1_attrs, a1_true = next(it1)
         try: a2_attrs, a2_true = next(it2)
@@ -245,26 +247,29 @@ for epoch in range(1, n_epochs+1):
         a1_true  = a1_true.to(device, non_blocking=True)   # (B, H, A)
         a2_true  = a2_true.to(device, non_blocking=True)
 
-        # ---- Train D ----
-        with torch.no_grad():
-            a1_fake = G1(a1_attrs)  # (B, H, A)
-            a2_fake = G2(a2_attrs)
+        if i%5 == 0:
+            # ---- Train D ----
+            with torch.no_grad():
+                a1_fake = G1(a1_attrs)  # (B, H, A)
+                a2_fake = G2(a2_attrs)
 
-        r1, _ = D(a1_attrs, a1_true)    # (B,)
-        f1, _ = D(a1_attrs, a1_fake)
-        r2, _ = D(a2_attrs, a2_true)
-        f2, _ = D(a2_attrs, a2_fake)
+            r1, _ = D(a1_attrs, a1_true)    # (B,)
+            f1, _ = D(a1_attrs, a1_fake)
+            r2, _ = D(a2_attrs, a2_true)
+            f2, _ = D(a2_attrs, a2_fake)
 
-        ones1 = torch.ones_like(r1); zeros1 = torch.zeros_like(f1)
-        ones2 = torch.ones_like(r2); zeros2 = torch.zeros_like(f2)
+            # import ipdb; ipdb.set_trace()  # IGNORE
 
-        lossD1 = 0.5 * (bce_logits(r1, ones1) + bce_logits(f1, zeros1))
-        lossD2 = 0.5 * (bce_logits(r2, ones2) + bce_logits(f2, zeros2))
-        lossD  = lossD1 + lossD2
+            ones1 = torch.ones_like(r1); zeros1 = torch.zeros_like(f1)
+            ones2 = torch.ones_like(r2); zeros2 = torch.zeros_like(f2)
 
-        optD.zero_grad(set_to_none=True)
-        lossD.backward()
-        optD.step()
+            lossD1 = 0.5 * (bce_logits(r1, ones1) + bce_logits(f1, zeros1))
+            lossD2 = 0.5 * (bce_logits(r2, ones2) + bce_logits(f2, zeros2))
+            lossD  = lossD1 + lossD2
+
+            optD.zero_grad(set_to_none=True)
+            lossD.backward()
+            optD.step()
 
         # ---- Train G ----
         a1_fake = G1(a1_attrs)

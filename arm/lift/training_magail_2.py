@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
+from typing import Optional
 
 seed = 42
 random.seed(seed); np.random.seed(seed); torch.manual_seed(seed)
@@ -13,7 +14,7 @@ torch.backends.cudnn.benchmark = True
 
 # Parameters
 batch_size   = 32
-hidden_size  = 256
+hidden_size  = 64
 lr_G         = 1e-4
 lr_D         = 1e-4
 target_steps = 50_000   # ~ same order of optimizer steps as your BC/diffusion runs
@@ -66,28 +67,141 @@ loader2  = DataLoader(TensorDataset(tS2, tA2), batch_size=batch_size, shuffle=Tr
                       num_workers=max(1, os.cpu_count()//2), pin_memory=(device.type=="cuda"),
                       persistent_workers=True)
 
-# Models
-class GenNet(nn.Module):
-    def __init__(self, s_dim, a_dim, h=256):
+# -------------------------
+# Residual MLP block (works on tensors of shape (..., dim))
+# -------------------------
+class MLPBlock(nn.Module):
+    def __init__(self, dim, dropout=0.1, expansion=4):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(s_dim, h), nn.ReLU(),
-            nn.Linear(h, h),     nn.ReLU(),
-            nn.Linear(h, a_dim)
-        )
+        self.norm = nn.LayerNorm(dim)
+        self.fc1  = nn.Linear(dim, dim * expansion)
+        self.act  = nn.GELU()
+        self.fc2  = nn.Linear(dim * expansion, dim)
+        self.drop = nn.Dropout(dropout)
+
     def forward(self, x):
-        return self.net(x)
+        h = self.norm(x)
+        h = self.fc1(h)
+        h = self.act(h)
+        h = self.drop(h)
+        h = self.fc2(h)
+        h = self.drop(h)
+        return x + h  # residual
+
+
+# =========================
+# Bigger, non-Sequential models
+# =========================
+
+class GenNet(nn.Module):
+    """
+    Generator: s -> a
+    - Residual MLP stack with LayerNorm, GELU, Dropout.
+    - Configurable width, depth, and MLP expansion.
+    """
+    def __init__(
+        self,
+        s_dim: int,
+        a_dim: int,
+        hidden_size: int = 512,
+        num_layers: int = 8,
+        dropout: float = 0.1,
+        expansion: int = 4,
+        final_activation: Optional[nn.Module] = None,  # e.g., nn.Tanh() if you want bounded outputs
+    ):
+        super().__init__()
+        self.inp = nn.Linear(s_dim, hidden_size)
+        self.blocks = nn.ModuleList([
+            MLPBlock(hidden_size, dropout=dropout, expansion=expansion)
+            for _ in range(num_layers)
+        ])
+        self.pre_head_norm = nn.LayerNorm(hidden_size)
+        self.head_fc1 = nn.Linear(hidden_size, hidden_size)
+        self.head_act = nn.GELU()
+        self.head_drop = nn.Dropout(dropout)
+        self.out = nn.Linear(hidden_size, a_dim)
+        self.final_activation = final_activation
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        # Xavier init for linear layers
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
+
+    def forward(self, s):
+        h = self.inp(s)                      # (B, hidden)
+        for blk in self.blocks:
+            h = blk(h)                       # (B, hidden)
+        h = self.pre_head_norm(h)
+        h = self.head_fc1(h)
+        h = self.head_act(h)
+        h = self.head_drop(h)
+        a = self.out(h)                      # (B, a_dim)
+        if self.final_activation is not None:
+            a = self.final_activation(a)
+        return a
+
 
 class DiscNet(nn.Module):
-    def __init__(self, s_dim, a_dim, h=256):
+    """
+    Discriminator: (s, a) -> scalar logit
+    - Residual MLP stack like the generator.
+    - Optional spectral norm on the first and last layers for stability.
+    """
+    def __init__(
+        self,
+        s_dim: int,
+        a_dim: int,
+        hidden_size: int = 512,
+        num_layers: int = 6,
+        dropout: float = 0.1,
+        expansion: int = 4,
+        spectral_norm: bool = True,
+        leak: float = 0.2,   # Only used if you add extra nonlinearity; blocks use GELU internally
+    ):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(s_dim + a_dim, h), nn.LeakyReLU(0.2),
-            nn.Linear(h, h),             nn.LeakyReLU(0.2),
-            nn.Linear(h, 1)
-        )
+        in_linear = nn.Linear(s_dim + a_dim, hidden_size)
+        out_linear = nn.Linear(hidden_size, 1)
+
+        if spectral_norm:
+            in_linear = nn.utils.spectral_norm(in_linear)
+            out_linear = nn.utils.spectral_norm(out_linear)
+
+        self.inp = in_linear
+        self.blocks = nn.ModuleList([
+            MLPBlock(hidden_size, dropout=dropout, expansion=expansion)
+            for _ in range(num_layers)
+        ])
+        self.pre_head_norm = nn.LayerNorm(hidden_size)
+        self.head_fc1 = nn.Linear(hidden_size, hidden_size)
+        self.head_act = nn.GELU()
+        self.head_drop = nn.Dropout(dropout)
+        self.out = out_linear
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                # If wrapped by spectral norm, m is still nn.Linear underneath
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
     def forward(self, s, a):
-        return self.net(torch.cat([s, a], dim=1)).squeeze(1)
+        x = torch.cat([s, a], dim=-1)        # (B, s_dim + a_dim)
+        h = self.inp(x)                      # (B, hidden)
+        for blk in self.blocks:
+            h = blk(h)                       # (B, hidden)
+        h = self.pre_head_norm(h)
+        h = self.head_fc1(h)
+        h = self.head_act(h)
+        h = self.head_drop(h)
+        logit = self.out(h).squeeze(-1)      # (B,)
+        return logit
 
 G1 = GenNet(state_dim, action_dim, hidden_size).to(device)
 G2 = GenNet(state_dim, action_dim, hidden_size).to(device)
@@ -196,7 +310,7 @@ for epoch in range(1, n_epochs+1):
         print(f"Epoch {epoch:4d} | lossD: {avgD:.4f} | lossG: {avgG:.4f}")
 
 # Save models
-out_dir = "trained_models/magail"
+out_dir = "trained_models/magail_big"
 os.makedirs(out_dir, exist_ok=True)
 torch.save(G1.state_dict(), os.path.join(out_dir, "G1.pth"))
 torch.save(G2.state_dict(), os.path.join(out_dir, "G2.pth"))
