@@ -59,8 +59,8 @@ X_train2 = torch.tensor(np.array(X_train2), dtype=torch.float32)  # Shape: (N, 4
 Y_train2 = torch.tensor(np.array(Y_train2), dtype=torch.float32)  # Shape: (N, 2)
 
 # Initialize Model, Loss Function, and Optimizers
-model1 = ImitationNet(input_size=4, hidden_size=64, output_size=2)
-model2 = ImitationNet(input_size=4, hidden_size=64, output_size=2)
+model1 = ImitationNet(input_size=4, hidden_size=2000, output_size=2)
+model2 = ImitationNet(input_size=4, hidden_size=2000, output_size=2)
 criterion = nn.MSELoss()  # Mean Squared Error Loss
 all_params = []
 all_params += list(model1.parameters())
@@ -89,7 +89,7 @@ def train_model(model, optimizer, criterion, X_train, Y_train, num_epochs=5000):
             print(f'Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}')
     return model, losses
 
-def joint_train(model1, model2, optimizer, criterion, X_train1, Y_train1, X_train2, Y_train2, num_epochs=5000):
+def joint_train(model1, model2, optimizer, criterion, X_train1, Y_train1, X_train2, Y_train2, num_epochs=10000):
     losses1 = []
     losses2 = []
 
@@ -119,24 +119,24 @@ def joint_train(model1, model2, optimizer, criterion, X_train1, Y_train1, X_trai
 
 # trained_model1, losses1 = train_model(model1, optimizer1, criterion, X_train1, Y_train1)
 # trained_model2, losses2 = train_model(model2, optimizer2, criterion, X_train2, Y_train2)
-# trained_model1, trained_model2, losses1, losses2 = joint_train(model1, model2, optimizer, criterion, X_train1, Y_train1, X_train2, Y_train2)
+trained_model1, trained_model2, losses1, losses2 = joint_train(model1, model2, optimizer, criterion, X_train1, Y_train1, X_train2, Y_train2)
 
-                      
-save_path1 = "trained_models/bc/single_agent_model1_joint.pth"
-save_path2 = "trained_models/bc/single_agent_model2_joint.pth"
-# torch.save(model1.state_dict(), save_path1)
-# torch.save(model2.state_dict(), save_path2)
 
-model1 = ImitationNet(input_size=4, hidden_size=64, output_size=2)
+save_path1 = "trained_models/bc/single_agent_model1_joint_big.pth"
+save_path2 = "trained_models/bc/single_agent_model2_joint_big.pth"
+torch.save(trained_model1.state_dict(), save_path1)
+torch.save(trained_model2.state_dict(), save_path2)
+
+model1 = ImitationNet(input_size=4, hidden_size=2000, output_size=2)
 model1.load_state_dict(torch.load(save_path1, map_location='cpu'))
 model1.eval()
 
-model2 = ImitationNet(input_size=4, hidden_size=64, output_size=2)
+model2 = ImitationNet(input_size=4, hidden_size=2000, output_size=2)
 model2.load_state_dict(torch.load(save_path2, map_location='cpu'))
 model2.eval()
 
 # Generate a New Trajectory Using the Trained Model
-noise_std = 0.1
+noise_std = 0.4
 generated_trajectories1 = []
 generated_trajectories2 = []
 
@@ -164,9 +164,9 @@ for i in range(100):
             state2 = torch.tensor(np.hstack([next_state2, final2]), dtype=torch.float32).unsqueeze(0)
 
     generated_trajectories1.append(np.array(traj1))
-    # np.save(f"sampled_trajs/bc/mpc_traj1_{i}.npy", np.array(traj1))
+    np.save(f"sampled_trajs/bc_big/mpc_traj1_{i}.npy", np.array(traj1))
     generated_trajectories2.append(np.array(traj2))
-    # np.save(f"sampled_trajs/bc/mpc_traj2_{i}.npy", np.array(traj2))
+    np.save(f"sampled_trajs/bc_big/mpc_traj2_{i}.npy", np.array(traj2))
 
 
 # Plotting
