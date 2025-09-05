@@ -98,10 +98,6 @@ class TransformerBlock(nn.Module):
         x = x + self.mlp(self.norm2(x))
         return x
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
 class VisionTransformerEncoder(nn.Module):
     def __init__(self, img_size=256, patch_size=16, in_channels=3, embedding_dimension=768, depth=12, number_of_heads=12, mlp_ratio=4.0, dropout=0.1, latent_dim=128):
         super().__init__()
