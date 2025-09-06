@@ -15,8 +15,8 @@ class ImagePatchAndEmbed(nn.Module):
         @param image_dim: the dimension of our input image / trajectory - defaults to 256.
         @param patch_size: 16, the size of each patch - 16 is standard in research from my understanding.
         @param input_channels: 3, 3 channels for RGB.
-        @param embedding_dimension: 768, the dimension of our embedding space - 768 is standard in research from my 
-                                    understanding, we get the number through 16 * 16 * 3.
+        @param embedding_dimension: 768, the dimension of our embedding space - 
+                                    we get the number through 16 * 16 * 3.
 
     """
     def __init__(self, image_dim = 256, patch_size = 16, input_channels = 3, embedding_dimension = 768):
@@ -33,9 +33,13 @@ class ImagePatchAndEmbed(nn.Module):
 
     def forward(self, x):
         batch_size = x.shape[0]
-        x = x.permute(0, 3, 1, 2)
+        # The permute line below was removed as the input tensor is already in the correct format (B, C, H, W).
+        # x = x.permute(0, 3, 1, 2)
         height, width = x.shape[2], x.shape[3]
-        x = x.reshape(batch_size, self.input_channels, height // self.patch_size, width, self.patch_size, self.patch_size)
+        
+        # Fixed line: This reshape correctly patches the image by splitting the height and width dimensions.
+        x = x.reshape(batch_size, self.input_channels, height // self.patch_size, self.patch_size, width // self.patch_size, self.patch_size)
+        
         x = x.permute(0, 2, 4, 1, 3, 5).contiguous()
         x = x.view(batch_size, self.number_of_patches, self.patch_dimensions)
         x = self.projection(x)
@@ -72,7 +76,7 @@ class MultiHeadAttention(nn.Module):
         out = attn @ v
         out = out.transpose(1, 2)
         out = out.reshape(batch_size, number_of_patches, embedding_dimension)
-        return self.proj(out)
+        return self.projection(out) # Fixed: The projection layer was incorrectly named 'self.proj' in your original code.
 
 class TransformerBlock(nn.Module):
     """
@@ -101,7 +105,7 @@ class TransformerBlock(nn.Module):
 class VisionTransformerEncoder(nn.Module):
     def __init__(self, img_size=256, patch_size=16, in_channels=3, embedding_dimension=768, depth=12, number_of_heads=12, mlp_ratio=4.0, dropout=0.1, latent_dim=128):
         super().__init__()
-        self.patch_embed = ImagePatchAndEmbed(img_size, patch_size, in_channels, embed_dim)
+        self.patch_embed = ImagePatchAndEmbed(img_size, patch_size, in_channels, embedding_dimension)
         n_patches = self.patch_embed.number_of_patches
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embedding_dimension))
         self.pos_embed = nn.Parameter(torch.zeros(1, n_patches + 1, embedding_dimension))
@@ -141,5 +145,3 @@ class VisionTransformerEncoder(nn.Module):
 
 def create_vit_encoder(**kwargs):
     return VisionTransformerEncoder(embedding_dimension=768, depth=12, number_of_heads=12, **kwargs)
-
-
