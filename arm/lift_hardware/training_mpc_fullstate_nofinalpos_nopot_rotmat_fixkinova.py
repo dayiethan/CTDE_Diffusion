@@ -120,8 +120,8 @@ attr_dim2 = attr2.shape[1]
 # Training
 end = "_lift_mpc_P200E1_1100T_fullstate_nofinalpos_nopot_rotmat_fixkinova_separatenorm"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=10, n_models = 2, **model_size)
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, endpoint_loss=False)
-action_cond_ode.save(extra=end)
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(5*n_gradient_steps), batch_size, extra=end, endpoint_loss=False)
+# action_cond_ode.save(extra=end)
 action_cond_ode.load(extra=end)
 
 # Sampling
@@ -191,12 +191,18 @@ def reactive_mpc_plan(ode_model, initial_states, segment_length=100, total_steps
     full_traj = np.concatenate(full_traj, axis=1)     # (n_agents, total_steps, action_size)
     return full_traj
 
-
 for i in range(10):
-    cond_idx = i
-    # breakpoint()
-    planned_trajs = reactive_mpc_plan(action_cond_ode, [expert_data1_temp[cond_idx][0], expert_data2_temp[cond_idx][0]], segment_length=H, total_steps=T, n_implement=10)
-    planned_traj1 =  planned_trajs[0] * kinova_std + kinova_mean
-    np.save("samples/P200E10_1100T_fullstate_nofinalpos_nopot_rotmat_fixkinova_separatenorm_denoise10/planned_traj1_%s_new.npy" % cond_idx, planned_traj1)
-    planned_traj2 = planned_trajs[1] * xarm_std + xarm_mean
-    np.save("samples/P200E10_1100T_fullstate_nofinalpos_nopot_rotmat_fixkinova_separatenorm_denoise10/planned_traj2_%s_new.npy" % cond_idx, planned_traj2)
+    seed = i * 10
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    for i in range(16):
+        cond_idx = i
+        # breakpoint()
+        planned_trajs = reactive_mpc_plan(action_cond_ode, [expert_data1_temp[cond_idx][0], expert_data2_temp[cond_idx][0]], segment_length=H, total_steps=T, n_implement=10)
+        planned_traj1 =  planned_trajs[0] * kinova_std + kinova_mean
+        np.save("samples/testseed/planned_traj1_seed%s_%s_new.npy" % (seed, cond_idx), planned_traj1)
+        planned_traj2 = planned_trajs[1] * xarm_std + xarm_mean
+        np.save("samples/testseed/planned_traj2_seed%s_%s_new.npy" % (seed, cond_idx), planned_traj2)

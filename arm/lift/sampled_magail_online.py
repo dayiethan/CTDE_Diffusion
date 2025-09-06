@@ -141,7 +141,7 @@ class PolicyPlayer:
             pot_dim = self.pot_dim
 
         in_size = 7 + pot_dim
-        save_dir = "trained_models/magail"  # where training saved G1/G2
+        save_dir = "trained_models/magail_big"  # where training saved G1/G2
 
         G1 = GenNet(in_size, 7, 256).to(device)
         G2 = GenNet(in_size, 7, 256).to(device)

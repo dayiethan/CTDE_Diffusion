@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from utils.conditional_Action_DiT import Conditional_ODE
+from utils.conditional_Action_DiT import Conditional_ODE, count_parameters
 import matplotlib.pyplot as plt
 from utils.discrete import *
 import sys
@@ -122,6 +122,9 @@ sig = np.array([sigma_data1, sigma_data2, sigma_data3])
 # Training
 end = "_P25E1_400demos_06noise_nolf_separatenorm_nofinalpos"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2, attr_dim3], [sigma_data1, sigma_data2, sigma_data3], device=device, N=200, n_models = 3, **model_size)
+diff_pair_params = sum(count_parameters(F) for F in action_cond_ode.F_list)
+print(f"Diffusion pair params: {diff_pair_params:,}")
+breakpoint()
 # action_cond_ode.train([actions1, actions2, actions3], [attr1, attr2, attr3], int(5*n_gradient_steps), batch_size, extra=end)
 # action_cond_ode.save(extra=end)
 action_cond_ode.load(extra=end)

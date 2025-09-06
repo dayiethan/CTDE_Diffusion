@@ -59,8 +59,8 @@ X_train2 = torch.tensor(np.array(X_train2), dtype=torch.float32)  # Shape: (N, 4
 Y_train2 = torch.tensor(np.array(Y_train2), dtype=torch.float32)  # Shape: (N, 2)
 
 # Initialize Model, Loss Function, and Optimizers
-model1 = ImitationNet(input_size=4, hidden_size=2000, output_size=2)
-model2 = ImitationNet(input_size=4, hidden_size=2000, output_size=2)
+model1 = ImitationNet(input_size=4, hidden_size=64, output_size=2)
+model2 = ImitationNet(input_size=4, hidden_size=64, output_size=2)
 print(f"Total parameters: {sum(p.numel() for p in model1.parameters()) + sum(p.numel() for p in model2.parameters())}")
 criterion = nn.MSELoss()  # Mean Squared Error Loss
 all_params = []
@@ -101,19 +101,19 @@ def joint_train(model1, model2, optimizer, criterion, X_train1, Y_train1, X_trai
 
     return model1, model2, losses1, losses2
 
-trained_model1, trained_model2, losses1, losses2 = joint_train(model1, model2, optimizer, criterion, X_train1, Y_train1, X_train2, Y_train2)
+# trained_model1, trained_model2, losses1, losses2 = joint_train(model1, model2, optimizer, criterion, X_train1, Y_train1, X_train2, Y_train2)
 
 
-save_path1 = "trained_models/bc/bc_nofinalpos_redo_big1.pth"
-save_path2 = "trained_models/bc/bc_nofinalpos_redo_big2.pth"
-torch.save(trained_model1.state_dict(), save_path1)
-torch.save(trained_model2.state_dict(), save_path2)
+save_path1 = "trained_models/bc/bc_nofinalpos_small1.pth"
+save_path2 = "trained_models/bc/bc_nofinalpos_small2.pth"
+# torch.save(trained_model1.state_dict(), save_path1)
+# torch.save(trained_model2.state_dict(), save_path2)
 
-model1 = ImitationNet(input_size=4, hidden_size=2000, output_size=2)
+model1 = ImitationNet(input_size=4, hidden_size=64, output_size=2)
 model1.load_state_dict(torch.load(save_path1, map_location='cpu'))
 model1.eval()
 
-model2 = ImitationNet(input_size=4, hidden_size=2000, output_size=2)
+model2 = ImitationNet(input_size=4, hidden_size=64, output_size=2)
 model2.load_state_dict(torch.load(save_path2, map_location='cpu'))
 model2.eval()
 
@@ -146,9 +146,9 @@ for i in range(100):
             state2 = torch.tensor(np.hstack([next_state2, final2]), dtype=torch.float32).unsqueeze(0)
 
     generated_trajectories1.append(np.array(traj1))
-    np.save(f"sampled_trajs/bc_nofinalpos_redo/mpc_traj1_{i}.npy", np.array(traj1))
+    np.save(f"sampled_trajs/bc_nofinalpos_small/mpc_traj1_{i}.npy", np.array(traj1))
     generated_trajectories2.append(np.array(traj2))
-    np.save(f"sampled_trajs/bc_nofinalpos_redo/mpc_traj2_{i}.npy", np.array(traj2))
+    np.save(f"sampled_trajs/bc_nofinalpos_small/mpc_traj2_{i}.npy", np.array(traj2))
 
 
 # Plotting

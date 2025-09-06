@@ -113,59 +113,59 @@ loader2 = DataLoader(TensorDataset(tS2, tA2),
                      batch_size=batch_size, shuffle=True, drop_last=True)
 
 # 7) Training loop with centralized training structure
-for epoch in range(1, n_epochs+1):
-    G1.train(); G2.train(); D.train()
-    lossD_sum = 0.0
-    lossG_sum = 0.0
+# for epoch in range(1, n_epochs+1):
+#     G1.train(); G2.train(); D.train()
+#     lossD_sum = 0.0
+#     lossG_sum = 0.0
 
-    for (x1, a1), (x2, a2) in zip(loader1, loader2):
-        x1, a1 = x1.to(device), a1.to(device)
-        x2, a2 = x2.to(device), a2.to(device)
+#     for (x1, a1), (x2, a2) in zip(loader1, loader2):
+#         x1, a1 = x1.to(device), a1.to(device)
+#         x2, a2 = x2.to(device), a2.to(device)
 
-        # ——— Discriminator update using both agents' data ———
-        with torch.no_grad():
-            fake1 = G1(x1)
-            fake2 = G2(x2)
+#         # ——— Discriminator update using both agents' data ———
+#         with torch.no_grad():
+#             fake1 = G1(x1)
+#             fake2 = G2(x2)
 
-        real_logit1 = D(x1, a1)
-        fake_logit1 = D(x1, fake1)
-        real_logit2 = D(x2, a2)
-        fake_logit2 = D(x2, fake2)
+#         real_logit1 = D(x1, a1)
+#         fake_logit1 = D(x1, fake1)
+#         real_logit2 = D(x2, a2)
+#         fake_logit2 = D(x2, fake2)
 
-        lossD1 = 0.5*(bce_logits(real_logit1, torch.ones_like(real_logit1)) +
-                      bce_logits(fake_logit1, torch.zeros_like(fake_logit1)))
-        lossD2 = 0.5*(bce_logits(real_logit2, torch.ones_like(real_logit2)) +
-                      bce_logits(fake_logit2, torch.zeros_like(fake_logit2)))
+#         lossD1 = 0.5*(bce_logits(real_logit1, torch.ones_like(real_logit1)) +
+#                       bce_logits(fake_logit1, torch.zeros_like(fake_logit1)))
+#         lossD2 = 0.5*(bce_logits(real_logit2, torch.ones_like(real_logit2)) +
+#                       bce_logits(fake_logit2, torch.zeros_like(fake_logit2)))
 
-        lossD = lossD1 + lossD2
-        optD.zero_grad()
-        lossD.backward()
-        optD.step()
+#         lossD = lossD1 + lossD2
+#         optD.zero_grad()
+#         lossD.backward()
+#         optD.step()
 
-        # ——— Generator update for each agent ———
-        fake1 = G1(x1)
-        fake2 = G2(x2)
+#         # ——— Generator update for each agent ———
+#         fake1 = G1(x1)
+#         fake2 = G2(x2)
 
-        lossG1 = bce_logits(D(x1, fake1), torch.ones_like(fake1[:,0]))
-        lossG2 = bce_logits(D(x2, fake2), torch.ones_like(fake2[:,0]))
+#         lossG1 = bce_logits(D(x1, fake1), torch.ones_like(fake1[:,0]))
+#         lossG2 = bce_logits(D(x2, fake2), torch.ones_like(fake2[:,0]))
 
-        lossG = lossG1 + lossG2
-        optG.zero_grad()
-        lossG.backward()
-        optG.step()
+#         lossG = lossG1 + lossG2
+#         optG.zero_grad()
+#         lossG.backward()
+#         optG.step()
 
-        lossD_sum += lossD.item()
-        lossG_sum += lossG.item()
+#         lossD_sum += lossD.item()
+#         lossG_sum += lossG.item()
 
-    if epoch % 100 == 0:
-        avgD = lossD_sum / len(loader1)
-        avgG = lossG_sum / len(loader1)
-        print(f"Epoch {epoch:4d} | lossD: {avgD:.4f} | lossG: {avgG:.4f}")
+#     if epoch % 100 == 0:
+#         avgD = lossD_sum / len(loader1)
+#         avgG = lossG_sum / len(loader1)
+#         print(f"Epoch {epoch:4d} | lossD: {avgD:.4f} | lossG: {avgG:.4f}")
 
 # 8) Save models
-save_path_G1 = "trained_models/magail/G1_nofinalpos_big.pth"
-save_path_G2 = "trained_models/magail/G2_nofinalpos_big.pth"
-save_path_D  = "trained_models/magail/D_nofinalpos_big.pth"
+save_path_G1 = "trained_models/magail/G1_nofinalpos.pth"
+save_path_G2 = "trained_models/magail/G2_nofinalpos.pth"
+save_path_D  = "trained_models/magail/D_nofinalpos.pth"
 torch.save(G1.state_dict(), save_path_G1)
 torch.save(G2.state_dict(), save_path_G2)
 torch.save(D.state_dict(),  save_path_D)
@@ -210,9 +210,9 @@ for i in range(num_samples):
     goal2 =  final_point2 + noise_std * np.random.randn(2)
 
     traj1 = sample_trajectory(G1, init1, goal1, T)
-    np.save(f"sampled_trajs/magail_nofinalpos_big/vary_init/mpc_traj1_{i}.npy", traj1)
+    # np.save(f"sampled_trajs/magail_nofinalpos_big/vary_init/mpc_traj1_{i}.npy", traj1)
     traj2 = sample_trajectory(G2, init2, goal2, T)
-    np.save(f"sampled_trajs/magail_nofinalpos_big/vary_init/mpc_traj2_{i}.npy", traj2)
+    # np.save(f"sampled_trajs/magail_nofinalpos_big/vary_init/mpc_traj2_{i}.npy", traj2)
 
     plt.plot(traj1[:,0], traj1[:,1], color='blue', alpha=0.7)
     plt.plot(traj2[:,0], traj2[:,1], color='orange', alpha=0.7)
@@ -243,9 +243,9 @@ T        = expert1.shape[1]
 N = 100
 rollouts1 = [sample_trajectory(G1, init1, goal1, T) for _ in range(N)]
 rollouts2 = [sample_trajectory(G2, init2, goal2, T) for _ in range(N)]
-for i in range(N):
-    np.save(f"sampled_trajs/magail_nofinalpos_big/static_init/mpc_traj1_{i}.npy", rollouts1[i])
-    np.save(f"sampled_trajs/magail_nofinalpos_big/static_init/mpc_traj2_{i}.npy", rollouts2[i])
+# for i in range(N):
+#     np.save(f"sampled_trajs/magail_nofinalpos_big/static_init/mpc_traj1_{i}.npy", rollouts1[i])
+#     np.save(f"sampled_trajs/magail_nofinalpos_big/static_init/mpc_traj2_{i}.npy", rollouts2[i])
 
 # --- plot all rollouts --------------------------------
 plt.figure(figsize=(6,6))

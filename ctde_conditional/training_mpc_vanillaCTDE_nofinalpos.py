@@ -7,6 +7,8 @@ import sys
 import pdb
 import csv
 from utils.conditional_Action_DiT import Conditional_ODE, count_parameters
+np.random.seed(10)
+torch.manual_seed(10)
 
 def create_mpc_dataset(expert_data, planning_horizon=25):
     n_traj, horizon, state_dim = expert_data.shape
@@ -104,8 +106,8 @@ end = "_P25E1_vanillaCTDE_nofinalpos_matchtrain_50k"
 action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
 diff_pair_params = sum(count_parameters(F) for F in action_cond_ode.F_list)
 print(f"Diffusion pair params: {diff_pair_params:,}")
-action_cond_ode.train([actions1, actions2], [attr1, attr2], int(n_gradient_steps), batch_size, extra=end, subdirect="mpc/")
-action_cond_ode.save(subdirect="mpc/", extra=end)
+# action_cond_ode.train([actions1, actions2], [attr1, attr2], int(n_gradient_steps), batch_size, extra=end, subdirect="mpc/")
+# action_cond_ode.save(subdirect="mpc/", extra=end)
 action_cond_ode.load(subdirect="mpc/", extra=end)
 
 # Sampling
@@ -187,9 +189,9 @@ for i in range(100):
 
     planned_traj1 =  planned_trajs[0] * std1 + mean1
 
-    np.save("sampled_trajs/mpc_P25E1_vanillaCTDE_nofinalpos_matchtrain_50k/mpc_traj1_%s.npy" % i, planned_traj1)
+    np.save("sampled_trajs/mpc_P25E1_vanillaCTDE_nofinalpos_matchtrain_50k_seeded/mpc_traj1_%s.npy" % i, planned_traj1)
 
     planned_traj2 = planned_trajs[1] * std2 + mean2
 
-    np.save("sampled_trajs/mpc_P25E1_vanillaCTDE_nofinalpos_matchtrain_50k/mpc_traj2_%s.npy" % i, planned_traj2)
+    np.save("sampled_trajs/mpc_P25E1_vanillaCTDE_nofinalpos_matchtrain_50k_seeded/mpc_traj2_%s.npy" % i, planned_traj2)
 
