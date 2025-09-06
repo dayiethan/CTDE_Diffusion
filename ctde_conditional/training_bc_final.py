@@ -138,22 +138,23 @@ for s in range(10):
         initial2 = initial_point2 + noise_std * np.random.randn(*np.shape(initial_point2))
         final2 = final_point2 + noise_std * np.random.randn(*np.shape(final_point2))
         with torch.no_grad():
-            state1 = np.hstack([initial1, final1])  # Initial state + goal
+            state1 = np.hstack([initial1, initial2])  # Initial state + goal
             state1 = torch.tensor(state1, dtype=torch.float32).unsqueeze(0)
             traj1 = [initial1]
 
-            state2 = np.hstack([initial2, final2])  # Initial state + goal
+            state2 = np.hstack([initial2, initial1])  # Initial state + goal
             state2 = torch.tensor(state2, dtype=torch.float32).unsqueeze(0)
             traj2 = [initial2]
 
             for _ in range(100 - 1):  # 100 steps total
                 next_state1 = model1(state1).numpy().squeeze()
                 traj1.append(next_state1)
-                state1 = torch.tensor(np.hstack([next_state1, final1]), dtype=torch.float32).unsqueeze(0)
 
                 next_state2 = model2(state2).numpy().squeeze()
                 traj2.append(next_state2)
-                state2 = torch.tensor(np.hstack([next_state2, final2]), dtype=torch.float32).unsqueeze(0)
+
+                state1 = torch.tensor(np.hstack([next_state1, next_state2]), dtype=torch.float32).unsqueeze(0)
+                state2 = torch.tensor(np.hstack([next_state2, next_state1]), dtype=torch.float32).unsqueeze(0)
 
         generated_trajectories1.append(np.array(traj1))
         np.save(os.path.join(path, f"mpc_traj1_{i}.npy"), np.array(traj1))

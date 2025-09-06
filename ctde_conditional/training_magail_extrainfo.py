@@ -117,62 +117,62 @@ loader2 = DataLoader(TensorDataset(tS2, tA2),
                      batch_size=batch_size, shuffle=True, drop_last=True)
 
 # 7) Training loop with centralized training structure
-for epoch in range(1, n_epochs+1):
-    G1.train(); G2.train(); D.train()
-    lossD_sum = 0.0
-    lossG_sum = 0.0
+# for epoch in range(1, n_epochs+1):
+#     G1.train(); G2.train(); D.train()
+#     lossD_sum = 0.0
+#     lossG_sum = 0.0
 
-    for (x1, a1), (x2, a2) in zip(loader1, loader2):
-        x1, a1 = x1.to(device), a1.to(device)
-        x2, a2 = x2.to(device), a2.to(device)
+#     for (x1, a1), (x2, a2) in zip(loader1, loader2):
+#         x1, a1 = x1.to(device), a1.to(device)
+#         x2, a2 = x2.to(device), a2.to(device)
 
-        # ——— Discriminator update using both agents' data ———
-        with torch.no_grad():
-            fake1 = G1(x1)
-            fake2 = G2(x2)
+#         # ——— Discriminator update using both agents' data ———
+#         with torch.no_grad():
+#             fake1 = G1(x1)
+#             fake2 = G2(x2)
 
-        real_logit1 = D(x1, a1)
-        fake_logit1 = D(x1, fake1)
-        real_logit2 = D(x2, a2)
-        fake_logit2 = D(x2, fake2)
+#         real_logit1 = D(x1, a1)
+#         fake_logit1 = D(x1, fake1)
+#         real_logit2 = D(x2, a2)
+#         fake_logit2 = D(x2, fake2)
 
-        lossD1 = 0.5*(bce_logits(real_logit1, torch.ones_like(real_logit1)) +
-                      bce_logits(fake_logit1, torch.zeros_like(fake_logit1)))
-        lossD2 = 0.5*(bce_logits(real_logit2, torch.ones_like(real_logit2)) +
-                      bce_logits(fake_logit2, torch.zeros_like(fake_logit2)))
+#         lossD1 = 0.5*(bce_logits(real_logit1, torch.ones_like(real_logit1)) +
+#                       bce_logits(fake_logit1, torch.zeros_like(fake_logit1)))
+#         lossD2 = 0.5*(bce_logits(real_logit2, torch.ones_like(real_logit2)) +
+#                       bce_logits(fake_logit2, torch.zeros_like(fake_logit2)))
 
-        lossD = lossD1 + lossD2
-        optD.zero_grad()
-        lossD.backward()
-        optD.step()
+#         lossD = lossD1 + lossD2
+#         optD.zero_grad()
+#         lossD.backward()
+#         optD.step()
 
-        # ——— Generator update for each agent ———
-        fake1 = G1(x1)
-        fake2 = G2(x2)
+#         # ——— Generator update for each agent ———
+#         fake1 = G1(x1)
+#         fake2 = G2(x2)
 
-        lossG1 = bce_logits(D(x1, fake1), torch.ones_like(fake1[:,0]))
-        lossG2 = bce_logits(D(x2, fake2), torch.ones_like(fake2[:,0]))
+#         lossG1 = bce_logits(D(x1, fake1), torch.ones_like(fake1[:,0]))
+#         lossG2 = bce_logits(D(x2, fake2), torch.ones_like(fake2[:,0]))
 
-        lossG = lossG1 + lossG2
-        optG.zero_grad()
-        lossG.backward()
-        optG.step()
+#         lossG = lossG1 + lossG2
+#         optG.zero_grad()
+#         lossG.backward()
+#         optG.step()
 
-        lossD_sum += lossD.item()
-        lossG_sum += lossG.item()
+#         lossD_sum += lossD.item()
+#         lossG_sum += lossG.item()
 
-    if epoch % 100 == 0:
-        avgD = lossD_sum / len(loader1)
-        avgG = lossG_sum / len(loader1)
-        print(f"Epoch {epoch:4d} | lossD: {avgD:.4f} | lossG: {avgG:.4f}")
+#     if epoch % 100 == 0:
+#         avgD = lossD_sum / len(loader1)
+#         avgG = lossG_sum / len(loader1)
+#         print(f"Epoch {epoch:4d} | lossD: {avgD:.4f} | lossG: {avgG:.4f}")
 
 # 8) Save models
 save_path_G1 = "trained_models/magail/G1_extrainfo.pth"
 save_path_G2 = "trained_models/magail/G2_extrainfo.pth"
 save_path_D  = "trained_models/magail/D_extrainfo.pth"
-torch.save(G1.state_dict(), save_path_G1)
-torch.save(G2.state_dict(), save_path_G2)
-torch.save(D.state_dict(),  save_path_D)
+# torch.save(G1.state_dict(), save_path_G1)
+# torch.save(G2.state_dict(), save_path_G2)
+# torch.save(D.state_dict(),  save_path_D)
 print("CTDE MAGAIL training complete; models saved under trained_models/magail/")
 
 # --------------------- reactive MPC sampling ----------------
@@ -199,12 +199,12 @@ G1.eval(); G2.eval()
 #         traj.append(pos.copy())
 #     return np.stack(traj)
 @torch.no_grad()
-def rollout_two_agents(G1, G2, init1, init2, T, state_mean, state_std, action_mean, action_std, device):
+def rollout_two_agents(G1, G2, init1, init2, final1, final2, T, state_mean, state_std, action_mean, action_std, device):
     cur1 = init1.copy(); cur2 = init2.copy()
     traj1 = [cur1.copy()]; traj2 = [cur2.copy()]
     for _ in range(T-1):
-        s1 = np.hstack([cur1, cur2])  # other = current, not initial
-        s2 = np.hstack([cur2, cur1])
+        s1 = np.hstack([cur1, final1, cur2])  # other = current, not initial
+        s2 = np.hstack([cur2, final2, cur1])
         s1n = (s1 - state_mean) / state_std
         s2n = (s2 - state_mean) / state_std
         a1n = G1(torch.tensor(s1n, dtype=torch.float32, device=device).unsqueeze(0)).cpu().numpy()[0]
@@ -221,63 +221,70 @@ num_samples = 100
 T = expert1.shape[1]
 noise_std = 0.4
 
-plt.figure(figsize=(8, 8))
-for i in range(num_samples):
-    idx = np.random.randint(len(expert1))
-    # init1, goal1 = expert1[idx, 0], expert1[idx, -1]
-    # init2, goal2 = expert2[idx, 0], expert2[idx, -1]
-    init1 = initial_point1 + noise_std * np.random.randn(2)
-    init2 = initial_point2 + noise_std * np.random.randn(2)
+# plt.figure(figsize=(8, 8))
+for s in range(10):
+    seed = s * 10
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    random.seed(seed)
 
-    traj1, traj2 = rollout_two_agents(G1, G2, init1, init2, T, state_mean, state_std, action_mean, action_std, device)
+    path_vary = f"sampled_trajs/magail_extrainfo_seed{seed}/vary_init"
+    path_static = f"sampled_trajs/magail_extrainfo_seed{seed}/static_init"
+    os.makedirs(path_vary, exist_ok=True)
+    os.makedirs(path_static, exist_ok=True)
 
-    # traj1 = sample_trajectory(G1, init1, init2, T)
-    np.save(f"sampled_trajs/magail_extrainfo_seed{seed}/vary_init/mpc_traj1_{i}.npy", traj1)
-    # traj2 = sample_trajectory(G2, init2, init1, T)
-    np.save(f"sampled_trajs/magail_extrainfo_seed{seed}/vary_init/mpc_traj2_{i}.npy", traj2)
+    for i in range(num_samples):
+        idx = np.random.randint(len(expert1))
+        # init1, goal1 = expert1[idx, 0], expert1[idx, -1]
+        # init2, goal2 = expert2[idx, 0], expert2[idx, -1]
+        init1 = initial_point1 + noise_std * np.random.randn(2)
+        final1 = final_point1 + noise_std * np.random.randn(2)
+        init2 = initial_point2 + noise_std * np.random.randn(2)
+        final2 = final_point2 + noise_std * np.random.randn(2)
 
-    plt.plot(traj1[:,0], traj1[:,1], color='blue', alpha=0.7)
-    plt.plot(traj2[:,0], traj2[:,1], color='orange', alpha=0.7)
+        traj1, traj2 = rollout_two_agents(G1, G2, init1, init2, final1, final2, T, state_mean, state_std, action_mean, action_std, device)
 
-# Overlay start & goal points for clarity
-# (optional: comment out if not needed)
-plt.scatter(expert1[:,0,0], expert1[:,0,1], marker='o', color='blue', s=20, label='Agent 1 start')
-plt.scatter(expert2[:,0,0], expert2[:,0,1], marker='o', color='orange', s=20, label='Agent 2 start')
-plt.scatter(expert1[:,-1,0], expert1[:,-1,1], marker='x', color='blue', s=40, label='Agent 1 goal')
-plt.scatter(expert2[:,-1,0], expert2[:,-1,1], marker='x', color='orange', s=40, label='Agent 2 goal')
+        np.save(os.path.join(path_vary, f"mpc_traj1_{i}.npy"), traj1)
+        np.save(os.path.join(path_vary, f"mpc_traj2_{i}.npy"), traj2)
 
-plt.title("MAGAIL‐Generated Trajectories")
-plt.xlabel("x")
-plt.ylabel("y")
-plt.legend()
-plt.axis('equal')
-plt.grid(True)
-plt.tight_layout()
-plt.show()
+        # np.save(f"sampled_trajs/magail_extrainfo_seed{seed}/vary_init/mpc_traj1_{i}.npy", traj1)
+        # np.save(f"sampled_trajs/magail_extrainfo_seed{seed}/vary_init/mpc_traj2_{i}.npy", traj2)
 
-# --- pick one fixed context ---------------------
-idx      = 0                                 # choose any trajectory index
-init1    = expert1[idx, 0];  goal1 = expert1[idx, -1]
-init2    = expert2[idx, 0];  goal2 = expert2[idx, -1]
-T        = expert1.shape[1]
+        # plt.plot(traj1[:,0], traj1[:,1], color='blue', alpha=0.7)
+        # plt.plot(traj2[:,0], traj2[:,1], color='orange', alpha=0.7)
 
-# --- sample N rollouts for each agent ----------
-N = 100
-rollouts1, rollouts2 = [], []
-for _ in range(N):
-    traj1, traj2 = rollout_two_agents(G1, G2, init1, init2, T, state_mean, state_std, action_mean, action_std, device)
-    rollouts1.append(traj1)
-    rollouts2.append(traj2)
-for i in range(N):
-    np.save(f"sampled_trajs/magail_extrainfo_seed{seed}/static_init/mpc_traj1_{i}.npy", rollouts1[i])
-    np.save(f"sampled_trajs/magail_extrainfo_seed{seed}/static_init/mpc_traj2_{i}.npy", rollouts2[i])
+    # plt.title("MAGAIL‐Generated Trajectories")
+    # plt.xlabel("x")
+    # plt.ylabel("y")
+    # plt.legend()
+    # plt.axis('equal')
+    # plt.grid(True)
+    # plt.tight_layout()
+    # plt.show()
 
-# --- plot all rollouts --------------------------------
-plt.figure(figsize=(6,6))
-for r in rollouts1:
-    plt.plot(r[:,0], r[:,1], color='blue', alpha=0.3)
-for r in rollouts2:
-    plt.plot(r[:,0], r[:,1], color='orange', alpha=0.3)
-plt.title("Mode Collapse Check (fixed start→goal)")
-plt.xlabel("x"); plt.ylabel("y"); plt.axis('equal'); plt.grid()
-plt.show()
+    # --- pick one fixed context ---------------------
+    idx      = 0                                 # choose any trajectory index
+    init1    = expert1[idx, 0];  goal1 = expert1[idx, -1]
+    init2    = expert2[idx, 0];  goal2 = expert2[idx, -1]
+    T        = expert1.shape[1]
+
+    # --- sample N rollouts for each agent ----------
+    N = 100
+    rollouts1, rollouts2 = [], []
+    for _ in range(N):
+        traj1, traj2 = rollout_two_agents(G1, G2, init1, init2, goal1, goal2, T, state_mean, state_std, action_mean, action_std, device)
+        rollouts1.append(traj1)
+        rollouts2.append(traj2)
+    for i in range(N):
+        np.save(os.path.join(path_static, f"mpc_traj1_{i}.npy"), rollouts1[i])
+        np.save(os.path.join(path_static, f"mpc_traj2_{i}.npy"), rollouts2[i])
+
+    # --- plot all rollouts --------------------------------
+    # plt.figure(figsize=(6,6))
+    # for r in rollouts1:
+    #     plt.plot(r[:,0], r[:,1], color='blue', alpha=0.3)
+    # for r in rollouts2:
+    #     plt.plot(r[:,0], r[:,1], color='orange', alpha=0.3)
+    # plt.title("Mode Collapse Check (fixed start→goal)")
+    # plt.xlabel("x"); plt.ylabel("y"); plt.axis('equal'); plt.grid()
+    # plt.show()

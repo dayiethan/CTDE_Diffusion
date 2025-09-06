@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-
+import os
 import matplotlib.pyplot as plt
 from utils.discrete import *
 import sys
@@ -104,7 +104,7 @@ sig = np.array([sigma_data1, sigma_data2])
 
 # Training
 end = "_P25E1_nolf_nofinalpos_matchtrain_50k"
-action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
+action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=10, n_models = 2, **model_size)
 diff_pair_params = sum(count_parameters(F) for F in action_cond_ode.F_list)
 print(f"Diffusion pair params: {diff_pair_params:,}")
 # action_cond_ode.train([actions1, actions2], [attr1, attr2], int(n_gradient_steps), batch_size, extra=end, subdirect="mpc/")
@@ -181,21 +181,24 @@ def reactive_mpc_plan(
     full_traj = np.concatenate(full_traj, axis=1)
     return full_traj
 
-for i in range(100):
-    print("Planning Sample %s" % i)
-    noise_std = 0.4
-    initial1 = initial_point_up + noise_std * np.random.randn(*np.shape(initial_point_up))
-    initial1 = (initial1 - mean1) / std1
-    initial2 = initial_point_down + noise_std * np.random.randn(*np.shape(initial_point_down))
-    initial2 = (initial2 - mean2) / std2
+for s in range(10):
+    seed = s * 10
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    path = f"sampled_trajs/ours_seed{seed}"
+    os.makedirs(path, exist_ok=True)
+    for i in range(100):
+        print("Planning Sample %s" % i)
+        noise_std = 0.4
+        initial1 = initial_point_up + noise_std * np.random.randn(*np.shape(initial_point_up))
+        initial1 = (initial1 - mean1) / std1
+        initial2 = initial_point_down + noise_std * np.random.randn(*np.shape(initial_point_down))
+        initial2 = (initial2 - mean2) / std2
 
-    planned_trajs = reactive_mpc_plan(action_cond_ode, [initial1, initial2], segment_length=H, total_steps=T, n_implement=1)
+        planned_trajs = reactive_mpc_plan(action_cond_ode, [initial1, initial2], segment_length=H, total_steps=T, n_implement=1)
 
-    planned_traj1 =  planned_trajs[0] * std1 + mean1
+        planned_traj1 =  planned_trajs[0] * std1 + mean1
+        np.save(os.path.join(path, f"mpc_traj1_{i}.npy"), planned_traj1)
 
-    np.save("sampled_trajs/mpc_P25E1_nolf_nofinalpos_matchtrain_50k_seed%s/mpc_traj1_%s.npy" % (seed, i), planned_traj1)
-
-    planned_traj2 = planned_trajs[1] * std2 + mean2
-
-    np.save("sampled_trajs/mpc_P25E1_nolf_nofinalpos_matchtrain_50k_seed%s/mpc_traj2_%s.npy" % (seed, i), planned_traj2)
-
+        planned_traj2 = planned_trajs[1] * std2 + mean2
+        np.save(os.path.join(path, f"mpc_traj2_{i}.npy"), planned_traj2)

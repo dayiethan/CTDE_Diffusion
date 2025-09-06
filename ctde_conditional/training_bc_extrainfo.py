@@ -136,57 +136,66 @@ model2.load_state_dict(torch.load(save_path2, map_location='cpu'))
 model2.eval()
 
 # Generate a New Trajectory Using the Trained Model
-noise_std = 0.4
-generated_trajectories1 = []
-generated_trajectories2 = []
+for s in range(10):
+    seed = s * 10
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    random.seed(seed)
 
-for i in range(100):
-    initial1 = initial_point1 + noise_std * np.random.randn(*np.shape(initial_point1))
-    final1 = final_point1 + noise_std * np.random.randn(*np.shape(final_point1))
-    initial2 = initial_point2 + noise_std * np.random.randn(*np.shape(initial_point2))
-    final2 = final_point2 + noise_std * np.random.randn(*np.shape(final_point2))
-    with torch.no_grad():
-        state1 = np.hstack([initial1, final1, initial2])  # Initial state + goal
-        state1 = torch.tensor(state1, dtype=torch.float32).unsqueeze(0)
-        traj1 = [initial1]
+    path = f"sampled_trajs/bc_extrainfo_seed{seed}"
+    os.makedirs(path, exist_ok=True)
 
-        state2 = np.hstack([initial2, final2, initial1])  # Initial state + goal
-        state2 = torch.tensor(state2, dtype=torch.float32).unsqueeze(0)
-        traj2 = [initial2]
+    noise_std = 0.4
+    generated_trajectories1 = []
+    generated_trajectories2 = []
 
-        for _ in range(100 - 1):  # 100 steps total
-            next_state1 = model1(state1).numpy().squeeze()
-            traj1.append(next_state1)
+    for i in range(100):
+        initial1 = initial_point1 + noise_std * np.random.randn(*np.shape(initial_point1))
+        final1 = final_point1 + noise_std * np.random.randn(*np.shape(final_point1))
+        initial2 = initial_point2 + noise_std * np.random.randn(*np.shape(initial_point2))
+        final2 = final_point2 + noise_std * np.random.randn(*np.shape(final_point2))
+        with torch.no_grad():
+            state1 = np.hstack([initial1, final1, initial2])  # Initial state + goal
+            state1 = torch.tensor(state1, dtype=torch.float32).unsqueeze(0)
+            traj1 = [initial1]
 
-            next_state2 = model2(state2).numpy().squeeze()
-            traj2.append(next_state2)
+            state2 = np.hstack([initial2, final2, initial1])  # Initial state + goal
+            state2 = torch.tensor(state2, dtype=torch.float32).unsqueeze(0)
+            traj2 = [initial2]
 
-            state1 = torch.tensor(np.hstack([next_state1, final1, next_state2]), dtype=torch.float32).unsqueeze(0)
-            state2 = torch.tensor(np.hstack([next_state2, final2, next_state1]), dtype=torch.float32).unsqueeze(0)
+            for _ in range(100 - 1):  # 100 steps total
+                next_state1 = model1(state1).numpy().squeeze()
+                traj1.append(next_state1)
 
-    generated_trajectories1.append(np.array(traj1))
-    np.save(f"sampled_trajs/bc_extrainfo_seed{seed}/mpc_traj1_{i}.npy", np.array(traj1))
-    generated_trajectories2.append(np.array(traj2))
-    np.save(f"sampled_trajs/bc_extrainfo_seed{seed}/mpc_traj2_{i}.npy", np.array(traj2))
+                next_state2 = model2(state2).numpy().squeeze()
+                traj2.append(next_state2)
+
+                state1 = torch.tensor(np.hstack([next_state1, final1, next_state2]), dtype=torch.float32).unsqueeze(0)
+                state2 = torch.tensor(np.hstack([next_state2, final2, next_state1]), dtype=torch.float32).unsqueeze(0)
+
+        generated_trajectories1.append(np.array(traj1))
+        np.save(os.path.join(path, f"mpc_traj1_{i}.npy"), np.array(traj1))
+        generated_trajectories2.append(np.array(traj2))
+        np.save(os.path.join(path, f"mpc_traj2_{i}.npy"), np.array(traj2))
 
 
-# Plotting
-plt.figure(figsize=(20, 8))
-for i in range(len(generated_trajectories1)):
-    traj1 = generated_trajectories1[i]
-    traj2 = generated_trajectories2[i]
-    plt.plot(traj1[:, 0], traj1[:, 1], 'b-', alpha=0.5)
-    plt.plot(traj2[:, 0], traj2[:, 1], 'C1-', alpha=0.5)
-    plt.scatter(traj1[0, 0], traj1[0, 1], c='green', s=10)  # Start point
-    plt.scatter(traj1[-1, 0], traj1[-1, 1], c='red', s=10)  # End point
-    plt.scatter(traj2[0, 0], traj2[0, 1], c='green', s=10)  # Start point
-    plt.scatter(traj2[-1, 0], traj2[-1, 1], c='red', s=10)  # End point
+# # Plotting
+# plt.figure(figsize=(20, 8))
+# for i in range(len(generated_trajectories1)):
+#     traj1 = generated_trajectories1[i]
+#     traj2 = generated_trajectories2[i]
+#     plt.plot(traj1[:, 0], traj1[:, 1], 'b-', alpha=0.5)
+#     plt.plot(traj2[:, 0], traj2[:, 1], 'C1-', alpha=0.5)
+#     plt.scatter(traj1[0, 0], traj1[0, 1], c='green', s=10)  # Start point
+#     plt.scatter(traj1[-1, 0], traj1[-1, 1], c='red', s=10)  # End point
+#     plt.scatter(traj2[0, 0], traj2[0, 1], c='green', s=10)  # Start point
+#     plt.scatter(traj2[-1, 0], traj2[-1, 1], c='red', s=10)  # End point
 
-ox, oy, r = obstacle
-circle = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
-plt.gca().add_patch(circle)
+# ox, oy, r = obstacle
+# circle = plt.Circle((ox, oy), r, color='gray', alpha=0.3)
+# plt.gca().add_patch(circle)
 
-plt.xlabel('X')
-plt.ylabel('Y')
-plt.grid(True)
-plt.show()
+# plt.xlabel('X')
+# plt.ylabel('Y')
+# plt.grid(True)
+# plt.show()
