@@ -214,20 +214,17 @@ def rollout_two_agents(G1, G2, G3, init1, init2, init3, T, state_mean, state_std
     return np.stack(traj1), np.stack(traj2), np.stack(traj3)
 
 # 7) Sample & plot on single axes
-initial_point1 = np.array([0.0, 2.0])
-final_point1   = np.array([2.0, 0.0])
-initial_point2 = np.array([0.75, -2.0])
-final_point2   = np.array([0.75, 2.0])
-initial_point3 = np.array([-0.25, 0.75])
-final_point3   = np.array([1.75, 0.75])
+initial_point_1 = np.array([0.0, 2.0])
+final_point_1 = np.array([2.0, 0.0])
+initial_point_2 = np.array([0.75, -2.0])
+final_point_2 = np.array([0.75, 2.0])
+initial_point_3 = np.array([-0.25, 0.75])
+final_point_3 = np.array([1.75, 0.75])
 
 num_samples = 100
 noise_std = 0.6
 threshold = 0.75
 T = expert_data1.shape[1]
-# init1_list = np.load("init_final_pos/init1_list.npy")
-# init2_list = np.load("init_final_pos/init2_list.npy")
-# init3_list = np.load("init_final_pos/init3_list.npy")
 
 # plt.figure(figsize=(8, 8))
 for s in range(10):
@@ -241,28 +238,24 @@ for s in range(10):
 
     # plt.figure(figsize=(8, 8))
     for i in range(num_samples):
-        # init1 = init1_list[i]
-        # init2 = init2_list[i]
-        # init3 = init3_list[i]
 
         while True:
+            initial1 = initial_point_1 + np.random.uniform(-noise_std, noise_std, size=(2,))    
+            initial2 = initial_point_2 + np.random.uniform(-noise_std, noise_std, size=(2,))
+            initial3 = initial_point_3 + np.random.uniform(-noise_std, noise_std, size=(2,))
 
-                initial1 = initial_point1 + noise_std * np.random.randn(*np.shape(initial_point1))
-                initial2 = initial_point2 + noise_std * np.random.randn(*np.shape(initial_point2))
-                initial3 = initial_point3 + noise_std * np.random.randn(*np.shape(initial_point3))
+            d_init12 = np.linalg.norm(initial1 - initial2)
+            d_init13 = np.linalg.norm(initial1 - initial3)
+            d_init23 = np.linalg.norm(initial2 - initial3)
 
-                d_init12 = np.linalg.norm(initial1 - initial2)
-                d_init13 = np.linalg.norm(initial1 - initial3)
-                d_init23 = np.linalg.norm(initial2 - initial3)
-
-                if (d_init12 > threshold and d_init13 > threshold and d_init23 > threshold):
-                    break
+            if (d_init12 > threshold and d_init13 > threshold and d_init23 > threshold):
+                break
 
         traj1, traj2, traj3 = rollout_two_agents(G1, G2, G3, initial1, initial2, initial3, T, state_mean, state_std, action_mean, action_std, device)
 
-        np.save(os.path.join(path_vary, f"mppc_traj1_{i}.npy"), traj1)
-        np.save(os.path.join(path_vary, f"mppc_traj2_{i}.npy"), traj2)
-        np.save(os.path.join(path_vary, f"mppc_traj3_{i}.npy"), traj3)
+        np.save(os.path.join(path_vary, f"mpc_traj1_{i}.npy"), traj1)
+        np.save(os.path.join(path_vary, f"mpc_traj2_{i}.npy"), traj2)
+        np.save(os.path.join(path_vary, f"mpc_traj3_{i}.npy"), traj3)
 
         # traj1 = sample_trajectory(G1, init1, init2, init3, T)
         # np.save(f"sampled_trajs/magail_nofinalpos_big/vary_init/traj1_{i}.npy", traj1)

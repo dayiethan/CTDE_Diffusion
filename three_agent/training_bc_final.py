@@ -5,10 +5,6 @@ import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-seed = 0
-np.random.seed(seed)
-torch.manual_seed(seed)
-random.seed(seed)
 
 # device setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -105,19 +101,12 @@ model3.load_state_dict(torch.load(save_path3, map_location='cuda' if torch.cuda.
 model3.eval()
 
 # Sampling parameters
-initial_point1 = np.array([0.0, 2.0])
-final_point1   = np.array([2.0, 0.0])
-initial_point2 = np.array([0.75, -2.0])
-final_point2   = np.array([0.75, 2.0])
-initial_point3 = np.array([-0.25, 0.75])
-final_point3   = np.array([1.75, 0.75])
-
-# init1_list = np.load("init_final_pos/init1_list.npy")
-# init2_list = np.load("init_final_pos/init2_list.npy")
-# init3_list = np.load("init_final_pos/init3_list.npy")
-# final1_list = np.load("init_final_pos/final1_list.npy")
-# final2_list = np.load("init_final_pos/final2_list.npy")
-# final3_list = np.load("init_final_pos/final3_list.npy")
+initial_point_1 = np.array([0.0, 2.0])
+final_point_1 = np.array([2.0, 0.0])
+initial_point_2 = np.array([0.75, -2.0])
+final_point_2 = np.array([0.75, 2.0])
+initial_point_3 = np.array([-0.25, 0.75])
+final_point_3 = np.array([1.75, 0.75])
 
 noise_std = 0.6
 n_samples = 100
@@ -134,25 +123,10 @@ for s in range(10):
 
     generated = {1: [], 2: [], 3: []}
     for i in range(n_samples):
-        # init1 = initial_point1 + noise_std * np.random.randn(2)
-        # fin1  = final_point1   + noise_std * np.random.randn(2)
-        # init2 = initial_point2 + noise_std * np.random.randn(2)
-        # fin2  = final_point2   + noise_std * np.random.randn(2)
-        # init3 = initial_point3 + noise_std * np.random.randn(2)
-        # fin3  = final_point3   + noise_std * np.random.randn(2)
-
-        # init1 = init1_list[i]
-        # fin1  = final1_list[i]
-        # init2 = init2_list[i]
-        # fin2  = final2_list[i]
-        # init3 = init3_list[i]
-        # fin3  = final3_list[i]
-
         while True:
-
-            initial1 = initial_point1 + noise_std * np.random.randn(*np.shape(initial_point1))
-            initial2 = initial_point2 + noise_std * np.random.randn(*np.shape(initial_point2))
-            initial3 = initial_point3 + noise_std * np.random.randn(*np.shape(initial_point3))
+            initial1 = initial_point_1 + np.random.uniform(-noise_std, noise_std, size=(2,))    
+            initial2 = initial_point_2 + np.random.uniform(-noise_std, noise_std, size=(2,))
+            initial3 = initial_point_3 + np.random.uniform(-noise_std, noise_std, size=(2,))
 
             d_init12 = np.linalg.norm(initial1 - initial2)
             d_init13 = np.linalg.norm(initial1 - initial3)
