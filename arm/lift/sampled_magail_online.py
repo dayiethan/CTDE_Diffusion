@@ -365,4 +365,4 @@ if __name__ == "__main__":
 
     player = PolicyPlayer(env, render = False)
     cond_idx = 0
-    player.get_demo(seed = cond_idx*10, cond_idx = cond_idx, H=H, T=T)
+    player.get_demo(seed = np.random.randint(0, 100), cond_idx = cond_idx, H=H, T=T)

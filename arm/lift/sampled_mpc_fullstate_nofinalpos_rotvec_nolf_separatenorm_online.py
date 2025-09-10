@@ -108,8 +108,8 @@ class PolicyPlayer:
         model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
         H = 25 # horizon, length of each trajectory
         T = 700 # total time steps
-
-        obs = np.repeat(obs, repeats=T, axis=0)
+        # breakpoint()
+        obs = np.tile(obs, (T*20, 1)) 
         obs1 = np.hstack([obs_init1, obs_init2, obs])
         obs2 = np.hstack([obs_init2, obs_init1, obs])
         obs1 = torch.FloatTensor(obs1).to(device)
@@ -175,7 +175,7 @@ class PolicyPlayer:
         return state0, state1
     
     
-    def reactive_mpc_plan(self, ode_model, initial_states, pot, segment_length=25, total_steps=325, n_implement=2):
+    def reactive_mpc_plan(self, ode_model, pot, segment_length=25, total_steps=325, n_implement=2):
         """
         Plans a full trajectory (total_steps long) by iteratively planning
         segment_length-steps using the diffusion model and replanning at every timestep.
@@ -193,7 +193,21 @@ class PolicyPlayer:
         - full_traj: a numpy array of shape (total_steps, state_size)
         """
         full_traj = []
-        current_states = initial_states.copy()
+        if hasattr(self.env, "_get_observation"):
+            obs_env = self.env._get_observation()
+        elif hasattr(self.env, "_get_observations"):
+            obs_env = self.env._get_observations()
+        else:
+            # fallback if you cache the last obs after reset/step
+            obs_env = getattr(self, "obs_cache", None)
+            if obs_env is None:
+                raise RuntimeError("No current observation available. Call env.reset() before planning or cache the last obs.")
+
+        state1, state2 = self.obs_to_state(obs_env)
+        current_states = [
+            (state1 - self.mean_arm1) / self.std_arm1,
+            (state2 - self.mean_arm2) / self.std_arm2,
+        ]
 
         for seg in range(total_steps // n_implement):
             segments = []
@@ -250,7 +264,7 @@ class PolicyPlayer:
         return np.array(full_traj)
 
     
-    def get_demo(self, seed, cond_idx, H=25, T=700):
+    def get_demo(self, seed, H=25, T=700):
         """
         Main file to get the demonstration data
         """
@@ -277,12 +291,15 @@ class PolicyPlayer:
         obs_init1 = expert_data1[:, 0, :]
         obs_init2 = expert_data2[:, 0, :]
 
-        with open("data/pot_start_newslower_20.npy", "rb") as f:
-            obs = np.load(f)
+        # with open("data/pot_start_newslower_20.npy", "rb") as f:
+        #     obs = np.load(f)
+        pot_handle0_pos = self.robot0_base_ori_rotm.T @ (self.env._handle0_xpos - self.robot0_base_pos) + self.pot_handle_offset
+        pot_handle1_pos = self.robot1_base_ori_rotm.T @ (self.env._handle1_xpos - self.robot1_base_pos) + self.pot_handle_offset
+        obs = np.hstack([pot_handle0_pos, pot_handle1_pos])
 
         model = self.load_model(expert_data1, expert_data2, obs_init1, obs_init2, obs, state_dim = 7, action_dim = 7)
 
-        planned_trajs = self.reactive_mpc_plan(model, [obs_init1[cond_idx], obs_init2[cond_idx]], obs[cond_idx], segment_length=H, total_steps=T*2, n_implement=10)
+        planned_trajs = self.reactive_mpc_plan(model, obs, segment_length=H, total_steps=T*2, n_implement=10)
         planned_traj1 =  planned_trajs[0] * self.std_arm1 + self.mean_arm1
         # np.save("sampled_trajs/mpc_P34E5/mpc_traj1_%s.npy" % i, planned_traj1)
         planned_traj2 = planned_trajs[1] * self.std_arm2 + self.mean_arm2
@@ -308,5 +325,7 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = False)
-    cond_idx = 0
-    player.get_demo(seed = cond_idx*10, cond_idx = cond_idx, H=H, T=T)
+    # cond_idx = 0
+    # player.get_demo(seed = cond_idx*10, H=H, T=T)
+    cond_idx = np.random.randint(0, 20)
+    player.get_demo(seed = cond_idx*10, H=H, T=T)
