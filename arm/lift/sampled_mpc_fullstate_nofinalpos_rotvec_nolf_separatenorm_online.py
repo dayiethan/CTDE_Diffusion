@@ -86,6 +86,7 @@ class PolicyPlayer:
         """
         np.random.seed(seed)
         obs = self.env.reset()
+        self.obs_cache = obs
 
         # Setting up constants
         self.pot_handle_offset_z = 0.012
@@ -109,7 +110,8 @@ class PolicyPlayer:
         H = 25 # horizon, length of each trajectory
         T = 700 # total time steps
         # breakpoint()
-        obs = np.tile(obs, (T*20, 1)) 
+        N = expert_data1.shape[0]            # number of sub-trajectories after create_mpc_dataset
+        obs = np.repeat(obs.reshape(1, -1), repeats=N, axis=0)
         obs1 = np.hstack([obs_init1, obs_init2, obs])
         obs2 = np.hstack([obs_init2, obs_init1, obs])
         obs1 = torch.FloatTensor(obs1).to(device)
@@ -131,7 +133,7 @@ class PolicyPlayer:
 
         # Load the model
         action_cond_ode = Conditional_ODE(env, [attr_dim1, attr_dim2], [sigma_data1, sigma_data2], device=device, N=100, n_models = 2, **model_size)
-        action_cond_ode.load(extra="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_nolf_sitedata_newslower_rotvec_separatenorm")
+        action_cond_ode.load(extra="_lift_mpc_P25E1_crosscond_nofinalpos_fullstate_nolf_sitedata_newslower_rotvec_separatenorm_100traj")
 
         return action_cond_ode
 
@@ -246,6 +248,7 @@ class PolicyPlayer:
                 action2 = segments[1][t] * self.std_arm2 + self.mean_arm2
                 action = np.hstack([action1, action2])
                 obs_env, reward, done, info = self.env.step(action)
+                self.obs_cache = obs_env  # cache the latest observation
                 if self.render:
                     self.env.render()
 
@@ -271,7 +274,7 @@ class PolicyPlayer:
         obs = self.reset(seed)
 
         # Loading
-        expert_data = np.load("data/expert_actions_newslower_20.npy")
+        expert_data = np.load("data/expert_actions_newslower_100.npy")
         expert_data1 = expert_data[:, :, :7]
         expert_data2 = expert_data[:, :, 7:14]
         expert_data1 = create_mpc_dataset(expert_data1, planning_horizon=H)
