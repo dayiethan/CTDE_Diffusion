@@ -115,14 +115,14 @@ def create_mpc_dataset(expert_data, planning_horizon=25):
     return result
 
 # Parameters
-n_gradient_steps = 50_000
+n_gradient_steps = 100_000
 batch_size = 32
 model_size = {"d_model": 256, "n_heads": 4, "depth": 3}
 H = 25 # horizon, length of each trajectory
-T = 700 # total time steps
+T = 950 # total time steps
 
 # Load expert data
-expert_data = np.load("data/expert_actions_newslower_100.npy")
+expert_data = np.load("data/expert_actions_newslowerer_100.npy")
 expert_data1 = expert_data[:, :, :7]
 expert_data2 = expert_data[:, :, 7:14]
 expert_data1 = create_mpc_dataset(expert_data1, planning_horizon=H)
@@ -154,7 +154,7 @@ actions2 = torch.FloatTensor(actions2).to(device)
 sigma_data1 = actions1.std().item()
 sigma_data2 = actions2.std().item()
 
-with open("data/pot_start_newslower_100.npy", "rb") as f:
+with open("data/pot_start_newslowerer_100.npy", "rb") as f:
     pot = np.load(f)
 
 pot_mean = np.mean(pot, axis=0)
@@ -233,8 +233,8 @@ model1, model2 = joint_train(
 )
 
 # Save trained models
-save_path1 = "trained_models/bc/model1_big_100traj.pth"
-save_path2 = "trained_models/bc/model2_big_100traj.pth"
+save_path1 = "trained_models/bc/model1_big_newslowerer_100traj.pth"
+save_path2 = "trained_models/bc/model2_big_newslowerer_100traj.pth"
 
 torch.save(model1.state_dict(), save_path1)
 torch.save(model2.state_dict(), save_path2)
