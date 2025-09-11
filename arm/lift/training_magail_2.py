@@ -21,11 +21,11 @@ target_steps = 50_000   # ~ same order of optimizer steps as your BC/diffusion r
 eps          = 1e-8
 
 # Load data
-expert = np.load("data/expert_actions_newslower_20.npy")  # (N, T, 14)
+expert = np.load("data/expert_actions_newslower_100.npy")  # (N, T, 14)
 arm1   = expert[:, :, :7].astype(np.float32)
 arm2   = expert[:, :, 7:14].astype(np.float32)
 
-pot_init = np.load("data/pot_start_newslower_20.npy").astype(np.float32)  # (N, pot_dim)
+pot_init = np.load("data/pot_start_newslower_100.npy").astype(np.float32)  # (N, pot_dim)
 pot_mean = np.mean(pot_init, axis=0)
 pot_std = np.std(pot_init, axis=0)
 pot_norm = (pot_init - pot_mean) / pot_std
@@ -312,7 +312,7 @@ for epoch in range(1, n_epochs+1):
 # Save models
 out_dir = "trained_models/magail_big"
 os.makedirs(out_dir, exist_ok=True)
-torch.save(G1.state_dict(), os.path.join(out_dir, "G1.pth"))
-torch.save(G2.state_dict(), os.path.join(out_dir, "G2.pth"))
-torch.save(D.state_dict(),  os.path.join(out_dir, "D.pth"))
+torch.save(G1.state_dict(), os.path.join(out_dir, "G1_100traj.pth"))
+torch.save(G2.state_dict(), os.path.join(out_dir, "G2_100traj.pth"))
+torch.save(D.state_dict(),  os.path.join(out_dir, "D_100traj.pth"))
 print(f"Saved to {out_dir}")
