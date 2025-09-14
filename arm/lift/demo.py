@@ -41,7 +41,7 @@ class PolicyPlayer:
 
         # Setting up constants
         self.pot_handle_offset_z = 0.012
-        self.pot_handle_offset_x = 0.015
+        self.pot_handle_offset_x = 0.04
         self.pot_handle_offset = np.array([self.pot_handle_offset_x, 0, self.pot_handle_offset_z])
         self.pot_handle0_pos = self.robot0_base_ori_rotm.T @ (self.env._handle0_xpos - self.robot0_base_pos) + self.pot_handle_offset
         self.pot_handle1_pos = self.robot1_base_ori_rotm.T @ (self.env._handle1_xpos - self.robot1_base_pos) + self.pot_handle_offset
@@ -57,7 +57,7 @@ class PolicyPlayer:
 
         # Setting up constants
         self.pot_handle_offset_z = 0.012
-        self.pot_handle_offset_x = 0.015
+        self.pot_handle_offset_x = 0.04
         self.pot_handle_offset = np.array([self.pot_handle_offset_x, 0, self.pot_handle_offset_z])
         self.pot_handle0_pos = self.robot0_base_ori_rotm.T @ (self.env._handle0_xpos - self.robot0_base_pos) + self.pot_handle_offset
         self.pot_handle1_pos = self.robot1_base_ori_rotm.T @ (self.env._handle1_xpos - self.robot1_base_pos) + self.pot_handle_offset
@@ -435,16 +435,16 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = False)
-    # rollout = player.get_demo(seed = 1000, mode = 2)
+    # rollout = player.get_demo(seed = 300, mode = 2)
     # print("length of episode:", len(rollout["observations"]))
-    # rollout = player.get_demo(seed = 1000, mode = 3)
+    # rollout = player.get_demo(seed = 300, mode = 3)
     # print("length of episode:", len(rollout["observations"]))
     for i in range(200):   
         rollout = player.get_demo(seed = i*10, mode = 2)
         rollout['pot_start'] = [player.pot_handle0_pos, player.pot_handle1_pos]
-        with open("rollouts/newslowerer/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
+        with open("rollouts/newslower_closegrip/rollout_seed%s_mode2.pkl" % (i*10), "wb") as f:
             pkl.dump(rollout, f)
         rollout = player.get_demo(seed = i*10, mode = 3)
         rollout['pot_start'] = [player.pot_handle0_pos, player.pot_handle1_pos]
-        with open("rollouts/newslowerer/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
+        with open("rollouts/newslower_closegrip/rollout_seed%s_mode3.pkl" % (i*10), "wb") as f:
             pkl.dump(rollout, f)
