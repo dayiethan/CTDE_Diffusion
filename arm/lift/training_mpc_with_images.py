@@ -103,7 +103,7 @@ image_latents_initial_arm2 = expert_images_latents_arm2[:, 0, :]
 
 # Stack all conditions together
 # Arm 1 condition: [initial state of arm 1, initial pot grasp, initial image latent of arm 1]
-attr1 = np.hstack([obs_init1, obs, image_latents_initial_arm1])
+attr1 = np.hstack([obs_init1, obs_init2, obs, image_latents_initial_arm1])
 # Arm 2 condition: [initial state of arm 2, initial state of arm 1, initial pot grasp, initial image latent of arm 2]
 attr2 = np.hstack([obs_init2, obs_init1, obs, image_latents_initial_arm2])
 
