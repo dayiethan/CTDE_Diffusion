@@ -462,23 +462,23 @@ if __name__ == "__main__":
     )
 
     player = PolicyPlayer(env, render = False)
-    rollout = player.get_demo(seed = 100, mode = 2)
-    print("length of episode:", len(rollout["observations"]))
-    rollout = player.get_demo(seed = 100, mode = 3)
-    print("length of episode:", len(rollout["observations"]))
+    # rollout = player.get_demo(seed = 100, mode = 2)
+    # print("length of episode:", len(rollout["observations"]))
+    # rollout = player.get_demo(seed = 100, mode = 3)
+    # print("length of episode:", len(rollout["observations"]))
 
-    for i in range(200):   
-        print(f"seed{i*10} mode 2 and 3")
-        rollout = player.get_demo(seed = i*10, mode = 2)
+    for i in range(50):   
+        print(f"seed{i} mode 2 and 3")
+        rollout = player.get_demo(seed = 100, mode = 2) # CHANGE ME! USING ONLY SEED 100 FOR TESTING PURPOSES!!!
         rollout['pot_start'] = [player.pot_handle0_pos, player.pot_handle1_pos]
         # Use os.path.join() to construct the file path
-        filepath_mode2 = os.path.join(directory, f"rollout_seed{i*10}_mode2.pkl")
+        filepath_mode2 = os.path.join(directory, f"rollout_seed{100}_mode2.pkl")
         with open(filepath_mode2, "wb") as f:
             pkl.dump(rollout, f)
 
-        rollout = player.get_demo(seed = i*10, mode = 3)
+        rollout = player.get_demo(seed = 100, mode = 3)
         rollout['pot_start'] = [player.pot_handle0_pos, player.pot_handle1_pos]
         # Use os.path.join() for the second file as well
-        filepath_mode3 = os.path.join(directory, f"rollout_seed{i*10}_mode3.pkl")
+        filepath_mode3 = os.path.join(directory, f"rollout_seed{100}_mode3.pkl")
         with open(filepath_mode3, "wb") as f:
             pkl.dump(rollout, f)
