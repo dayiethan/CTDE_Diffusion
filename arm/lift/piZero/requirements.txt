@@ -1,0 +1,31 @@
+# Pi Zero Requirements for KINOVA Two-Arm Robosuite Task
+
+# Core dependencies
+openpi>=0.1.0
+lerobot>=0.1.0
+huggingface-hub>=0.20.0
+datasets>=2.16.0
+
+# Deep learning
+torch>=2.0.0
+jax[cuda12]>=0.4.20  # or jax[cpu] if no GPU
+flax>=0.7.0
+
+# Robotics
+robosuite>=1.4.0
+mujoco>=2.3.0
+
+# Image processing
+opencv-python>=4.8.0
+Pillow>=10.0.0
+
+# Utilities
+numpy>=1.24.0
+einops>=0.7.0
+tqdm>=4.65.0
+matplotlib>=3.7.0
+
+# Note: Install openpi from source if not available on PyPI
+# git clone https://github.com/Physical-Intelligence/openpi.git
+# cd openpi && pip install -e .
+
